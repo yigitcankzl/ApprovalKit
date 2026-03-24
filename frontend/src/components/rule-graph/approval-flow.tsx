@@ -295,7 +295,7 @@ function buildEdges(rule: Rule): Edge[] {
     edges.push({
       id: `e-${lastApprover}-blocked`,
       source: lastApprover,
-      target: rule.on_timeout === "escalate" ? "escalation" : "blocked",
+      target: (rule.on_timeout === "escalate" && rule.escalate_to) ? "escalation" : "blocked",
       label: "timeout",
       style: { ...edgeStyle, stroke: "#ef4444" },
       markerEnd: { ...marker, color: "#ef4444" },
@@ -319,7 +319,7 @@ function buildEdges(rule: Rule): Edge[] {
     edges.push({
       id: "e-approval-timeout",
       source: "approval",
-      target: rule.on_timeout === "escalate" ? "escalation" : "blocked",
+      target: (rule.on_timeout === "escalate" && rule.escalate_to) ? "escalation" : "blocked",
       label: "timeout",
       style: { ...edgeStyle, stroke: "#ef4444" },
       markerEnd: { ...marker, color: "#ef4444" },
