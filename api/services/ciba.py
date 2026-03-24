@@ -28,6 +28,10 @@ class CIBAService:
         if not self.domain:
             raise RuntimeError("AUTH0_DOMAIN is not configured — cannot send CIBA push notification")
 
+        # Auth0 CIBA requires openid scope in every request
+        if "openid" not in scope.split():
+            scope = f"openid {scope}"
+
         url = f"https://{self.domain}/bc-authorize"
         async with httpx.AsyncClient() as client:
             response = await client.post(
