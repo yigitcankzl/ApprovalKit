@@ -16,15 +16,33 @@ import {
   AlertTriangle,
 } from "lucide-react";
 
+interface SecurityItem {
+  ok: boolean;
+  detail: string;
+}
+interface SecurityStatus {
+  hmac: SecurityItem;
+  fga: SecurityItem;
+  token_vault: SecurityItem;
+  credentials_key: SecurityItem;
+  sentry: SecurityItem;
+}
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [security, setSecurity] = useState<SecurityStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api
-      .getDashboard()
-      .then(setStats)
+    Promise.all([
+      api.getDashboard(),
+      api.getSecurityStatus().catch(() => null),
+    ])
+      .then(([s, sec]) => {
+        setStats(s);
+        setSecurity(sec);
+      })
       .catch((err) => setError(err.message || "Failed to load dashboard"))
       .finally(() => setLoading(false));
   }, []);
@@ -48,6 +66,7 @@ export default function DashboardPage() {
   if (!stats) return null;
 
   const cibaPercent = Math.round((stats.ciba_usage / stats.ciba_limit) * 100);
+
 
   const statCards = [
     { title: "Total Actions (7d)", value: stats.total_actions_week, icon: Activity, color: "text-zinc-600" },
@@ -119,32 +138,73 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              <div className="flex items-center justify-between py-2 border-b border-zinc-100">
-                <span className="text-sm text-zinc-600">HMAC Request Signing</span>
-                <Badge variant="success">Active</Badge>
-              </div>
-              <div className="flex items-center justify-between py-2 border-b border-zinc-100">
-                <span className="text-sm text-zinc-600">Pydantic Validation</span>
-                <Badge variant="success">Active</Badge>
-              </div>
-              <div className="flex items-center justify-between py-2 border-b border-zinc-100">
-                <span className="text-sm text-zinc-600">FGA Access Control</span>
-                <Badge variant="success">Active</Badge>
-              </div>
-              <div className="flex items-center justify-between py-2 border-b border-zinc-100">
-                <span className="text-sm text-zinc-600">Scope Creep Detection</span>
+              {/* HMAC — real check */}
+              <SecurityRow
+                label="HMAC Request Signing"
+                ok={security?.hmac.ok ?? true}
+                detail={security?.hmac.detail}
+              />
+              {/* Pydantic — always active (framework level) */}
+              <SecurityRow label="Pydantic Validation" ok={true} detail="Always enforced" />
+              {/* FGA — real check */}
+              <SecurityRow
+                label="FGA Access Control"
+                ok={security?.fga.ok ?? false}
+                detail={security?.fga.detail}
+              />
+              {/* Scope Creep — real check */}
+              <div className="flex items-start justify-between py-2 border-b border-zinc-100">
+                <div>
+                  <span className="text-sm text-zinc-600">Scope Creep Detection</span>
+                </div>
                 <Badge variant={stats.scope_creep_alerts > 0 ? "warning" : "success"}>
                   {stats.scope_creep_alerts > 0 ? `${stats.scope_creep_alerts} alerts` : "Clear"}
                 </Badge>
               </div>
-              <div className="flex items-center justify-between py-2">
-                <span className="text-sm text-zinc-600">Token Isolation</span>
-                <Badge variant="success">Enforced</Badge>
-              </div>
+              {/* Token Vault credentials — real check */}
+              <SecurityRow
+                label="Token Vault Credentials"
+                ok={security?.token_vault.ok ?? false}
+                detail={security?.token_vault.detail}
+                isLast={false}
+              />
+              {/* Credentials key isolation — real check */}
+              <SecurityRow
+                label="Credential Key Isolation"
+                ok={security?.credentials_key.ok ?? false}
+                detail={security?.credentials_key.detail}
+                isLast={true}
+              />
             </div>
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+}
+
+function SecurityRow({
+  label,
+  ok,
+  detail,
+  isLast = false,
+}: {
+  label: string;
+  ok: boolean;
+  detail?: string;
+  isLast?: boolean;
+}) {
+  return (
+    <div className={`flex items-start justify-between py-2 ${isLast ? "" : "border-b border-zinc-100"}`}>
+      <div>
+        <span className="text-sm text-zinc-600">{label}</span>
+        {detail && (
+          <p className="text-xs text-zinc-400 mt-0.5">{detail}</p>
+        )}
+      </div>
+      <Badge variant={ok ? "success" : "danger"} className="ml-4 flex-shrink-0">
+        {ok ? "Active" : "Inactive"}
+      </Badge>
     </div>
   );
 }

@@ -47,6 +47,7 @@ export const api = {
   },
   getDashboard: () => fetchAPI("/api/v1/dashboard"),
   getCibaQuota: () => fetchAPI("/api/v1/ciba-quota"),
+  getSecurityStatus: () => fetchAPI("/api/v1/security-status"),
 
   // Connections
   revokeConnection: (id: string) => fetchAPI(`/api/v1/connections/${id}/revoke`, { method: "POST" }),
