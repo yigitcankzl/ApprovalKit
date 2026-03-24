@@ -25,18 +25,25 @@ const modelColors: Record<string, "default" | "success" | "warning" | "danger" |
   sequential: "default",
 };
 
+interface Approver { id: string; name: string; email: string; }
+
 export default function RulesPage() {
-  const [rules, setRules] = useState<Rule[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [rules, setRules]       = useState<Rule[]>([]);
+  const [approvers, setApprovers] = useState<Approver[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState<string | null>(null);
 
   useEffect(() => {
-    api
-      .getRules()
-      .then(setRules)
+    Promise.all([
+      api.getRules(),
+      api.getApprovers().catch(() => []),
+    ])
+      .then(([r, a]) => { setRules(r); setApprovers(a); })
       .catch((err) => setError(err.message || "Failed to load rules"))
       .finally(() => setLoading(false));
   }, []);
+
+  const approverMap = Object.fromEntries(approvers.map((a) => [a.id, a]));
 
   return (
     <div>
@@ -104,18 +111,40 @@ export default function RulesPage() {
                         {modelLabels[rule.model]}
                         {rule.model === "k_of_n" && rule.k_value && ` (${rule.k_value}/${rule.approver_ids.length})`}
                       </Badge>
-                      <span className="text-sm text-zinc-400">
-                        {rule.approver_ids.length} approver{rule.approver_ids.length > 1 ? "s" : ""}
-                      </span>
-                      {rule.on_timeout === "escalate" && (
-                        <Badge variant="warning">Escalation</Badge>
-                      )}
-                      {rule.blackout_start && (
-                        <Badge variant="danger">Blackout</Badge>
-                      )}
+                      {rule.on_timeout === "escalate" && <Badge variant="warning">Escalation</Badge>}
+                      {rule.blackout_start && <Badge variant="danger">Blackout</Badge>}
                       <ArrowRight className="h-4 w-4 text-zinc-400" />
                     </div>
                   </div>
+
+                  {/* Trust Chain */}
+                  {rule.approver_ids.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-zinc-100">
+                      <p className="text-xs text-zinc-400 mb-2 uppercase tracking-wide">
+                        {rule.model === "sequential" ? "Approval chain" : "Approvers"} · FGA controlled
+                      </p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <code className="text-xs bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded font-mono">
+                          {rule.connection}:{rule.action}
+                        </code>
+                        {rule.approver_ids.map((id, idx) => {
+                          const a = approverMap[id];
+                          return (
+                            <div key={id} className="flex items-center gap-1">
+                              <span className="text-zinc-300 text-xs">→</span>
+                              <span className="text-xs bg-blue-50 border border-blue-200 text-blue-700 px-2 py-0.5 rounded">
+                                {a ? a.name : `Approver ${idx + 1}`}
+                              </span>
+                            </div>
+                          );
+                        })}
+                        <span className="text-zinc-300 text-xs">→</span>
+                        <span className="text-xs bg-green-50 border border-green-200 text-green-700 px-2 py-0.5 rounded">
+                          Auth0 Token Vault
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </Link>
