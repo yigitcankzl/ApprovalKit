@@ -12,6 +12,7 @@ import {
   FlaskConical,
   Shield,
   Rocket,
+  FileText,
 } from "lucide-react";
 
 const navigation = [
@@ -22,6 +23,7 @@ const navigation = [
   { name: "Audit Log", href: "/audit", icon: ScrollText },
   { name: "Use Cases", href: "/gallery", icon: BookOpen },
   { name: "Simulate", href: "/simulate", icon: FlaskConical },
+  { name: "Docs", href: "/docs", icon: FileText },
 ];
 
 export function Sidebar() {
