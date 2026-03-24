@@ -32,9 +32,9 @@ export const api = {
 
   // Approvers
   getApprovers: () => fetchAPI("/api/v1/approvers"),
-  getApprover: (id: string) => fetchAPI(`/api/v1/approvers/${id}`),
   createApprover: (data: any) => fetchAPI("/api/v1/approvers", { method: "POST", body: JSON.stringify(data) }),
   updateApprover: (id: string, data: any) => fetchAPI(`/api/v1/approvers/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteApprover: (id: string) => fetchAPI(`/api/v1/approvers/${id}`, { method: "DELETE" }),
   setDelegation: (id: string, data: any) => fetchAPI(`/api/v1/approvers/${id}/delegate`, { method: "PUT", body: JSON.stringify(data) }),
 
   // Audit & Dashboard
@@ -50,7 +50,6 @@ export const api = {
   getSecurityStatus: () => fetchAPI("/api/v1/security-status"),
 
   // Connections
-  revokeConnection: (id: string) => fetchAPI(`/api/v1/connections/${id}/revoke`, { method: "POST" }),
   createConnection: (data: { name: string; service: string; slug: string; actions: string[] }) =>
     fetchAPI("/api/v1/connections", { method: "POST", body: JSON.stringify(data) }),
 

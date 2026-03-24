@@ -2,7 +2,6 @@ import asyncio
 import uuid
 from datetime import datetime, timedelta
 
-from celery import shared_task
 from loguru import logger
 from sqlalchemy import select
 
@@ -243,6 +242,19 @@ async def _process_job(job_id: str):
                 logger.error(f"Rule {job.rule_id} not found for job {job_id}")
                 return
 
+            # Reject already-expired jobs before sending CIBA notifications
+            if job.expires_at and datetime.utcnow() > job.expires_at.replace(tzinfo=None):
+                job.state = JobState.TIMEOUT
+                job.completed_at = datetime.utcnow()
+                session.add(AuditLog(
+                    job_id=job.id,
+                    workspace_id=job.workspace_id,
+                    event_type=AuditEventType.TIMEOUT,
+                    note="Job expired before processing",
+                ))
+                logger.warning(f"Job {job_id} expired before processing — marked TIMEOUT")
+                return
+
             # Update state to CIBA_SENT
             validate_transition(job.state, JobState.CIBA_SENT)
             job.state = JobState.CIBA_SENT
@@ -269,6 +281,7 @@ async def _process_job(job_id: str):
             if approval_result["status"] == "approved":
                 job.state = JobState.APPROVED
                 job.completed_at = datetime.utcnow()
+                job.approvals_count = (job.approvals_count or 0) + 1
 
                 # Execute downstream action via Token Vault
                 approver_obj = approval_result.get("approver")
@@ -338,14 +351,14 @@ async def _process_job(job_id: str):
                         job.state = JobState.BLOCKED
                         job.completed_at = datetime.utcnow()
                 else:
-                    job.state = JobState.BLOCKED
+                    job.state = JobState.TIMEOUT
                     job.completed_at = datetime.utcnow()
 
                     audit = AuditLog(
                         job_id=job.id,
                         workspace_id=job.workspace_id,
-                        event_type=AuditEventType.BLOCKED,
-                        note="Timed out and blocked",
+                        event_type=AuditEventType.TIMEOUT,
+                        note="Timed out — no escalation configured",
                     )
                     session.add(audit)
 

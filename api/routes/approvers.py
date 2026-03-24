@@ -125,6 +125,16 @@ async def update_approver(
     return ApproverResponse(**_approver_to_response(approver))
 
 
+@router.delete("/{approver_id}", status_code=204)
+async def delete_approver(approver_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Approver).where(Approver.id == uuid.UUID(approver_id)))
+    approver = result.scalar_one_or_none()
+    if not approver:
+        raise HTTPException(status_code=404, detail="Approver not found")
+    await db.delete(approver)
+    await db.commit()
+
+
 @router.put("/{approver_id}/delegate")
 async def set_delegation(
     approver_id: str,

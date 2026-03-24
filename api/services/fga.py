@@ -37,35 +37,6 @@ from api.config import get_settings
 
 settings = get_settings()
 
-FGA_MODEL = """
-model
-  schema 1.1
-
-type user
-
-type workspace
-  relations
-    define admin: [user]
-    define approver: [user]
-    define agent_owner: [user]
-    define viewer: [user]
-
-type audit_log
-  relations
-    define workspace: [workspace]
-    define owner: [user]
-    define agent: [user]
-    define can_read: admin from workspace
-                 or (approver from workspace and owner)
-                 or (agent_owner from workspace and agent)
-                 or viewer from workspace
-
-type rule
-  relations
-    define workspace: [workspace]
-    define can_read: admin from workspace or agent_owner from workspace
-    define can_write: admin from workspace
-"""
 
 
 class FGAClient:
@@ -196,49 +167,8 @@ class FGAClient:
             return False
 
     # -----------------------------------------------------------------------
-    # Tuple management
-    # -----------------------------------------------------------------------
-
-    async def write_tuple(self, user: str, relation: str, obj: str):
-        if not self._configured():
-            return
-        token = await self._get_token()
-        try:
-            async with httpx.AsyncClient(timeout=10) as c:
-                await c.post(
-                    f"{self._base_url()}/write",
-                    headers=self._auth_header(token),
-                    json={
-                        "writes": {"tuple_keys": [{"user": user, "relation": relation, "object": obj}]},
-                        "authorization_model_id": self.model_id or None,
-                    },
-                )
-        except Exception as e:
-            logger.warning(f"FGA write_tuple error: {e}")
-
-    async def delete_tuple(self, user: str, relation: str, obj: str):
-        if not self._configured():
-            return
-        token = await self._get_token()
-        try:
-            async with httpx.AsyncClient(timeout=10) as c:
-                await c.post(
-                    f"{self._base_url()}/write",
-                    headers=self._auth_header(token),
-                    json={
-                        "deletes": {"tuple_keys": [{"user": user, "relation": relation, "object": obj}]},
-                        "authorization_model_id": self.model_id or None,
-                    },
-                )
-        except Exception as e:
-            logger.warning(f"FGA delete_tuple error: {e}")
-
-    # -----------------------------------------------------------------------
     # Convenience helpers
     # -----------------------------------------------------------------------
-
-    async def check_audit_access(self, user_id: str, log_id: str) -> bool:
-        return await self.check(f"user:{user_id}", "can_read", f"audit_log:{log_id}")
 
     async def check_rule_read(self, user_id: str, rule_id: str) -> bool:
         return await self.check(f"user:{user_id}", "can_read", f"rule:{rule_id}")

@@ -25,11 +25,6 @@ from fastapi import Header, HTTPException, Request
 from api.services.fga import fga_client
 
 
-async def _get_fga_user(x_fga_user: str | None = Header(default=None)) -> str | None:
-    """Return the caller's FGA user string, or None if header absent."""
-    return x_fga_user
-
-
 async def require_workspace_admin(
     request: Request,
     x_fga_user: str | None = Header(default=None),

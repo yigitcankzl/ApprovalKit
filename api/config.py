@@ -4,9 +4,7 @@ from functools import lru_cache
 
 class Settings(BaseSettings):
     # App
-    APP_NAME: str = "ApprovalKit"
     DEBUG: bool = False
-    API_VERSION: str = "v1"
 
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://localhost:5432/approvalkit"
@@ -38,7 +36,6 @@ class Settings(BaseSettings):
     HMAC_SECRET: str = ""
     HMAC_TIMESTAMP_TOLERANCE: int = 300  # 5 minutes
     API_RATE_LIMIT: int = 100
-    API_RATE_WINDOW: str = "1h"
     # 32-byte URL-safe base64 key for Fernet credential encryption.
     # Auto-derived from HMAC_SECRET when empty.
     CREDENTIALS_KEY: str = ""

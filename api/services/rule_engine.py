@@ -9,9 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.models.rule import Rule
 from api.models.approval_job import ApprovalJob, AuditLog, AuditEventType, JobState
-from api.config import get_settings
-
-settings = get_settings()
 
 OPERATORS = {
     "eq": operator.eq,

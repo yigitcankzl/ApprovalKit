@@ -103,7 +103,7 @@ export default function ApproversPage() {
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this approver? This cannot be undone.")) return;
     try {
-      await api.updateApprover(id, { is_active: false } as any);
+      await api.deleteApprover(id);
       loadApprovers();
     } catch (e: any) {
       setError(e.message || "Failed to delete");

@@ -8,7 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.config import get_settings
 from api.database import get_db
 from api.middleware.auth import verify_hmac_signature
-from api.middleware.rate_limit import check_api_rate_limit
 from api.models.workspace import Workspace
 from api.models.approval_job import ApprovalJob, AuditLog, AuditEventType, JobState
 from api.schemas.request import ApprovalRequest, ApprovalResponse, JobStatusResponse
