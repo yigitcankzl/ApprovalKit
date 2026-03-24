@@ -11,9 +11,11 @@ import {
   BookOpen,
   FlaskConical,
   Shield,
+  Rocket,
 } from "lucide-react";
 
 const navigation = [
+  { name: "Onboarding", href: "/onboarding", icon: Rocket },
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Rules", href: "/rules", icon: GitBranch },
   { name: "Approvers", href: "/rules", icon: Users },
