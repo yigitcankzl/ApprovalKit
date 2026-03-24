@@ -28,37 +28,25 @@ export default function SimulatePage() {
   const [paramsText, setParamsText] = useState('{\n  "amount": 340,\n  "customer": "john@example.com"\n}');
   const [result, setResult] = useState<SimulationResult | null>(null);
   const [running, setRunning] = useState(false);
+  const [simError, setSimError] = useState<string | null>(null);
 
   const handleSimulate = async () => {
     setRunning(true);
+    setSimError(null);
+    setResult(null);
     try {
       let params;
       try {
         params = JSON.parse(paramsText);
       } catch {
-        setResult({ matched: false, message: "Invalid JSON in params" });
+        setSimError("Invalid JSON in params");
         return;
       }
 
       const res = await api.simulateRule({ connection, action, params });
       setResult(res);
-    } catch {
-      // Mock result for demo
-      setResult({
-        matched: true,
-        rule_id: "1",
-        rule_name: "High-value Stripe charges",
-        model: "sequential",
-        approvers: [
-          { id: "a1", name: "CFO", order: 0 },
-          { id: "a2", name: "Finance Lead", order: 1 },
-        ],
-        timeout_seconds: 300,
-        on_timeout: "escalate",
-        binding_message: "Charge of $340 for john@example.com",
-        escalation: "CEO",
-        blackout: { start: null, end: null },
-      });
+    } catch (err: any) {
+      setSimError(err.message || "Simulation failed");
     } finally {
       setRunning(false);
     }
@@ -120,7 +108,12 @@ export default function SimulatePage() {
             <CardTitle>Result</CardTitle>
           </CardHeader>
           <CardContent>
-            {!result ? (
+            {simError ? (
+              <div className="flex flex-col items-center justify-center py-12 text-red-500">
+                <FlaskConical className="h-12 w-12 mb-4 text-red-300" />
+                <p>{simError}</p>
+              </div>
+            ) : !result ? (
               <div className="flex flex-col items-center justify-center py-12 text-zinc-400">
                 <FlaskConical className="h-12 w-12 mb-4" />
                 <p>Run a simulation to see results</p>

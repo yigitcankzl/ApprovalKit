@@ -35,6 +35,19 @@ const actions: Record<string, string[]> = {
 export default function NewRulePage() {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [approvers, setApprovers] = useState<Approver[]>([]);
+  const [selectedApproverIds, setSelectedApproverIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    api.getApprovers().then(setApprovers).catch(() => {});
+  }, []);
+
+  const toggleApprover = (id: string) => {
+    setSelectedApproverIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
 
   const [name, setName] = useState("");
   const [connection, setConnection] = useState("");
@@ -55,6 +68,11 @@ export default function NewRulePage() {
   const availableActions = actions[connection] || [];
 
   const handleSave = async () => {
+    setSaveError(null);
+    if (selectedApproverIds.length === 0) {
+      setSaveError("At least one approver must be selected.");
+      return;
+    }
     setSaving(true);
     try {
       const data = {
@@ -63,7 +81,7 @@ export default function NewRulePage() {
         action,
         conditions,
         model,
-        approver_ids: ["00000000-0000-0000-0000-000000000001"],
+        approver_ids: selectedApproverIds,
         k_value: model === "k_of_n" ? kValue : null,
         timeout_seconds: timeoutSeconds,
         on_timeout: onTimeout,
@@ -77,8 +95,8 @@ export default function NewRulePage() {
       };
       await api.createRule(data);
       router.push("/rules");
-    } catch (error) {
-      console.error("Failed to save rule:", error);
+    } catch (error: any) {
+      setSaveError(error.message || "Failed to save rule");
     } finally {
       setSaving(false);
     }
@@ -165,6 +183,36 @@ export default function NewRulePage() {
                   <Input type="number" value={quorumWindow} onChange={(e) => setQuorumWindow(e.target.value)} placeholder="3600" className="w-32" />
                 </div>
               )}
+              <div>
+                <label className="text-sm font-medium text-zinc-700">Approvers</label>
+                {approvers.length === 0 ? (
+                  <p className="text-sm text-zinc-400 mt-2">
+                    No approvers found.{" "}
+                    <a href="/approvers" className="text-blue-600 underline">Add approvers first.</a>
+                  </p>
+                ) : (
+                  <div className="mt-2 space-y-2 max-h-48 overflow-y-auto border border-zinc-200 rounded-lg p-3">
+                    {approvers.map((a) => (
+                      <label key={a.id} className="flex items-center gap-3 cursor-pointer hover:bg-zinc-50 rounded px-1 py-0.5">
+                        <input
+                          type="checkbox"
+                          checked={selectedApproverIds.includes(a.id)}
+                          onChange={() => toggleApprover(a.id)}
+                          className="rounded border-zinc-300"
+                        />
+                        <span className="text-sm font-medium text-zinc-800">{a.name}</span>
+                        <span className="text-xs text-zinc-400">{a.email}</span>
+                        {a.delegate_to && (
+                          <span className="text-xs text-orange-500 ml-auto">delegated</span>
+                        )}
+                      </label>
+                    ))}
+                  </div>
+                )}
+                {selectedApproverIds.length > 0 && (
+                  <p className="text-xs text-zinc-500 mt-1">{selectedApproverIds.length} approver{selectedApproverIds.length > 1 ? "s" : ""} selected</p>
+                )}
+              </div>
             </CardContent>
           </Card>
 
@@ -213,9 +261,12 @@ export default function NewRulePage() {
             </CardContent>
           </Card>
 
+          {saveError && (
+            <p className="text-sm text-red-500 text-right">{saveError}</p>
+          )}
           <div className="flex justify-end gap-3">
             <Button variant="outline" onClick={() => router.push("/rules")}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving || !name || !connection || !action}>
+            <Button onClick={handleSave} disabled={saving || !name || !connection || !action || selectedApproverIds.length === 0}>
               <Save className="h-4 w-4 mr-2" />
               {saving ? "Saving..." : "Save Rule"}
             </Button>
@@ -229,7 +280,7 @@ export default function NewRulePage() {
             action={action}
             conditions={conditions}
             model={model}
-            approverCount={3}
+            approverCount={selectedApproverIds.length || approvers.length}
             kValue={kValue}
             timeoutSeconds={timeoutSeconds}
             onTimeout={onTimeout}
