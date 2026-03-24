@@ -59,6 +59,11 @@ export const api = {
   getConnectUrl: (id: string) => fetchAPI(`/api/v1/connections/${id}/connect-url`),
   disconnectAuth: (id: string) => fetchAPI(`/api/v1/connections/${id}/auth`, { method: "DELETE" }),
 
+  // Jobs
+  getPendingJobs: () => fetchAPI("/api/v1/jobs/pending"),
+  submitDecision: (jobId: string, data: { decision: "approve" | "reject"; modified_params?: any; note?: string }) =>
+    fetchAPI(`/api/v1/jobs/${jobId}/decision`, { method: "POST", body: JSON.stringify(data) }),
+
   // Workspace
   setupWorkspace: (data: { name: string; auth0_tenant: string }) =>
     fetchAPI("/api/v1/workspace/setup", { method: "POST", body: JSON.stringify(data) }),
