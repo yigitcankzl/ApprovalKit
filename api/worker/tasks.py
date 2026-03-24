@@ -16,8 +16,9 @@ from api.middleware.rate_limit import rate_limiter
 
 
 def run_async(coro):
-    # asyncio.run() creates a fresh loop, runs the coro, then closes it cleanly.
-    # This avoids "Future attached to a different loop" errors in Celery fork workers.
+    # Reset cached async connections so they are re-created in the new event loop.
+    # Celery forks workers; inherited connections are bound to the parent's loop.
+    rate_limiter._redis = None
     return asyncio.run(coro)
 
 
