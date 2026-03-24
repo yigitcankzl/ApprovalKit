@@ -1,6 +1,6 @@
 import asyncio
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from celery import shared_task
 from loguru import logger
@@ -145,32 +145,62 @@ async def _process_all_of_n(job: ApprovalJob, rule: Rule):
 
 
 async def _process_k_of_n(job: ApprovalJob, rule: Rule):
+    """
+    Send CIBA to all approvers in parallel, then collect results within
+    quorum_window seconds (falling back to timeout_seconds).
+    Return as soon as k approvals are received.
+    """
     binding_msg = render_binding_message(rule.context_template, job.params)
-    approved_count = 0
     k = rule.k_value or 1
+    # quorum_window bounds the entire gather phase; fall back to per-approver timeout
+    window = rule.quorum_window or rule.timeout_seconds
 
-    for ra in rule.rule_approvers:
-        approver = ra.approver
-        actual_approver = _resolve_delegation(approver)
+    # --- send all CIBA requests in parallel ---
+    async def _initiate(ra):
+        actual = _resolve_delegation(ra.approver)
+        try:
+            result = await ciba_service.initiate_ciba_request(
+                user_id=actual.auth0_user_id,
+                binding_message=binding_msg,
+            )
+            await rate_limiter.record_ciba_request()
+            return actual, result.get("auth_req_id")
+        except Exception as e:
+            logger.warning(f"CIBA initiate failed for {actual.name}: {e}")
+            return actual, None
 
-        ciba_result = await ciba_service.initiate_ciba_request(
-            user_id=actual_approver.auth0_user_id,
-            binding_message=binding_msg,
+    initiated = await asyncio.gather(*[_initiate(ra) for ra in rule.rule_approvers])
+
+    # --- poll all tokens with quorum window ---
+    approved_count = 0
+    last_approver = None
+    deadline = datetime.utcnow() + timedelta(seconds=window)
+
+    async def _poll(approver, auth_req_id):
+        if not auth_req_id:
+            return approver, "error"
+        remaining = max(1, int((deadline - datetime.utcnow()).total_seconds()))
+        result = await ciba_service.poll_ciba_token(
+            auth_req_id=auth_req_id,
+            timeout=min(remaining, rule.timeout_seconds),
         )
-        await rate_limiter.record_ciba_request()
+        return approver, result.get("status", "timeout")
 
-        poll_result = await ciba_service.poll_ciba_token(
-            auth_req_id=ciba_result["auth_req_id"],
-            timeout=rule.timeout_seconds,
-        )
+    poll_tasks = [_poll(approver, auth_req_id) for approver, auth_req_id in initiated]
 
-        if poll_result["status"] == "approved":
+    # Collect results as they complete; stop early once we have k approvals
+    for coro in asyncio.as_completed(poll_tasks):
+        if datetime.utcnow() > deadline:
+            break
+        approver, status = await coro
+        if status == "approved":
             approved_count += 1
+            last_approver = approver
             if approved_count >= k:
-                return {"status": "approved", "approver": actual_approver}
+                return {"status": "approved", "approver": last_approver}
 
     if approved_count >= k:
-        return {"status": "approved"}
+        return {"status": "approved", "approver": last_approver}
     return {"status": "timeout"}
 
 
