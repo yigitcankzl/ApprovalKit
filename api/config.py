@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     FGA_API_URL: str = ""
     FGA_STORE_ID: str = ""
     FGA_MODEL_ID: str = ""
+    FGA_CLIENT_ID: str = ""
+    FGA_CLIENT_SECRET: str = ""
 
     # CIBA
     CIBA_POLL_INTERVAL: int = 2
