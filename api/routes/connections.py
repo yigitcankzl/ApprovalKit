@@ -124,12 +124,24 @@ async def list_connections(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/oauth/callback")
-async def oauth_callback(code: str, state: str, db: AsyncSession = Depends(get_db)):
+async def oauth_callback(
+    db: AsyncSession = Depends(get_db),
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+    error_description: str | None = None,
+):
     """
     Auth0 redirects here after the user authorizes the social connection.
     Exchanges the code for tokens, fetches the Auth0 user profile (sub),
     stores connected_auth0_user_id on the connection, and redirects to /connections.
     """
+    if error:
+        return RedirectResponse(url=f"{settings.FRONTEND_URL}/connections?error={error}")
+
+    if not code or not state:
+        return RedirectResponse(url=f"{settings.FRONTEND_URL}/connections?error=missing_code")
+
     connection_id = state
 
     try:

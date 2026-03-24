@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
-import { CheckCircle2, Link2, Unlink, X, AlertCircle } from "lucide-react";
+import { CheckCircle2, Link2, Unlink, X, AlertCircle, Info } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 interface Connection {
@@ -29,12 +29,13 @@ const SERVICE_LABEL: Record<string, string> = {
   gmail:      "Google",
 };
 
-const SERVICE_SUPPORTED: Record<string, boolean> = {
+// Only services with a configured Auth0 Social Connection in this demo
+const SERVICE_CONFIGURED: Record<string, boolean> = {
   github:     true,
-  stripe:     true,
-  slack:      true,
-  salesforce: true,
-  gmail:      true,
+  stripe:     false,
+  slack:      false,
+  salesforce: false,
+  gmail:      false,
 };
 
 function ConnectionsContent() {
@@ -45,6 +46,7 @@ function ConnectionsContent() {
   const [error, setError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState<string | null>(null);
   const [successSlug, setSuccessSlug] = useState<string | null>(null);
+  const [infoPopup, setInfoPopup] = useState<string | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -126,7 +128,7 @@ function ConnectionsContent() {
         <div className="space-y-4">
           {connections.map((conn) => {
             const label = SERVICE_LABEL[conn.service.toLowerCase()] || conn.service;
-            const supported = SERVICE_SUPPORTED[conn.service.toLowerCase()] ?? false;
+            const configured = SERVICE_CONFIGURED[conn.service.toLowerCase()] ?? false;
             const isConnecting = connecting === conn.id;
 
             return (
@@ -168,7 +170,7 @@ function ConnectionsContent() {
                             <Unlink className="h-4 w-4 mr-1" /> Disconnect
                           </Button>
                         </>
-                      ) : supported ? (
+                      ) : configured ? (
                         <>
                           <Badge variant="warning">Not connected</Badge>
                           <Button
@@ -181,7 +183,12 @@ function ConnectionsContent() {
                           </Button>
                         </>
                       ) : (
-                        <Badge variant="default">OAuth not supported</Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="default">Demo: not configured</Badge>
+                          <button onClick={() => setInfoPopup(conn.id)} className="text-zinc-400 hover:text-zinc-600">
+                            <Info className="h-4 w-4" />
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -192,14 +199,61 @@ function ConnectionsContent() {
         </div>
       )}
 
-      <div className="mt-8 p-4 bg-zinc-50 rounded-lg border border-zinc-200">
-        <p className="text-xs text-zinc-500">
-          <strong className="text-zinc-700">How it works:</strong> Clicking &quot;Connect&quot; redirects you to Auth0,
-          which handles the OAuth flow with the service provider. The access token is stored securely
-          in Auth0 Token Vault — ApprovalKit never sees or stores your credentials.
-          When an agent action is approved, ApprovalKit retrieves the token from Auth0 and executes the action server-side.
+      <div className="mt-8 p-5 bg-zinc-50 rounded-lg border border-zinc-200">
+        <p className="text-xs font-semibold text-zinc-700 mb-3 uppercase tracking-wide">How Auth0 Token Vault works</p>
+        <div className="flex items-center gap-2 flex-wrap text-xs">
+          {[
+            { label: "AI Agent", sub: null, highlight: false },
+            { label: "ApprovalKit", sub: "CIBA push", highlight: false },
+            { label: "Human approves", sub: null, highlight: false },
+            { label: "Auth0 Token Vault", sub: "retrieves token", highlight: true },
+            { label: "Action executed", sub: null, highlight: false },
+          ].map((step, i, arr) => (
+            <div key={step.label} className="flex items-center gap-2">
+              <div className={`flex items-center gap-1.5 rounded-lg px-3 py-2 border ${step.highlight ? "bg-blue-50 border-blue-200" : "bg-white border-zinc-200"}`}>
+                <span className={`font-medium ${step.highlight ? "text-blue-700" : "text-zinc-700"}`}>{step.label}</span>
+                {step.sub && <span className={`${step.highlight ? "text-blue-400" : "text-zinc-400"}`}>({step.sub})</span>}
+              </div>
+              {i < arr.length - 1 && <span className="text-zinc-400">→</span>}
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-zinc-400 mt-3">
+          ApprovalKit never stores your credentials. Tokens live exclusively in Auth0 Token Vault and are retrieved only after human approval.
         </p>
       </div>
+
+      {infoPopup && (() => {
+        const conn = connections.find(c => c.id === infoPopup);
+        const label = conn ? (SERVICE_LABEL[conn.service.toLowerCase()] || conn.service) : "";
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setInfoPopup(null)}>
+            <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-zinc-900">Configure {label}</h3>
+                <button onClick={() => setInfoPopup(null)} className="text-zinc-400 hover:text-zinc-600"><X className="h-4 w-4" /></button>
+              </div>
+              <p className="text-sm text-zinc-600 mb-4">
+                <strong>{label}</strong> requires a Social Connection in your Auth0 tenant. Once configured, the OAuth connect button will appear here.
+              </p>
+              <ol className="text-sm text-zinc-600 space-y-2 mb-5">
+                <li className="flex gap-2"><span className="font-bold text-zinc-400">1.</span> Open Auth0 Dashboard</li>
+                <li className="flex gap-2"><span className="font-bold text-zinc-400">2.</span> Go to <em>Authentication → Social</em></li>
+                <li className="flex gap-2"><span className="font-bold text-zinc-400">3.</span> Add <strong>{label}</strong> connection</li>
+                <li className="flex gap-2"><span className="font-bold text-zinc-400">4.</span> Enable it for this application</li>
+              </ol>
+              <a
+                href="https://manage.auth0.com/dashboard/us/dev-wrto7kh3s1cfhdrt/connections/social"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full text-center bg-zinc-900 text-white text-sm font-medium py-2 rounded-lg hover:bg-zinc-800 transition-colors"
+              >
+                Open Auth0 Dashboard →
+              </a>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
