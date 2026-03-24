@@ -1,34 +1,4 @@
-version: "3.9"
-
 services:
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile.api
-    ports:
-      - "8000:8000"
-    env_file: .env
-    depends_on:
-      - redis
-      - postgres
-    volumes:
-      - ./api:/app/api
-
-  worker:
-    build:
-      context: .
-      dockerfile: Dockerfile.api
-    command: celery -A api.worker.celery_app worker --loglevel=info
-    env_file: .env
-    depends_on:
-      - redis
-      - postgres
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-
   postgres:
     image: postgres:16-alpine
     environment:
@@ -39,6 +9,82 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U approvalkit -d approvalkit"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    command: >
+      sh -c "cd /app/api &&
+             PYTHONPATH=/app alembic upgrade head ||
+             (echo 'Schema exists — stamping head' &&
+              PYTHONPATH=/app alembic stamp head)"
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./api:/app/api
+      - ./scripts:/app/scripts
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "8000:8000"
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - ./api:/app/api
+      - ./scripts:/app/scripts
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    command: celery -A api.worker.celery_app worker --loglevel=info --concurrency=4
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - ./api:/app/api
+      - ./scripts:/app/scripts
+    restart: unless-stopped
 
   frontend:
     build:
@@ -48,7 +94,9 @@ services:
       - "3000:3000"
     env_file: ./frontend/.env.local
     depends_on:
-      - api
+      api:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   pgdata:
