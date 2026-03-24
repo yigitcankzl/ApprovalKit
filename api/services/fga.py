@@ -120,6 +120,18 @@ class FGAClient:
     def _configured(self) -> bool:
         return bool(self.api_url and self.store_id)
 
+    def _warn_if_misconfigured(self) -> None:
+        """Log a startup warning when partial FGA config is detected."""
+        has_url   = bool(self.api_url)
+        has_store = bool(self.store_id)
+        if has_url != has_store:
+            logger.warning(
+                "FGA is partially configured (FGA_API_URL=%s, FGA_STORE_ID=%s). "
+                "All checks will DENY until both are set.",
+                "set" if has_url else "missing",
+                "set" if has_store else "missing",
+            )
+
     # -----------------------------------------------------------------------
     # Core check
     # -----------------------------------------------------------------------
@@ -127,9 +139,23 @@ class FGAClient:
     async def check(self, user: str, relation: str, obj: str) -> bool:
         """
         Returns True when the user has the given relation on the object.
-        Falls back to True (allow-all) when FGA is not configured.
+
+        Behaviour by configuration state
+        ---------------------------------
+        NOT configured (no URL + no store)  → True  (allow-all, FGA disabled)
+        PARTIALLY configured                → False (deny — config is broken)
+        FULLY configured, API error         → False (fail-closed, safe default)
+        FULLY configured, allowed           → True
         """
         if not self._configured():
+            # Both missing → FGA intentionally disabled
+            if self.api_url or self.store_id:
+                # One is set, the other is not → misconfiguration → deny
+                logger.warning(
+                    f"FGA deny: partial config (api_url={'set' if self.api_url else 'missing'}, "
+                    f"store_id={'set' if self.store_id else 'missing'})"
+                )
+                return False
             return True
 
         token = await self._get_token()

@@ -32,6 +32,8 @@ else:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("ApprovalKit API starting up")
+    from api.services.fga import fga_client
+    fga_client._warn_if_misconfigured()
     yield
     logger.info("ApprovalKit API shutting down")
     from api.middleware.rate_limit import rate_limiter
