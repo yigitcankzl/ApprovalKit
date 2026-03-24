@@ -70,6 +70,13 @@ class CIBAService:
                     data = response.json()
                     return {"status": "approved", "access_token": data.get("access_token")}
 
+                # 429 rate limit — back off and retry
+                if response.status_code == 429:
+                    interval = min(interval * 2, settings.CIBA_MAX_POLL_INTERVAL)
+                    await asyncio.sleep(interval)
+                    elapsed += interval
+                    continue
+
                 error_data = response.json()
                 error = error_data.get("error")
 
