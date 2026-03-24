@@ -1,0 +1,34 @@
+{
+  "tuples": [
+    {
+      "user": "user:admin@approvalkit.io",
+      "relation": "admin",
+      "object": "workspace:default"
+    },
+    {
+      "user": "user:cfo@company.com",
+      "relation": "approver",
+      "object": "workspace:default"
+    },
+    {
+      "user": "user:lead-dev@company.com",
+      "relation": "approver",
+      "object": "workspace:default"
+    },
+    {
+      "user": "user:ceo@company.com",
+      "relation": "approver",
+      "object": "workspace:default"
+    },
+    {
+      "user": "user:agent-owner@company.com",
+      "relation": "agent_owner",
+      "object": "workspace:default"
+    },
+    {
+      "user": "user:viewer@company.com",
+      "relation": "viewer",
+      "object": "workspace:default"
+    }
+  ]
+}

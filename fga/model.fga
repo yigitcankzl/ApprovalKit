@@ -1,0 +1,27 @@
+model
+  schema 1.1
+
+type user
+
+type workspace
+  relations
+    define admin: [user]
+    define approver: [user]
+    define agent_owner: [user]
+    define viewer: [user]
+
+type audit_log
+  relations
+    define workspace: [workspace]
+    define owner: [user]
+    define agent: [user]
+    define can_read: admin from workspace
+                 or (approver from workspace and owner)
+                 or (agent_owner from workspace and agent)
+                 or viewer from workspace
+
+type rule
+  relations
+    define workspace: [workspace]
+    define can_read: admin from workspace or agent_owner from workspace
+    define can_write: admin from workspace
