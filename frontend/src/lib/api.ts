@@ -14,6 +14,8 @@ async function fetchAPI(path: string, options?: RequestInit) {
     throw new Error(error.detail || `HTTP ${res.status}`);
   }
 
+  if (res.status === 204) return null;
+
   return res.json();
 }
 
