@@ -1,10 +1,15 @@
+import asyncio
+import json
 import uuid
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+import redis.asyncio as aioredis
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.config import get_settings
 from api.database import get_db
 from api.models.approval_job import ApprovalJob, AuditLog, AuditEventType, JobState
 from api.models.approver import Approver
@@ -14,6 +19,35 @@ from api.middleware.fga import require_audit_read
 from api.middleware.rate_limit import rate_limiter
 
 router = APIRouter(prefix="/api/v1", tags=["audit"])
+settings = get_settings()
+
+
+@router.get("/events")
+async def stream_events(request: Request):
+    """SSE endpoint — streams approval events in real-time via Redis pub/sub."""
+    async def generator():
+        r = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+        pubsub = r.pubsub()
+        await pubsub.subscribe("approval_events")
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+                if message and message["type"] == "message":
+                    yield f"data: {message['data']}\n\n"
+                else:
+                    yield ": ping\n\n"
+                await asyncio.sleep(0.5)
+        finally:
+            await pubsub.unsubscribe("approval_events")
+            await r.aclose()
+
+    return StreamingResponse(
+        generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.get("/audit")
@@ -112,6 +146,17 @@ async def get_dashboard(db: AsyncSession = Depends(get_db)):
     )
     scope_creep = scope_result.scalar() or 0
 
+    # Pending approvals count
+    pending_result = await db.execute(
+        select(func.count(ApprovalJob.id)).where(
+            ApprovalJob.state.in_([
+                JobState.PENDING, JobState.CIBA_SENT,
+                JobState.WAITING_APPROVAL, JobState.PARTIALLY_APPROVED,
+            ])
+        )
+    )
+    pending_count = pending_result.scalar() or 0
+
     return DashboardStats(
         total_actions_week=total,
         approved=approved,
@@ -123,6 +168,7 @@ async def get_dashboard(db: AsyncSession = Depends(get_db)):
         ciba_usage=ciba_info["current"],
         ciba_limit=ciba_info["limit"],
         scope_creep_alerts=scope_creep,
+        pending_count=pending_count,
     )
 
 
@@ -175,20 +221,20 @@ async def get_security_status(db: AsyncSession = Depends(get_db)):
 
     # 3. Token Vault — connections with stored credentials
     vault_ok = False
-    vault_detail = "No credentials stored"
+    vault_detail = "No connections linked to Auth0 Token Vault"
     try:
         cred_result = await db.execute(
             select(func.count(ServiceConnection.id)).where(
                 ServiceConnection.is_active.is_(True),
-                ServiceConnection.credentials_enc.is_not(None),
+                ServiceConnection.connected_auth0_user_id.is_not(None),
             )
         )
         cred_count = cred_result.scalar() or 0
         if cred_count > 0:
             vault_ok = True
-            vault_detail = f"{cred_count} connection{'s' if cred_count > 1 else ''} with credentials"
+            vault_detail = f"{cred_count} connection{'s' if cred_count > 1 else ''} via Auth0 Token Vault"
         else:
-            vault_detail = "No credentials stored — add via /connections"
+            vault_detail = "No OAuth connections — connect via /connections"
     except Exception as e:
         vault_detail = f"Error: {e}"
 

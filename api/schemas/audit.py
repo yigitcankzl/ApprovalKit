@@ -28,3 +28,4 @@ class DashboardStats(BaseModel):
     ciba_usage: int
     ciba_limit: int
     scope_creep_alerts: int
+    pending_count: int = 0
