@@ -26,8 +26,7 @@ class CIBAService:
         self, user_id: str, binding_message: str, scope: str = "openid"
     ) -> dict:
         if not self.domain:
-            logger.warning("Auth0 domain not configured, returning mock CIBA response")
-            return {"auth_req_id": "mock_auth_req_id", "expires_in": 300, "interval": 5}
+            raise RuntimeError("AUTH0_DOMAIN is not configured — cannot send CIBA push notification")
 
         url = f"https://{self.domain}/bc-authorize"
         async with httpx.AsyncClient() as client:
@@ -47,10 +46,6 @@ class CIBAService:
             return response.json()
 
     async def poll_ciba_token(self, auth_req_id: str, timeout: int = 300) -> dict:
-        if not self.domain:
-            logger.warning("Auth0 domain not configured, returning mock approval")
-            return {"status": "approved", "access_token": "mock_token"}
-
         url = f"https://{self.domain}/oauth/token"
         interval = settings.CIBA_POLL_INTERVAL
         elapsed = 0
