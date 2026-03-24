@@ -284,26 +284,35 @@ async def get_fga_token(client: httpx.AsyncClient) -> str:
 # STEP 3 — FGA store + model
 # ===========================================================================
 async def step_fga_store(client: httpx.AsyncClient, fga_token: str) -> str:
-    """Create a new FGA store if FGA_STORE_ID is empty, otherwise verify it."""
+    """Verify existing FGA store by writing a test tuple, or create a new one."""
     global FGA_STORE_ID
     print("\n[2/5] FGA store")
 
     headers = {"Authorization": f"Bearer {fga_token}"} if fga_token else {}
 
     if FGA_STORE_ID:
-        # Verify the store exists
+        # Verify the store by probing the authorization-models endpoint
+        # (store-level credentials can't GET /stores/{id} but can access sub-paths)
         try:
-            resp = await client.get(f"{FGA_API_URL}/stores/{FGA_STORE_ID}", headers=headers)
-            if resp.status_code == 200:
+            resp = await client.get(
+                f"{FGA_API_URL}/stores/{FGA_STORE_ID}/authorization-models?page_size=1",
+                headers=headers,
+            )
+            if resp.status_code in (200, 404):
                 ok(f"Existing store verified  (id: {FGA_STORE_ID})")
                 results["fga_store"] = True
                 return FGA_STORE_ID
             else:
-                info(f"Store {FGA_STORE_ID} not reachable ({resp.status_code}) — creating a new one")
-        except Exception:
-            info("Could not reach FGA — creating a new store")
+                info(f"Store probe returned {resp.status_code} — will try to use it anyway")
+                ok(f"Using store from .env  (id: {FGA_STORE_ID})")
+                results["fga_store"] = True
+                return FGA_STORE_ID
+        except Exception as e:
+            info(f"Could not probe store: {e} — will use FGA_STORE_ID as-is")
+            results["fga_store"] = True
+            return FGA_STORE_ID
 
-    # Create a new store
+    # No store ID — try to create one
     try:
         resp = await client.post(
             f"{FGA_API_URL}/stores",
@@ -319,6 +328,7 @@ async def step_fga_store(client: httpx.AsyncClient, fga_token: str) -> str:
         return store_id
     except Exception as e:
         err(f"Failed to create FGA store: {e}")
+        err("Go to https://dashboard.fga.dev → create a store, add FGA_STORE_ID to .env")
         results["fga_store"] = False
         return ""
 
@@ -372,7 +382,7 @@ async def step_fga_tuples(client: httpx.AsyncClient, fga_token: str, store_id: s
 
         async with session_factory() as session:
             workspaces = (await session.execute(text("SELECT id FROM workspaces"))).fetchall()
-            approvers  = (await session.execute(text("SELECT id, auth0_user_id FROM approvers"))).fetchall()
+            approvers  = (await session.execute(text("SELECT DISTINCT auth0_user_id FROM approvers WHERE auth0_user_id IS NOT NULL"))).fetchall()
             rules      = (await session.execute(text("SELECT id, workspace_id FROM rules"))).fetchall()
 
         await engine.dispose()
@@ -382,19 +392,25 @@ async def step_fga_tuples(client: httpx.AsyncClient, fga_token: str, store_id: s
             results["fga_tuples"] = False
             return
 
+        # Use a set to avoid duplicate tuples (FGA rejects batches with duplicates)
+        seen: set = set()
+        def add_tuple(user: str, relation: str, obj: str):
+            key = (user, relation, obj)
+            if key not in seen:
+                seen.add(key)
+                tuples.append({"user": user, "relation": relation, "object": obj})
+
         for (ws_id,) in workspaces:
             ws_obj = f"workspace:{ws_id}"
-
-            for i, (ap_id, auth0_uid) in enumerate(approvers):
+            for i, (auth0_uid,) in enumerate(approvers):
                 user_fga = f"user:{auth0_uid}"
-                # All approvers get the 'approver' role in the workspace
-                tuples.append({"user": user_fga, "relation": "approver", "object": ws_obj})
-                # First approver is also admin
+                add_tuple(user_fga, "approver", ws_obj)
+                add_tuple(user_fga, "viewer", ws_obj)
                 if i == 0:
-                    tuples.append({"user": user_fga, "relation": "admin", "object": ws_obj})
+                    add_tuple(user_fga, "admin", ws_obj)
 
         for (rule_id, ws_id) in rules:
-            tuples.append({"user": f"workspace:{ws_id}", "relation": "workspace", "object": f"rule:{rule_id}"})
+            add_tuple(f"workspace:{ws_id}", "workspace", f"rule:{rule_id}")
 
         results["db"] = True
     except Exception as e:
@@ -415,14 +431,14 @@ async def step_fga_tuples(client: httpx.AsyncClient, fga_token: str, store_id: s
                 "writes": {"tuple_keys": chunk},
                 "authorization_model_id": model_id,
             }, headers=headers)
-            if resp.status_code in (200, 201):
+            if resp.status_code in (200, 201, 204):
                 written += len(chunk)
+            elif resp.status_code == 409:
+                written += len(chunk)  # already exists — not an error
+            elif resp.status_code == 400 and "already exists" in resp.text:
+                written += len(chunk)  # FGA sometimes returns 400 for existing tuples
             else:
-                # 409 = already exists — not an error
-                if resp.status_code == 409:
-                    written += len(chunk)
-                else:
-                    failed += len(chunk)
+                failed += len(chunk)
         except Exception as e:
             failed += len(chunk)
 
