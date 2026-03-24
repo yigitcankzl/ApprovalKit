@@ -31,3 +31,4 @@ class JobStatusResponse(BaseModel):
     required_count: int = 1
     final_params: dict | None = None
     completed_at: str | None = None
+    execution_receipt: dict | None = None

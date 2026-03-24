@@ -1,8 +1,10 @@
+import json
 import uuid
 from datetime import datetime, timedelta
 
 import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, HTTPException, Response
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.config import get_settings
@@ -10,6 +12,7 @@ from api.database import get_db
 from api.middleware.auth import verify_hmac_signature
 from api.models.workspace import Workspace
 from api.models.approval_job import ApprovalJob, AuditLog, AuditEventType, JobState
+from api.models.connection import ServiceConnection
 from api.schemas.request import ApprovalRequest, ApprovalResponse, JobStatusResponse
 from api.services.rule_engine import (
     find_matching_rule,
@@ -151,7 +154,15 @@ async def submit_approval_request(
     from api.worker.tasks import process_approval_job
     process_approval_job.delay(str(job.id))
 
-    import json
+    # Publish real-time event
+    await redis_client.publish("approval_events", json.dumps({
+        "type": "requested",
+        "job_id": str(job.id),
+        "connection": request.connection,
+        "action": request.action,
+        "timestamp": datetime.utcnow().isoformat(),
+    }))
+
     response_data = {
         "job_id": str(job.id),
         "status": "pending",
@@ -217,7 +228,6 @@ async def get_job_status(
     workspace: Workspace = Depends(verify_hmac_signature),
     db: AsyncSession = Depends(get_db),
 ):
-    from sqlalchemy import select
     result = await db.execute(
         select(ApprovalJob).where(
             ApprovalJob.id == uuid.UUID(job_id),
@@ -228,6 +238,21 @@ async def get_job_status(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
+    # Build execution receipt if job completed via Token Vault
+    execution_receipt = None
+    if job.state == JobState.APPROVED:
+        conn_result = await db.execute(
+            select(ServiceConnection).where(ServiceConnection.slug == job.connection)
+        )
+        conn = conn_result.scalar_one_or_none()
+        if conn and conn.connected_auth0_user_id:
+            execution_receipt = {
+                "via": "auth0_token_vault",
+                "connected_user": conn.connected_auth0_user_id,
+                "connected_user_name": conn.connected_user_name,
+                "service": conn.service,
+            }
+
     return JobStatusResponse(
         job_id=str(job.id),
         status=job.state.value,
@@ -235,4 +260,116 @@ async def get_job_status(
         required_count=job.required_count,
         final_params=job.final_params,
         completed_at=job.completed_at.isoformat() if job.completed_at else None,
+        execution_receipt=execution_receipt,
     )
+
+
+@router.get("/jobs/pending")
+async def get_pending_jobs(db: AsyncSession = Depends(get_db)):
+    """List pending approval jobs for dashboard display."""
+    pending_states = [
+        JobState.PENDING, JobState.CIBA_SENT,
+        JobState.WAITING_APPROVAL, JobState.PARTIALLY_APPROVED,
+    ]
+    result = await db.execute(
+        select(ApprovalJob)
+        .where(ApprovalJob.state.in_(pending_states))
+        .order_by(ApprovalJob.created_at.desc())
+        .limit(20)
+    )
+    jobs = result.scalars().all()
+
+    # Get binding messages from audit log
+    job_ids = [j.id for j in jobs]
+    binding_map: dict = {}
+    if job_ids:
+        audit_result = await db.execute(
+            select(AuditLog).where(
+                AuditLog.job_id.in_(job_ids),
+                AuditLog.event_type == AuditEventType.CIBA_SENT,
+            ).order_by(AuditLog.created_at.desc())
+        )
+        for a in audit_result.scalars().all():
+            key = str(a.job_id)
+            if key not in binding_map:
+                binding_map[key] = a.binding_message
+
+    return [
+        {
+            "job_id": str(j.id),
+            "connection": j.connection,
+            "action": j.action,
+            "params": j.params,
+            "state": j.state.value,
+            "created_at": j.created_at.isoformat(),
+            "binding_message": binding_map.get(str(j.id)),
+        }
+        for j in jobs
+    ]
+
+
+@router.post("/jobs/{job_id}/decision")
+async def submit_web_decision(
+    job_id: str,
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    redis_client: aioredis.Redis = Depends(get_redis),
+):
+    """Web-based approve/reject for dashboard approvers (demo endpoint)."""
+    result = await db.execute(
+        select(ApprovalJob).where(ApprovalJob.id == uuid.UUID(job_id))
+    )
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    decision = body.get("decision")
+    modified_params = body.get("modified_params")
+    note = body.get("note") or "Approved via web dashboard"
+
+    if decision == "approve":
+        job.state = JobState.APPROVED
+        job.completed_at = datetime.utcnow()
+        job.approvals_count = (job.approvals_count or 0) + 1
+        if modified_params:
+            job.final_params = modified_params
+        event_type = AuditEventType.APPROVED
+    elif decision == "reject":
+        job.state = JobState.REJECTED
+        job.completed_at = datetime.utcnow()
+        event_type = AuditEventType.REJECTED
+    else:
+        raise HTTPException(status_code=422, detail="decision must be 'approve' or 'reject'")
+
+    audit = AuditLog(
+        job_id=job.id,
+        workspace_id=job.workspace_id,
+        event_type=event_type,
+        note=note,
+        modified_params=modified_params,
+    )
+    db.add(audit)
+    await db.commit()
+
+    await redis_client.publish("approval_events", json.dumps({
+        "type": decision + "d",
+        "job_id": job_id,
+        "connection": job.connection,
+        "action": job.action,
+        "note": note,
+        "timestamp": datetime.utcnow().isoformat(),
+    }))
+
+    # If approved, execute action via Token Vault
+    execution_result = None
+    if decision == "approve":
+        from api.services.token_vault import token_vault_service
+        execution_result = await token_vault_service.execute_action(
+            connection=job.connection,
+            action=job.action,
+            params=modified_params or job.final_params or job.params,
+            workspace_id=str(job.workspace_id),
+            db=db,
+        )
+
+    return {"status": decision + "d", "job_id": job_id, "execution": execution_result}
