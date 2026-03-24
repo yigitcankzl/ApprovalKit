@@ -5,13 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   ShoppingCart,
-  GitBranch,
   Package,
   FlaskConical,
   CreditCard,
   Server,
   Mail,
-  Shield,
 } from "lucide-react";
 
 const useCases = [
