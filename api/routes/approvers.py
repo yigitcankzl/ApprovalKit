@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, time
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +10,25 @@ from api.models.approver import Approver
 from api.schemas.approver import ApproverCreate, ApproverUpdate, DelegationRequest, ApproverResponse
 
 router = APIRouter(prefix="/api/v1/approvers", tags=["approvers"])
+
+
+async def _resolve_workspace_id(
+    workspace_id: str | None = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+) -> uuid.UUID:
+    if workspace_id:
+        try:
+            return uuid.UUID(workspace_id)
+        except ValueError:
+            pass
+    from api.models.workspace import Workspace
+    result = await db.execute(
+        select(Workspace).where(Workspace.is_active.is_(True)).limit(1)
+    )
+    ws = result.scalar_one_or_none()
+    if not ws:
+        raise HTTPException(status_code=500, detail="No active workspace found")
+    return ws.id
 
 
 def _approver_to_response(a: Approver) -> dict:
@@ -40,10 +59,10 @@ def _parse_time(t: str | None) -> time | None:
 async def create_approver(
     data: ApproverCreate,
     db: AsyncSession = Depends(get_db),
-    workspace_id: str = "default",
+    ws_id: uuid.UUID = Depends(_resolve_workspace_id),
 ):
     approver = Approver(
-        workspace_id=uuid.UUID(workspace_id) if workspace_id != "default" else uuid.uuid4(),
+        workspace_id=ws_id,
         name=data.name,
         email=data.email,
         auth0_user_id=data.auth0_user_id,
@@ -59,8 +78,15 @@ async def create_approver(
 
 
 @router.get("")
-async def list_approvers(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Approver).order_by(Approver.name))
+async def list_approvers(
+    db: AsyncSession = Depends(get_db),
+    ws_id: uuid.UUID = Depends(_resolve_workspace_id),
+):
+    result = await db.execute(
+        select(Approver)
+        .where(Approver.workspace_id == ws_id)
+        .order_by(Approver.name)
+    )
     approvers = result.scalars().all()
     return [_approver_to_response(a) for a in approvers]
 

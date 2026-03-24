@@ -1,7 +1,7 @@
 import uuid
 from datetime import time
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +13,31 @@ from api.services.rule_engine import evaluate_conditions, render_binding_message
 from api.middleware.fga import require_rule_read, require_rule_write, require_workspace_admin
 
 router = APIRouter(prefix="/api/v1/rules", tags=["rules"])
+
+
+async def _resolve_workspace_id(
+    workspace_id: str | None = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+) -> uuid.UUID:
+    """
+    Return the workspace UUID.
+    - If a valid UUID is supplied, use it.
+    - Otherwise fall back to the first active workspace in the database.
+    """
+    if workspace_id:
+        try:
+            return uuid.UUID(workspace_id)
+        except ValueError:
+            pass
+
+    from api.models.workspace import Workspace
+    result = await db.execute(
+        select(Workspace).where(Workspace.is_active.is_(True)).limit(1)
+    )
+    ws = result.scalar_one_or_none()
+    if not ws:
+        raise HTTPException(status_code=500, detail="No active workspace found")
+    return ws.id
 
 
 def _parse_time(t: str | None) -> time | None:
@@ -53,11 +78,11 @@ def _rule_to_response(rule: Rule) -> dict:
 async def create_rule(
     data: RuleCreate,
     db: AsyncSession = Depends(get_db),
-    workspace_id: str = "default",
+    ws_id: uuid.UUID = Depends(_resolve_workspace_id),
     _fga: None = Depends(require_workspace_admin),
 ):
     rule = Rule(
-        workspace_id=uuid.UUID(workspace_id) if workspace_id != "default" else uuid.uuid4(),
+        workspace_id=ws_id,
         name=data.name,
         connection=data.connection,
         action=data.action,
@@ -91,9 +116,13 @@ async def create_rule(
 @router.get("")
 async def list_rules(
     db: AsyncSession = Depends(get_db),
-    workspace_id: str = "default",
+    ws_id: uuid.UUID = Depends(_resolve_workspace_id),
 ):
-    result = await db.execute(select(Rule).order_by(Rule.priority.desc(), Rule.created_at.desc()))
+    result = await db.execute(
+        select(Rule)
+        .where(Rule.workspace_id == ws_id)
+        .order_by(Rule.priority.desc(), Rule.created_at.desc())
+    )
     rules = result.scalars().all()
     return [_rule_to_response(r) for r in rules]
 
