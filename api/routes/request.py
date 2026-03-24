@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timedelta
 
 import redis.asyncio as aioredis
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.config import get_settings
@@ -34,9 +34,10 @@ async def get_redis() -> aioredis.Redis:
         await r.close()
 
 
-@router.post("/request", response_model=ApprovalResponse)
+@router.post("/request", response_model=ApprovalResponse, status_code=200)
 async def submit_approval_request(
     request: ApprovalRequest,
+    response: Response,
     workspace: Workspace = Depends(verify_hmac_signature),
     db: AsyncSession = Depends(get_db),
     redis_client: aioredis.Redis = Depends(get_redis),
@@ -158,6 +159,7 @@ async def submit_approval_request(
     }
     await redis_client.setex(f"idem:{request.idempotency_key}", 86400, json.dumps(response_data))
 
+    response.status_code = 202
     return ApprovalResponse(**response_data)
 
 
