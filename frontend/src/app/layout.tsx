@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
-import { Sidebar } from "@/components/layout/sidebar";
+import { ConditionalLayout } from "@/components/layout/conditional-layout";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -30,8 +30,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-zinc-50`}
       >
-        <Sidebar />
-        <main className="ml-64 min-h-screen p-8">{children}</main>
+        <ConditionalLayout>{children}</ConditionalLayout>
       </body>
     </html>
   );
