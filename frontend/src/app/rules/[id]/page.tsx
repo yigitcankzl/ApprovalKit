@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ApprovalFlow } from "@/components/rule-graph/approval-flow";
 import { api } from "@/lib/api";
-import type { Rule } from "@/types";
+import type { Rule, Approver } from "@/types";
 
 const modelLabels: Record<string, string> = {
   any_one: "Any One",
@@ -19,39 +19,23 @@ const modelLabels: Record<string, string> = {
 export default function RuleDetailPage() {
   const params = useParams();
   const [rule, setRule] = useState<Rule | null>(null);
+  const [approverNames, setApproverNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const ruleId = params.id as string;
-    api
-      .getRule(ruleId)
-      .then(setRule)
-      .catch(() => {
-        setRule({
-          id: ruleId,
-          name: "High-value Stripe charges",
-          connection: "stripe-prod",
-          action: "charge",
-          conditions: [{ field: "amount", operator: "gt", value: 100 }],
-          model: "sequential",
-          approver_ids: ["a1", "a2"],
-          k_value: null,
-          timeout_seconds: 300,
-          on_timeout: "escalate",
-          escalate_to: "a3",
-          cooldown_max: null,
-          blackout_start: null,
-          blackout_end: null,
-          pre_approval: null,
-          context_template: "Charge of ${{amount}} for {{customer}}",
-          partial_approval: true,
-          quorum_window: null,
-          priority: 10,
-          is_active: true,
-          created_at: "2026-03-20T10:00:00Z",
-          updated_at: "2026-03-20T10:00:00Z",
-        });
+    Promise.all([
+      api.getRule(ruleId),
+      api.getApprovers(),
+    ])
+      .then(([ruleData, approvers]: [Rule, Approver[]]) => {
+        setRule(ruleData);
+        const names: Record<string, string> = {};
+        for (const a of approvers) names[a.id] = a.name;
+        setApproverNames(names);
       })
+      .catch((err) => setError(err.message || "Failed to load rule"))
       .finally(() => setLoading(false));
   }, [params.id]);
 
@@ -63,13 +47,15 @@ export default function RuleDetailPage() {
     );
   }
 
-  if (!rule) return <p>Rule not found</p>;
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-red-500">{error}</p>
+      </div>
+    );
+  }
 
-  const approverNames: Record<string, string> = {
-    a1: "CFO",
-    a2: "Finance Lead",
-    a3: "CEO",
-  };
+  if (!rule) return <p>Rule not found</p>;
 
   return (
     <div>

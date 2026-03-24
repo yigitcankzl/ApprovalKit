@@ -28,88 +28,13 @@ const modelColors: Record<string, "default" | "success" | "warning" | "danger" |
 export default function RulesPage() {
   const [rules, setRules] = useState<Rule[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     api
       .getRules()
       .then(setRules)
-      .catch(() => {
-        // Mock data
-        setRules([
-          {
-            id: "1",
-            name: "High-value Stripe charges",
-            connection: "stripe-prod",
-            action: "charge",
-            conditions: [{ field: "amount", operator: "gt", value: 100 }],
-            model: "sequential",
-            approver_ids: ["a1", "a2"],
-            k_value: null,
-            timeout_seconds: 300,
-            on_timeout: "escalate",
-            escalate_to: "a3",
-            cooldown_max: null,
-            blackout_start: null,
-            blackout_end: null,
-            pre_approval: null,
-            context_template: "Charge of ${{amount}} for {{customer}}",
-            partial_approval: true,
-            quorum_window: null,
-            priority: 10,
-            is_active: true,
-            created_at: "2026-03-20T10:00:00Z",
-            updated_at: "2026-03-20T10:00:00Z",
-          },
-          {
-            id: "2",
-            name: "Production deployments",
-            connection: "github-main",
-            action: "deploy",
-            conditions: [{ field: "env", operator: "eq", value: "production" }],
-            model: "any_one",
-            approver_ids: ["a1", "a2", "a3"],
-            k_value: null,
-            timeout_seconds: 120,
-            on_timeout: "block",
-            escalate_to: null,
-            cooldown_max: 5,
-            blackout_start: "23:00",
-            blackout_end: "06:00",
-            pre_approval: null,
-            context_template: "Deploy {{branch}} to production",
-            partial_approval: false,
-            quorum_window: null,
-            priority: 5,
-            is_active: true,
-            created_at: "2026-03-19T10:00:00Z",
-            updated_at: "2026-03-19T10:00:00Z",
-          },
-          {
-            id: "3",
-            name: "NPM publish (major)",
-            connection: "npm-registry",
-            action: "publish",
-            conditions: [{ field: "version_type", operator: "eq", value: "major" }],
-            model: "k_of_n",
-            approver_ids: ["a1", "a2", "a3"],
-            k_value: 2,
-            timeout_seconds: 600,
-            on_timeout: "block",
-            escalate_to: null,
-            cooldown_max: null,
-            blackout_start: null,
-            blackout_end: null,
-            pre_approval: null,
-            context_template: "Publish {{package}}@{{version}} to npm",
-            partial_approval: false,
-            quorum_window: 3600,
-            priority: 8,
-            is_active: true,
-            created_at: "2026-03-18T10:00:00Z",
-            updated_at: "2026-03-18T10:00:00Z",
-          },
-        ]);
-      })
+      .catch((err) => setError(err.message || "Failed to load rules"))
       .finally(() => setLoading(false));
   }, []);
 
@@ -134,6 +59,12 @@ export default function RulesPage() {
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-900" />
         </div>
+      ) : error ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16">
+            <p className="text-red-500">{error}</p>
+          </CardContent>
+        </Card>
       ) : rules.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16">

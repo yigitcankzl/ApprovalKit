@@ -19,26 +19,13 @@ import {
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     api
       .getDashboard()
       .then(setStats)
-      .catch(() => {
-        // Use mock data when API is unavailable
-        setStats({
-          total_actions_week: 147,
-          approved: 98,
-          rejected: 12,
-          blocked: 8,
-          timed_out: 5,
-          active_pre_approvals: 3,
-          active_delegations: 1,
-          ciba_usage: 234,
-          ciba_limit: 500,
-          scope_creep_alerts: 2,
-        });
-      })
+      .catch((err) => setError(err.message || "Failed to load dashboard"))
       .finally(() => setLoading(false));
   }, []);
 
@@ -46,6 +33,14 @@ export default function DashboardPage() {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-900" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-red-500">{error}</p>
       </div>
     );
   }

@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from api.database import Base
 from api.models.workspace import Workspace
-from api.models.connection import Connection
+from api.models.connection import ServiceConnection
 from api.models.approver import Approver
 from api.models.rule import Rule, RuleApprover
 from api.models.approval_job import ApprovalJob, AuditLog

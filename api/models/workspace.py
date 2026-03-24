@@ -22,4 +22,4 @@ class Workspace(Base):
 
     rules = relationship("Rule", back_populates="workspace", lazy="selectin")
     approvers = relationship("Approver", back_populates="workspace", lazy="selectin")
-    connections = relationship("Connection", back_populates="workspace", lazy="selectin")
+    connections = relationship("ServiceConnection", back_populates="workspace", lazy="selectin")

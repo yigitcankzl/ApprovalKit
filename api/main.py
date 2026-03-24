@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
 from api.config import get_settings
+import api.models  # noqa: F401 — registers all ORM mappers before any query runs
 from api.routes import request, rules, approvers, audit
 
 settings = get_settings()

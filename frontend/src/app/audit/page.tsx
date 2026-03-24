@@ -21,97 +21,19 @@ const eventBadge: Record<string, "success" | "danger" | "warning" | "info" | "de
   revoked: "danger",
 };
 
-const mockAuditLog: AuditEntry[] = [
-  {
-    id: "1",
-    job_id: "j1",
-    approver_id: "a1",
-    approver_name: "CFO",
-    event_type: "approved",
-    action: "charge",
-    connection: "stripe-prod",
-    binding_message: "Charge of $340 for john@example.com — 2nd charge this month",
-    modified_params: null,
-    note: null,
-    created_at: "2026-03-24T14:23:11Z",
-  },
-  {
-    id: "2",
-    job_id: "j2",
-    approver_id: "a1",
-    approver_name: "CFO",
-    event_type: "escalated",
-    action: "payout",
-    connection: "stripe-prod",
-    binding_message: "Payout of $1200",
-    modified_params: null,
-    note: "CEO notified after timeout",
-    created_at: "2026-03-24T14:31:05Z",
-  },
-  {
-    id: "3",
-    job_id: "j3",
-    approver_id: "a2",
-    approver_name: "Lead Dev",
-    event_type: "rejected",
-    action: "push",
-    connection: "github-main",
-    binding_message: "Push to main branch",
-    modified_params: null,
-    note: "Scope creep flagged",
-    created_at: "2026-03-24T14:33:21Z",
-  },
-  {
-    id: "4",
-    job_id: "j4",
-    approver_id: null,
-    approver_name: null,
-    event_type: "pre_approved",
-    action: "charge",
-    connection: "stripe-prod",
-    binding_message: null,
-    modified_params: null,
-    note: "Blanket approval active until 17:00",
-    created_at: "2026-03-24T14:45:00Z",
-  },
-  {
-    id: "5",
-    job_id: "j5",
-    approver_id: "a1",
-    approver_name: "CFO",
-    event_type: "partial_approved",
-    action: "refund",
-    connection: "stripe-prod",
-    binding_message: "Refund of $340 for order #1234",
-    modified_params: { amount: 200 },
-    note: "$200 only approved",
-    created_at: "2026-03-24T15:02:00Z",
-  },
-  {
-    id: "6",
-    job_id: "j6",
-    approver_id: null,
-    approver_name: null,
-    event_type: "scope_creep",
-    action: "payout",
-    connection: "stripe-prod",
-    binding_message: null,
-    modified_params: null,
-    note: "First time agent requests stripe-prod:payout",
-    created_at: "2026-03-24T15:10:00Z",
-  },
-];
-
 export default function AuditPage() {
   const [logs, setLogs] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
 
   useEffect(() => {
+    setLoading(true);
+    setError(null);
     api
       .getAuditLog({ event_type: filter || undefined })
       .then(setLogs)
-      .catch(() => setLogs(mockAuditLog))
+      .catch((err) => setError(err.message || "Failed to load audit log"))
       .finally(() => setLoading(false));
   }, [filter]);
 
@@ -145,6 +67,10 @@ export default function AuditPage() {
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-900" />
         </div>
+      ) : error ? (
+        <div className="flex items-center justify-center h-64">
+          <p className="text-red-500">{error}</p>
+        </div>
       ) : (
         <Card>
           <CardContent className="p-0">
@@ -160,7 +86,11 @@ export default function AuditPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredLogs.map((log) => (
+                  {filteredLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="p-8 text-center text-zinc-400">No audit entries yet</td>
+                    </tr>
+                  ) : filteredLogs.map((log) => (
                     <tr key={log.id} className="border-b border-zinc-100 hover:bg-zinc-50">
                       <td className="p-4 text-zinc-600">
                         {new Date(log.created_at).toLocaleTimeString()}

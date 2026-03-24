@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Select } from "@/components/ui/select";
 import { ConditionBuilder } from "@/components/rule-builder/condition-builder";
 import { LivePreview } from "@/components/rule-builder/live-preview";
 import { api } from "@/lib/api";
-import type { ApprovalModel, Condition, TimeoutAction } from "@/types";
+import type { ApprovalModel, Approver, Condition, TimeoutAction } from "@/types";
 import { Save } from "lucide-react";
 
 const services = [
