@@ -31,10 +31,10 @@ export function Sidebar() {
 
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r border-zinc-200 bg-white">
-      <div className="flex h-16 items-center gap-2 border-b border-zinc-200 px-6">
+      <Link href="/" className="flex h-16 items-center gap-2 border-b border-zinc-200 px-6 hover:bg-zinc-50 transition-colors">
         <Shield className="h-6 w-6 text-zinc-900" />
         <span className="text-lg font-bold text-zinc-900">ApprovalKit</span>
-      </div>
+      </Link>
       <nav className="space-y-1 px-3 py-4">
         {navigation.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
