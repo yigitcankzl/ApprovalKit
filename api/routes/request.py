@@ -79,6 +79,7 @@ async def submit_approval_request(
     # Pre-approval check
     if await check_pre_approval(rule, request.params, redis_client):
         job = ApprovalJob(
+            id=uuid.uuid4(),
             idempotency_key=request.idempotency_key,
             workspace_id=workspace.id,
             rule_id=rule.id,
@@ -111,6 +112,7 @@ async def submit_approval_request(
     # Create approval job
     required = get_required_approval_count(rule)
     job = ApprovalJob(
+        id=uuid.uuid4(),
         idempotency_key=request.idempotency_key,
         workspace_id=workspace.id,
         rule_id=rule.id,

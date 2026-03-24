@@ -1,10 +1,19 @@
 import asyncio
+import re
 import httpx
 from loguru import logger
 
 from api.config import get_settings
 
 settings = get_settings()
+
+_CIBA_MSG_ALLOWED = re.compile(r"[^A-Za-z0-9 +\-_.,:#]")
+
+
+def _sanitize_binding_message(msg: str, max_len: int = 256) -> str:
+    """Strip characters not allowed by Auth0 CIBA binding_message."""
+    sanitized = _CIBA_MSG_ALLOWED.sub("", msg)
+    return sanitized[:max_len]
 
 
 class CIBAService:
@@ -28,10 +37,12 @@ class CIBAService:
                     "client_id": self.client_id,
                     "client_secret": self.client_secret,
                     "login_hint": f'{{"format":"iss_sub","iss":"https://{self.domain}/","sub":"{user_id}"}}',
-                    "binding_message": binding_message[:256],
+                    "binding_message": _sanitize_binding_message(binding_message),
                     "scope": scope,
                 },
             )
+            if response.status_code != 200:
+                logger.error(f"CIBA bc-authorize failed {response.status_code}: {response.text}")
             response.raise_for_status()
             return response.json()
 
