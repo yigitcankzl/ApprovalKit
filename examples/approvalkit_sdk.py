@@ -106,9 +106,19 @@ class ApprovalKit:
     def _poll(self, job_id: str) -> str:
         deadline = time.time() + self.timeout
         while time.time() < deadline:
+            # GET requests have empty body — sign empty string after the dot
+            ts = str(int(time.time()))
+            sig = hmac.new(
+                self.hmac_secret.encode(),
+                f"{ts}.".encode(),
+                hashlib.sha256,
+            ).hexdigest()
             r = requests.get(
                 f"{self.base_url}/api/v1/status/{job_id}",
-                headers={"Authorization": f"Bearer {self.api_key}"},
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "X-Signature": f"hmac-sha256={ts}.{sig}",
+                },
                 timeout=10,
             )
             status = r.json().get("status", "pending")
