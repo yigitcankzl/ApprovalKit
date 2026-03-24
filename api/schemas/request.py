@@ -6,7 +6,7 @@ class ApprovalRequest(BaseModel):
     connection: str = Field(min_length=1, max_length=100)
     action: str = Field(pattern=r"^[a-z][a-z0-9_:]*$")
     params: dict[str, Any] = Field(default_factory=dict)
-    user_id: str = Field(pattern=r"^auth0\|")
+    user_id: str = Field(min_length=1, max_length=200)
     idempotency_key: str = Field(min_length=1, max_length=200)
 
     @field_validator("params")
