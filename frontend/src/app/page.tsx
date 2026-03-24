@@ -42,6 +42,13 @@ const steps = [
   { n: "03", title: "Human approves on phone", code: "Auth0 Guardian push →  ✓ Approve" },
 ];
 
+function Arrow() {
+  return <span className="text-zinc-300 text-lg font-light select-none">→</span>;
+}
+function ArrowLeft() {
+  return <span className="text-zinc-300 text-lg font-light select-none">←</span>;
+}
+
 export default function WelcomePage() {
   return (
     <div className="min-h-screen">
@@ -90,7 +97,7 @@ export default function WelcomePage() {
         <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-widest text-center mb-8">
           How it works
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
           {steps.map((s) => (
             <div key={s.n} className="bg-white border border-zinc-200 rounded-xl p-5">
               <span className="text-3xl font-bold text-zinc-100">{s.n}</span>
@@ -100,6 +107,55 @@ export default function WelcomePage() {
               </code>
             </div>
           ))}
+        </div>
+
+        {/* Architecture diagram */}
+        <div className="bg-white border border-zinc-200 rounded-2xl p-8">
+          <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest text-center mb-8">Architecture</p>
+          <div className="flex flex-col gap-4">
+            {/* Row 1 */}
+            <div className="flex items-center justify-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 border border-zinc-200 rounded-lg px-4 py-2.5 bg-zinc-50">
+                <span className="text-sm font-medium text-zinc-700">AI Agent</span>
+                <span className="text-xs text-zinc-400">(Claude, GPT-4)</span>
+              </div>
+              <Arrow />
+              <div className="flex items-center gap-1.5 border border-zinc-200 rounded-lg px-4 py-2.5 bg-zinc-50">
+                <span className="text-sm font-medium text-zinc-700">ApprovalKit SDK</span>
+              </div>
+              <Arrow />
+              <div className="flex items-center gap-1.5 border border-zinc-900 rounded-lg px-4 py-2.5 bg-zinc-900">
+                <span className="text-sm font-medium text-white">CIBA Push</span>
+                <span className="text-xs text-zinc-400">(Guardian)</span>
+              </div>
+              <Arrow />
+              <div className="flex items-center gap-1.5 border border-zinc-200 rounded-lg px-4 py-2.5 bg-zinc-50">
+                <span className="text-sm font-medium text-zinc-700">Human approves</span>
+              </div>
+            </div>
+            {/* Connector */}
+            <div className="flex justify-end pr-[6.5rem]">
+              <div className="flex flex-col items-center">
+                <div className="w-px h-4 bg-zinc-300" />
+                <span className="text-xs text-zinc-400">approved</span>
+                <div className="w-px h-4 bg-zinc-300" />
+              </div>
+            </div>
+            {/* Row 2 */}
+            <div className="flex items-center justify-end gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 border border-zinc-200 rounded-lg px-4 py-2.5 bg-zinc-50">
+                <span className="text-sm font-medium text-zinc-700">GitHub / Stripe API</span>
+              </div>
+              <ArrowLeft />
+              <div className="flex items-center gap-1.5 border-2 border-blue-400 rounded-lg px-4 py-2.5 bg-blue-50">
+                <span className="text-sm font-medium text-blue-700">Auth0 Token Vault</span>
+                <span className="text-xs text-blue-400">retrieves token</span>
+              </div>
+            </div>
+          </div>
+          <p className="text-xs text-zinc-400 text-center mt-6">
+            The token <strong>never reaches the agent</strong> — Auth0 Token Vault executes the action server-side after approval.
+          </p>
         </div>
       </section>
 
