@@ -5,7 +5,7 @@ import { Sidebar } from "./sidebar";
 
 export function ConditionalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isWelcome = pathname === "/";
+  const isWelcome = pathname === "/" || pathname === "/docs";
 
   if (isWelcome) {
     return <main className="min-h-screen">{children}</main>;
