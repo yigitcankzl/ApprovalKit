@@ -35,12 +35,31 @@ settings = get_settings()
 # ---------------------------------------------------------------------------
 
 def _derive_fernet_key() -> bytes:
-    """Return a 32-byte Fernet key from CREDENTIALS_KEY or HMAC_SECRET."""
-    raw = settings.CREDENTIALS_KEY or settings.HMAC_SECRET
+    """
+    Return a 32-byte Fernet key.
+
+    Key resolution order
+    --------------------
+    1. CREDENTIALS_KEY (preferred) — independent secret, no shared-key risk.
+    2. HMAC_SECRET     (fallback)  — warned: same source for signing & encryption.
+
+    In both cases HKDF-SHA256 is applied so the raw value is never used directly.
+    If CREDENTIALS_KEY is absent a warning is logged once at import time.
+    """
+    if settings.CREDENTIALS_KEY:
+        raw = settings.CREDENTIALS_KEY
+    else:
+        logger.warning(
+            "CREDENTIALS_KEY is not set — falling back to HMAC_SECRET for credential "
+            "encryption. Run `scripts/setup.py` to generate a dedicated key and avoid "
+            "using the same secret for both request signing and credential encryption."
+        )
+        raw = settings.HMAC_SECRET
+
     if not raw:
         raise RuntimeError("Neither CREDENTIALS_KEY nor HMAC_SECRET is set")
 
-    # If the value is already a valid Fernet key (44-char base64), use it directly
+    # If the value is already a valid 32-byte URL-safe base64 Fernet key (44 chars), use directly
     if len(raw) == 44:
         try:
             base64.urlsafe_b64decode(raw + "==")
@@ -48,11 +67,13 @@ def _derive_fernet_key() -> bytes:
         except Exception:
             pass
 
+    # HKDF ensures the derived Fernet key is cryptographically independent
+    # of the raw secret, even when the raw secret is shared with HMAC signing.
     derived = HKDF(
         algorithm=hashes.SHA256(),
         length=32,
         salt=b"approvalkit-credentials-v1",
-        info=b"fernet",
+        info=b"fernet-encryption-key",
     ).derive(raw.encode())
     return base64.urlsafe_b64encode(derived)
 

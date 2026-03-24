@@ -83,6 +83,7 @@ FGA_MODEL_ID          = ENV.get("FGA_MODEL_ID", "")
 FGA_CLIENT_ID         = ENV.get("FGA_CLIENT_ID", "")
 FGA_CLIENT_SECRET     = ENV.get("FGA_CLIENT_SECRET", "")
 HMAC_SECRET           = ENV.get("HMAC_SECRET", "")
+CREDENTIALS_KEY       = ENV.get("CREDENTIALS_KEY", "")
 DATABASE_URL          = ENV.get("DATABASE_URL", "postgresql+asyncpg://approvalkit:approvalkit@postgres:5432/approvalkit")
 
 # ---------------------------------------------------------------------------
@@ -451,20 +452,32 @@ async def step_fga_tuples(client: httpx.AsyncClient, fga_token: str, store_id: s
 
 
 # ===========================================================================
-# STEP 5 — HMAC secret
+# STEP 5 — HMAC secret + Credentials key
 # ===========================================================================
 def step_hmac():
-    global HMAC_SECRET
-    print("\n[5/5] HMAC secret")
+    global HMAC_SECRET, CREDENTIALS_KEY
+    print("\n[5/5] Secrets (HMAC + Credentials key)")
 
     if HMAC_SECRET and len(HMAC_SECRET) >= 32:
         ok(f"HMAC_SECRET already set  ({len(HMAC_SECRET)} chars)")
-        results["hmac"] = True
-        return
+    else:
+        HMAC_SECRET = secrets.token_hex(32)   # 256-bit
+        write_env_var(ENV_FILE, "HMAC_SECRET", HMAC_SECRET)
+        ok("Generated and saved a new 256-bit HMAC_SECRET")
 
-    HMAC_SECRET = secrets.token_hex(32)   # 256-bit
-    write_env_var(ENV_FILE, "HMAC_SECRET", HMAC_SECRET)
-    ok(f"Generated and saved a new 256-bit HMAC_SECRET")
+    # CREDENTIALS_KEY must be a SEPARATE secret from HMAC_SECRET.
+    # Using the same raw material for both request signing and credential
+    # encryption means a single compromise affects both systems.
+    if CREDENTIALS_KEY and len(CREDENTIALS_KEY) >= 32:
+        ok(f"CREDENTIALS_KEY already set  ({len(CREDENTIALS_KEY)} chars)")
+    else:
+        # Generate a 32-byte URL-safe base64 Fernet key (exactly 44 chars)
+        import base64 as _b64
+        raw = secrets.token_bytes(32)
+        CREDENTIALS_KEY = _b64.urlsafe_b64encode(raw).decode()
+        write_env_var(ENV_FILE, "CREDENTIALS_KEY", CREDENTIALS_KEY)
+        ok("Generated and saved a new 256-bit CREDENTIALS_KEY (independent from HMAC_SECRET)")
+
     results["hmac"] = True
 
 
@@ -481,8 +494,8 @@ def print_report():
         ("FGA store",           results["fga_store"]),
         ("FGA model",           results["fga_model"]),
         ("FGA tuples",          results["fga_tuples"]),
-        ("HMAC secret",         results["hmac"]),
-        ("Database reachable",  results["db"]),
+        ("HMAC + credentials key", results["hmac"]),
+        ("Database reachable",    results["db"]),
     ]
     all_ok = True
     for label, status in checks:
