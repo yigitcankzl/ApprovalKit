@@ -43,8 +43,6 @@ export default function OnboardingPage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1);
   const [tenant, setTenant] = useState("");
-  const [clientId, setClientId] = useState("");
-  const [clientSecret, setClientSecret] = useState("");
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -161,25 +159,6 @@ export default function OnboardingPage() {
                 placeholder="your-tenant.auth0.com"
                 value={tenant}
                 onChange={(e) => setTenant(e.target.value)}
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-zinc-700">Client ID</label>
-              <Input
-                placeholder="your-client-id"
-                value={clientId}
-                onChange={(e) => setClientId(e.target.value)}
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-zinc-700">Client Secret</label>
-              <Input
-                type="password"
-                placeholder="your-client-secret"
-                value={clientSecret}
-                onChange={(e) => setClientSecret(e.target.value)}
                 className="mt-1"
               />
             </div>
