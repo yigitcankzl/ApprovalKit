@@ -53,8 +53,13 @@ export const api = {
   getSecurityStatus: () => fetchAPI("/api/v1/security-status"),
 
   // Connections
+  getConnections: () => fetchAPI("/api/v1/connections"),
   createConnection: (data: { name: string; service: string; slug: string; actions: string[] }) =>
     fetchAPI("/api/v1/connections", { method: "POST", body: JSON.stringify(data) }),
+  storeCredentials: (id: string, credentials: Record<string, string>) =>
+    fetchAPI(`/api/v1/connections/${id}/credentials`, { method: "POST", body: JSON.stringify({ credentials }) }),
+  deleteCredentials: (id: string) =>
+    fetchAPI(`/api/v1/connections/${id}/credentials`, { method: "DELETE" }),
 
   // Workspace
   setupWorkspace: (data: { name: string; auth0_tenant: string }) =>

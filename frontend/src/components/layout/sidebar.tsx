@@ -13,11 +13,13 @@ import {
   Shield,
   Rocket,
   FileText,
+  Link2,
 } from "lucide-react";
 
 const navigation = [
   { name: "Onboarding", href: "/onboarding", icon: Rocket },
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Connections", href: "/connections", icon: Link2 },
   { name: "Rules", href: "/rules", icon: GitBranch },
   { name: "Approvers", href: "/approvers", icon: Users },
   { name: "Audit Log", href: "/audit", icon: ScrollText },

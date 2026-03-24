@@ -2,6 +2,8 @@
 ApprovalKit Python SDK
 ======================
 Add human approval to any function with a single decorator.
+After approval, Token Vault executes the action server-side —
+the agent never holds credentials.
 
 Usage:
     from approvalkit_sdk import ApprovalKit, ApprovalDenied
@@ -10,30 +12,28 @@ Usage:
         base_url="http://localhost:8000",
         api_key="your-api-key",
         hmac_secret="your-hmac-secret",
-        user_id="my-agent",           # any string — no auth0| prefix required
+        user_id="my-agent",
     )
 
-    # Sync decorator — fn() runs locally after approval
+    # Decorator — fn() body is never called; Token Vault executes the action
     @kit.requires_approval(connection="stripe-prod", action="charge")
     def charge_customer(amount: int, customer: str):
-        stripe.charge(amount=amount, customer=customer)
+        pass  # body ignored — Token Vault handles execution after approval
 
-    # Sync decorator — Token Vault executes server-side, fn() is NOT called
-    @kit.requires_approval(connection="stripe-prod", action="charge", execute_fn=False)
-    def charge_customer(amount: int, customer: str):
-        pass  # body is ignored; server handles execution via Token Vault
+    result = charge_customer(amount=150, customer="alice@example.com")
+    # result = {"status": "approved", "final_params": {...}}
+
+    # Inline gate
+    result = kit.gate("stripe-prod", "charge", {"amount": 150, "customer": "alice@example.com"})
+    # result = {"status": "approved", "final_params": {...}}
 
     # Async decorator
-    @kit.async_requires_approval(connection="stripe-prod", action="charge")
-    async def charge_customer(amount: int, customer: str):
-        await stripe.charge_async(amount=amount, customer=customer)
+    @kit.async_requires_approval(connection="github-main", action="deploy")
+    async def deploy(env: str, branch: str):
+        pass
 
-    # Inline gate (sync)
-    final_params = kit.gate("stripe-prod", "charge", {"amount": 100, "customer": "..."})
-    stripe.charge(**final_params)   # use final_params — approver may have modified them
-
-    # Inline gate (async)
-    final_params = await kit.async_gate("stripe-prod", "charge", {"amount": 100})
+    # Async gate
+    result = await kit.async_gate("github-main", "deploy", {"env": "production", "branch": "main"})
 """
 
 import asyncio
@@ -44,7 +44,7 @@ import inspect
 import json
 import time
 import uuid
-from typing import Any, Callable
+from typing import Callable
 
 import requests
 
@@ -114,10 +114,10 @@ class ApprovalKit:
 
         if r.status_code == 200:
             return {"status": "pre_approved"}
-        if r.status_code == 403:
-            return {"status": "blocked"}
         if r.status_code == 202:
             return {"status": "pending", "job_id": r.json()["job_id"]}
+        if r.status_code == 403:
+            return {"status": "blocked"}
 
         r.raise_for_status()
         return {}
@@ -126,7 +126,6 @@ class ApprovalKit:
         """Poll until terminal status. Returns (status, full_response_data)."""
         deadline = time.time() + self.timeout
         while time.time() < deadline:
-            # GET requests have empty body — sign empty string after the dot
             ts = str(int(time.time()))
             sig = hmac.new(
                 self.hmac_secret.encode(),
@@ -148,14 +147,45 @@ class ApprovalKit:
             time.sleep(self.poll_interval)
         return "timeout", {}
 
-    def _resolve(self, fn, params_fn, args, kwargs):
-        """Build the params dict from function args."""
+    def _resolve_params(self, fn, params_fn, args, kwargs) -> dict:
         if params_fn:
             return params_fn(*args, **kwargs)
         sig = inspect.signature(fn)
         bound = sig.bind(*args, **kwargs)
         bound.apply_defaults()
         return dict(bound.arguments)
+
+    def _wait_for_approval(self, connection: str, action: str, params: dict) -> dict:
+        """
+        Submit request and wait for approval.
+        Returns {"status": "approved"/"pre_approved", "final_params": {...}}
+        Raises ApprovalDenied on rejection/timeout/block.
+        """
+        print(f"\n[ApprovalKit] {connection}/{action}")
+        print(f"             params: {json.dumps(params)}")
+
+        result = self._request_approval(connection, action, params)
+
+        if result["status"] == "pre_approved":
+            print("[ApprovalKit] Pre-approved — Token Vault executing.")
+            return {"status": "pre_approved", "final_params": params}
+
+        if result["status"] == "blocked":
+            print("[ApprovalKit] Blocked by policy.")
+            raise ApprovalDenied("blocked")
+
+        job_id = result["job_id"]
+        print(f"[ApprovalKit] Pending (job={job_id}) — push notification sent.")
+
+        status, data = self._poll(job_id)
+
+        if status == "approved":
+            final_params = data.get("final_params") or params
+            print("[ApprovalKit] Approved — Token Vault executed server-side.")
+            return {"status": "approved", "final_params": final_params}
+
+        print(f"[ApprovalKit] {status} — action NOT executed.")
+        raise ApprovalDenied(status, job_id=job_id)
 
     # ------------------------------------------------------------------
     # Sync public API
@@ -166,87 +196,37 @@ class ApprovalKit:
         connection: str,
         action: str,
         params_fn: Callable[..., dict] | None = None,
-        execute_fn: bool = True,
     ):
         """
         Decorator — gates the wrapped function behind a human approval.
+        fn() body is NEVER called. After approval, Token Vault executes
+        the action server-side using stored credentials.
 
-        execute_fn=True  (default): fn() runs locally after approval.
-                                    Use this when the agent holds its own credentials.
-        execute_fn=False:           fn() is NOT called after approval.
-                                    Use this when Token Vault executes the action
-                                    server-side — avoids double execution.
-                                    Returns {"status": "approved", "final_params": ...}.
+        Returns {"status": "approved", "final_params": {...}}.
 
-        params_fn: optional callable that maps function arguments to the
-                   approval params dict. If omitted, all kwargs are sent.
+        params_fn: optional callable to build the params dict from fn args.
+                   If omitted, all fn arguments are sent as params.
         """
         def decorator(fn: Callable) -> Callable:
             @functools.wraps(fn)
             def wrapper(*args, **kwargs):
-                params = self._resolve(fn, params_fn, args, kwargs)
-
-                print(f"\n[ApprovalKit] Requesting approval: {connection}/{action}")
-                print(f"             Params: {json.dumps(params)}")
-
-                result = self._request_approval(connection, action, params)
-
-                if result["status"] == "pre_approved":
-                    print("[ApprovalKit] Pre-approved — executing immediately.")
-                    if not execute_fn:
-                        return {"status": "pre_approved", "final_params": params}
-                    return fn(*args, **kwargs)
-
-                if result["status"] == "blocked":
-                    print("[ApprovalKit] Blocked by rule (blackout / policy).")
-                    raise ApprovalDenied("blocked")
-
-                job_id = result["job_id"]
-                print(f"[ApprovalKit] Waiting for approval... (job={job_id})")
-                print("[ApprovalKit] Push notification sent to approver's phone.")
-
-                status, data = self._poll(job_id)
-
-                if status == "approved":
-                    final_params = data.get("final_params") or params
-                    if execute_fn:
-                        print("[ApprovalKit] Approved — executing function.")
-                        return fn(*args, **kwargs)
-                    else:
-                        print("[ApprovalKit] Approved — Token Vault executed server-side.")
-                        return {"status": "approved", "final_params": final_params}
-                else:
-                    print(f"[ApprovalKit] Approval {status} — function NOT executed.")
-                    raise ApprovalDenied(status, job_id=job_id)
-
+                params = self._resolve_params(fn, params_fn, args, kwargs)
+                return self._wait_for_approval(connection, action, params)
             return wrapper
         return decorator
 
     def gate(self, connection: str, action: str, params: dict) -> dict:
         """
         Inline approval gate — blocks until approved or raises ApprovalDenied.
+        Token Vault executes the action server-side after approval.
 
-        Returns the approval data dict (includes final_params if the approver
-        modified the params before approving). Always use final_params for the
-        actual action call to respect partial-approval changes:
-
-            data = kit.gate("stripe-prod", "charge", {"amount": 100, "customer": "..."})
-            stripe.charge(**(data.get("final_params") or {"amount": 100, ...}))
+        Returns {"status": "approved", "final_params": {...}}.
+        final_params may differ from params if the approver modified them.
         """
-        result = self._request_approval(connection, action, params)
-
-        if result["status"] == "pre_approved":
-            return {"status": "pre_approved", "final_params": params}
-        if result["status"] == "blocked":
-            raise ApprovalDenied("blocked")
-
-        status, data = self._poll(result["job_id"])
-        if status != "approved":
-            raise ApprovalDenied(status, job_id=result["job_id"])
-        return {"status": "approved", "final_params": data.get("final_params") or params}
+        return self._wait_for_approval(connection, action, params)
 
     # ------------------------------------------------------------------
-    # Async public API (wraps sync methods in a thread — no extra deps)
+    # Async public API
     # ------------------------------------------------------------------
 
     def async_requires_approval(
@@ -254,77 +234,25 @@ class ApprovalKit:
         connection: str,
         action: str,
         params_fn: Callable[..., dict] | None = None,
-        execute_fn: bool = True,
     ):
         """
         Async version of requires_approval.
-        Runs HMAC signing and HTTP polling in a thread pool so the event
-        loop is not blocked during approval wait.
-
-        Example:
-            @kit.async_requires_approval("stripe-prod", "charge")
-            async def charge_customer(amount: int, customer: str):
-                await stripe.charge_async(amount=amount, customer=customer)
+        HTTP calls run in a thread pool — event loop is not blocked.
+        fn() body is NEVER called.
         """
         def decorator(fn: Callable) -> Callable:
             @functools.wraps(fn)
             async def wrapper(*args, **kwargs):
-                params = self._resolve(fn, params_fn, args, kwargs)
-
-                print(f"\n[ApprovalKit] Requesting approval: {connection}/{action}")
-                print(f"             Params: {json.dumps(params)}")
-
-                result = await asyncio.to_thread(
-                    self._request_approval, connection, action, params
+                params = self._resolve_params(fn, params_fn, args, kwargs)
+                return await asyncio.to_thread(
+                    self._wait_for_approval, connection, action, params
                 )
-
-                if result["status"] == "pre_approved":
-                    print("[ApprovalKit] Pre-approved — executing immediately.")
-                    if not execute_fn:
-                        return {"status": "pre_approved", "final_params": params}
-                    return await fn(*args, **kwargs) if asyncio.iscoroutinefunction(fn) else fn(*args, **kwargs)
-
-                if result["status"] == "blocked":
-                    print("[ApprovalKit] Blocked by rule (blackout / policy).")
-                    raise ApprovalDenied("blocked")
-
-                job_id = result["job_id"]
-                print(f"[ApprovalKit] Waiting for approval... (job={job_id})")
-                print("[ApprovalKit] Push notification sent to approver's phone.")
-
-                status, data = await asyncio.to_thread(self._poll, job_id)
-
-                if status == "approved":
-                    final_params = data.get("final_params") or params
-                    if execute_fn:
-                        print("[ApprovalKit] Approved — executing function.")
-                        return await fn(*args, **kwargs) if asyncio.iscoroutinefunction(fn) else fn(*args, **kwargs)
-                    else:
-                        print("[ApprovalKit] Approved — Token Vault executed server-side.")
-                        return {"status": "approved", "final_params": final_params}
-                else:
-                    print(f"[ApprovalKit] Approval {status} — function NOT executed.")
-                    raise ApprovalDenied(status, job_id=job_id)
-
             return wrapper
         return decorator
 
     async def async_gate(self, connection: str, action: str, params: dict) -> dict:
         """
         Async version of gate — awaitable, non-blocking for the event loop.
-
-        Example:
-            data = await kit.async_gate("stripe-prod", "charge", {"amount": 100})
-            await stripe.charge_async(**(data.get("final_params") or params))
+        Token Vault executes the action server-side after approval.
         """
-        result = await asyncio.to_thread(self._request_approval, connection, action, params)
-
-        if result["status"] == "pre_approved":
-            return {"status": "pre_approved", "final_params": params}
-        if result["status"] == "blocked":
-            raise ApprovalDenied("blocked")
-
-        status, data = await asyncio.to_thread(self._poll, result["job_id"])
-        if status != "approved":
-            raise ApprovalDenied(status, job_id=result["job_id"])
-        return {"status": "approved", "final_params": data.get("final_params") or params}
+        return await asyncio.to_thread(self._wait_for_approval, connection, action, params)
