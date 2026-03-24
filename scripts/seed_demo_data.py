@@ -12,7 +12,8 @@ from datetime import datetime
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 
-DATABASE_URL = "postgresql+asyncpg://approvalkit:approvalkit@localhost:5432/approvalkit"
+import os
+DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql+asyncpg://approvalkit:approvalkit@postgres:5432/approvalkit")
 
 
 async def seed():
