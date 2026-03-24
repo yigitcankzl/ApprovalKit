@@ -1,229 +1,314 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { CheckCircle2, ArrowRight, Shield, Link2, GitBranch, Copy, Check, AlertCircle } from "lucide-react";
 import { api } from "@/lib/api";
-import {
-  CheckCircle2, XCircle, Loader2, ArrowRight,
-  Shield, Link2, GitBranch, Users, LayoutDashboard,
-} from "lucide-react";
 
-interface StatusItem {
-  label: string;
-  key: string;
-  status: "ok" | "warn" | "error" | "loading";
-  detail: string;
-}
+const steps = [
+  {
+    number: 1,
+    title: "Connect Auth0",
+    description: "Enter your tenant credentials. Platform auto-fetches Token Vault connections.",
+    icon: Shield,
+  },
+  {
+    number: 2,
+    title: "Define Connections",
+    description: "Select services and define their available actions.",
+    icon: Link2,
+  },
+  {
+    number: 3,
+    title: "Write First Rule",
+    description: "Use the Rule Builder with live preview. Save. Done.",
+    icon: GitBranch,
+  },
+];
+
+const services = [
+  { id: "stripe",     name: "Stripe",     slug: "stripe-prod", actions: ["charge", "refund", "payout"] },
+  { id: "github",     name: "GitHub",     slug: "github-main", actions: ["deploy", "rollback", "merge_pr"] },
+  { id: "gmail",      name: "Gmail",      slug: "gmail",       actions: ["send_email", "delete_email"] },
+  { id: "slack",      name: "Slack",      slug: "slack",       actions: ["send_message", "create_channel"] },
+  { id: "salesforce", name: "Salesforce", slug: "salesforce",  actions: ["create_deal", "update_contact"] },
+  { id: "aws",        name: "AWS",        slug: "aws",         actions: ["launch_instance", "terminate_instance"] },
+];
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const [checks, setChecks] = useState<StatusItem[]>([
-    { key: "api",       label: "API reachable",        status: "loading", detail: "Checking…" },
-    { key: "rules",     label: "Rules configured",     status: "loading", detail: "Checking…" },
-    { key: "approvers", label: "Approvers configured", status: "loading", detail: "Checking…" },
-    { key: "ciba",      label: "CIBA quota",           status: "loading", detail: "Checking…" },
-    { key: "auth0",     label: "Auth0 connection",     status: "loading", detail: "Checking…" },
-  ]);
-  const [ready, setReady] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1);
+  const [tenant, setTenant] = useState("");
+  const [clientId, setClientId] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
+  const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [workspaceApiKey, setWorkspaceApiKey] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
-  const update = (key: string, patch: Partial<StatusItem>) =>
-    setChecks((prev) => prev.map((c) => (c.key === key ? { ...c, ...patch } : c)));
+  const toggleService = (id: string) => {
+    setSelectedServices((prev) =>
+      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]
+    );
+  };
 
-  useEffect(() => {
-    const run = async () => {
-      // 1. API health
-      try {
-        await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/health`);
-        update("api", { status: "ok", detail: "Connected" });
-      } catch {
-        update("api", { status: "error", detail: "Cannot reach API — is Docker running?" });
-        return;
+  const handleStep1 = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.setupWorkspace({ name: "My Workspace", auth0_tenant: tenant });
+      if (res.api_key) {
+        setWorkspaceApiKey(res.api_key);
       }
+      setCurrentStep(2);
+    } catch (err: any) {
+      setError(err.message || "Failed to connect to Auth0. Check your credentials.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      // 2. Rules
-      try {
-        const rules = await api.getRules();
-        if (rules.length === 0) {
-          update("rules", { status: "warn", detail: "No rules yet — create your first rule" });
-        } else {
-          update("rules", { status: "ok", detail: `${rules.length} rule${rules.length > 1 ? "s" : ""} configured` });
-        }
-      } catch {
-        update("rules", { status: "error", detail: "Could not load rules" });
-      }
+  const handleStep2 = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const selected = services.filter((s) => selectedServices.includes(s.id));
+      await Promise.all(
+        selected.map((svc) =>
+          api.createConnection({
+            name: svc.name,
+            service: svc.id,
+            slug: svc.slug,
+            actions: svc.actions,
+          })
+        )
+      );
+      setCurrentStep(3);
+    } catch (err: any) {
+      setError(err.message || "Failed to create connections.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      // 3. Approvers
-      try {
-        const approvers = await api.getApprovers();
-        if (approvers.length === 0) {
-          update("approvers", { status: "warn", detail: "No approvers — add at least one" });
-        } else {
-          update("approvers", { status: "ok", detail: `${approvers.length} approver${approvers.length > 1 ? "s" : ""} registered` });
-        }
-      } catch {
-        update("approvers", { status: "error", detail: "Could not load approvers" });
-      }
-
-      // 4. CIBA quota
-      try {
-        const quota = await api.getCibaQuota();
-        const pct = Math.round((quota.used / quota.limit) * 100);
-        if (pct >= 80) {
-          update("ciba", { status: "warn", detail: `${quota.used}/${quota.limit} requests/hour (${pct}% — approaching limit)` });
-        } else {
-          update("ciba", { status: "ok", detail: `${quota.used}/${quota.limit} requests/hour (${pct}% used)` });
-        }
-      } catch {
-        update("ciba", { status: "warn", detail: "CIBA quota unavailable" });
-      }
-
-      // 5. Auth0 (check dashboard endpoint which uses Auth0 config)
-      try {
-        await api.getDashboard();
-        update("auth0", { status: "ok", detail: "Auth0 + FGA integration active" });
-      } catch {
-        update("auth0", { status: "warn", detail: "Auth0 may not be fully configured — run setup.py" });
-      }
-
-      setReady(true);
-    };
-    run();
-  }, []);
-
-  const allOk = checks.every((c) => c.status === "ok");
-  const hasError = checks.some((c) => c.status === "error");
-  const loading = checks.some((c) => c.status === "loading");
-
-  const steps = [
-    {
-      icon: Shield,
-      title: "Auth0 Setup",
-      description: "Run docker compose exec api python scripts/setup.py to auto-configure Auth0, FGA, and HMAC secret.",
-      action: null,
-    },
-    {
-      icon: Users,
-      title: "Add Approvers",
-      description: "Register the people who will approve agent actions via Auth0 Guardian push.",
-      action: () => router.push("/approvers"),
-      actionLabel: "Manage Approvers",
-    },
-    {
-      icon: GitBranch,
-      title: "Create Rules",
-      description: "Define approval workflows: which agent actions require human sign-off and from whom.",
-      action: () => router.push("/rules/new"),
-      actionLabel: "Create First Rule",
-    },
-    {
-      icon: Link2,
-      title: "Store Credentials",
-      description: "Add API keys for Stripe, GitHub etc. so Token Vault can execute actions after approval.",
-      action: null,
-    },
-    {
-      icon: LayoutDashboard,
-      title: "Go Live",
-      description: "Your agents can now call POST /api/v1/request. Track activity in the dashboard.",
-      action: () => router.push("/dashboard"),
-      actionLabel: "Open Dashboard",
-    },
-  ];
+  const handleCopy = () => {
+    if (workspaceApiKey) {
+      navigator.clipboard.writeText(workspaceApiKey);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   return (
     <div className="max-w-3xl mx-auto">
       <div className="text-center mb-10">
-        <h1 className="text-3xl font-bold text-zinc-900">ApprovalKit Setup</h1>
+        <h1 className="text-3xl font-bold text-zinc-900">Welcome to ApprovalKit</h1>
         <p className="text-zinc-500 mt-2">
-          Human approval middleware for AI agents — Auth0 Token Vault + CIBA + FGA
+          Set up human approval middleware for your AI agents in 3 steps
         </p>
       </div>
 
-      {/* System Status */}
-      <Card className="mb-8">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>System Status</CardTitle>
-            {loading ? (
-              <Loader2 className="h-5 w-5 animate-spin text-zinc-400" />
-            ) : allOk ? (
-              <Badge variant="success">All Systems Go</Badge>
-            ) : hasError ? (
-              <Badge variant="danger">Action Required</Badge>
-            ) : (
-              <Badge variant="warning">Needs Attention</Badge>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {checks.map((c) => (
-              <div key={c.key} className="flex items-center gap-3">
-                {c.status === "loading" ? (
-                  <Loader2 className="h-5 w-5 animate-spin text-zinc-300 flex-shrink-0" />
-                ) : c.status === "ok" ? (
-                  <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
-                ) : c.status === "warn" ? (
-                  <CheckCircle2 className="h-5 w-5 text-yellow-500 flex-shrink-0" />
-                ) : (
-                  <XCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
-                )}
-                <div className="flex-1 min-w-0">
-                  <span className="text-sm font-medium text-zinc-800">{c.label}</span>
-                  <span className="text-sm text-zinc-400 ml-2">{c.detail}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-          {ready && !allOk && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-4"
-              onClick={() => window.location.reload()}
+      {/* Step indicators */}
+      <div className="flex items-center justify-center gap-4 mb-10">
+        {steps.map((step) => (
+          <div key={step.number} className="flex items-center gap-2">
+            <div
+              className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${
+                currentStep > step.number
+                  ? "bg-green-500 text-white"
+                  : currentStep === step.number
+                  ? "bg-zinc-900 text-white"
+                  : "bg-zinc-200 text-zinc-500"
+              }`}
             >
-              Re-check
-            </Button>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Setup Steps */}
-      <div className="space-y-4">
-        <h2 className="text-lg font-semibold text-zinc-800">Setup Checklist</h2>
-        {steps.map((step, i) => (
-          <Card key={i} className="hover:border-zinc-300 transition-colors">
-            <CardContent className="py-4">
-              <div className="flex items-start gap-4">
-                <div className="w-9 h-9 rounded-full bg-zinc-100 flex items-center justify-center flex-shrink-0">
-                  <step.icon className="h-4 w-4 text-zinc-700" />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium text-zinc-400">Step {i + 1}</span>
-                  </div>
-                  <p className="font-medium text-zinc-900">{step.title}</p>
-                  <p className="text-sm text-zinc-500 mt-0.5">{step.description}</p>
-                </div>
-                {step.action && (
-                  <Button size="sm" variant="outline" onClick={step.action}>
-                    {step.actionLabel} <ArrowRight className="h-4 w-4 ml-1" />
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+              {currentStep > step.number ? (
+                <CheckCircle2 className="h-5 w-5" />
+              ) : (
+                step.number
+              )}
+            </div>
+            <span
+              className={`text-sm font-medium ${
+                currentStep >= step.number ? "text-zinc-900" : "text-zinc-400"
+              }`}
+            >
+              {step.title}
+            </span>
+            {step.number < 3 && <ArrowRight className="h-4 w-4 text-zinc-300 mx-2" />}
+          </div>
         ))}
       </div>
 
-      <div className="mt-8 text-center">
-        <Button size="lg" onClick={() => router.push("/dashboard")}>
-          Go to Dashboard <ArrowRight className="h-4 w-4 ml-2" />
-        </Button>
-      </div>
+      {/* Step 1: Connect Auth0 */}
+      {currentStep === 1 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Connect Auth0</CardTitle>
+            <CardDescription>
+              Enter your Auth0 tenant credentials. The platform will validate the connection
+              and create your workspace.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <label className="text-sm font-medium text-zinc-700">Auth0 Domain</label>
+              <Input
+                placeholder="your-tenant.auth0.com"
+                value={tenant}
+                onChange={(e) => setTenant(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-zinc-700">Client ID</label>
+              <Input
+                placeholder="your-client-id"
+                value={clientId}
+                onChange={(e) => setClientId(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-zinc-700">Client Secret</label>
+              <Input
+                type="password"
+                placeholder="your-client-secret"
+                value={clientSecret}
+                onChange={(e) => setClientSecret(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+            <div className="p-3 bg-blue-50 rounded-lg">
+              <p className="text-sm text-blue-700">
+                Token Vault must be enabled on your tenant. CIBA and Guardian push must be configured.
+                FGA store should be created with the ApprovalKit authorization model.
+              </p>
+            </div>
+            {error && (
+              <div className="flex items-center gap-2 p-3 bg-red-50 rounded-lg text-red-700 text-sm">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                {error}
+              </div>
+            )}
+            <div className="flex justify-end">
+              <Button onClick={handleStep1} disabled={!tenant || loading}>
+                {loading ? "Connecting..." : "Connect"} <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Step 2: Define Connections */}
+      {currentStep === 2 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Define Connections</CardTitle>
+            <CardDescription>
+              Select which services your agents will interact with.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {workspaceApiKey && (
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-sm font-medium text-green-800 mb-2">
+                  Workspace created. Save your API key — shown only once.
+                </p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 text-xs bg-white border border-green-200 rounded px-3 py-2 font-mono truncate">
+                    {workspaceApiKey}
+                  </code>
+                  <button
+                    onClick={handleCopy}
+                    className="p-2 rounded hover:bg-green-100 transition-colors text-green-700"
+                    title="Copy API key"
+                  >
+                    {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              {services.map((svc) => (
+                <button
+                  key={svc.id}
+                  onClick={() => toggleService(svc.id)}
+                  className={`p-4 rounded-lg border text-left transition-colors ${
+                    selectedServices.includes(svc.id)
+                      ? "border-zinc-900 bg-zinc-50"
+                      : "border-zinc-200 hover:border-zinc-300"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-zinc-900">{svc.name}</span>
+                    {selectedServices.includes(svc.id) && (
+                      <CheckCircle2 className="h-5 w-5 text-green-500" />
+                    )}
+                  </div>
+                  <div className="flex gap-1 mt-2 flex-wrap">
+                    {svc.actions.map((a) => (
+                      <Badge key={a} variant="default">
+                        {a}
+                      </Badge>
+                    ))}
+                  </div>
+                </button>
+              ))}
+            </div>
+            {error && (
+              <div className="flex items-center gap-2 p-3 bg-red-50 rounded-lg text-red-700 text-sm">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                {error}
+              </div>
+            )}
+            <div className="flex justify-between">
+              <Button variant="outline" onClick={() => setCurrentStep(1)}>
+                Back
+              </Button>
+              <Button onClick={handleStep2} disabled={selectedServices.length === 0 || loading}>
+                {loading ? "Creating connections..." : "Continue"} <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Step 3: Create First Rule */}
+      {currentStep === 3 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Write Your First Rule</CardTitle>
+            <CardDescription>
+              The Rule Builder is ready. Create an approval rule with live preview.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="p-6 bg-zinc-50 rounded-lg text-center">
+              <GitBranch className="h-12 w-12 text-zinc-400 mx-auto mb-4" />
+              <p className="text-zinc-600 mb-4">
+                Your workspace is configured with {selectedServices.length} service
+                {selectedServices.length > 1 ? "s" : ""}. Now create your first approval rule.
+              </p>
+              <Button size="lg" onClick={() => router.push("/rules/new")}>
+                Open Rule Builder <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            </div>
+            <div className="flex justify-between">
+              <Button variant="outline" onClick={() => setCurrentStep(2)}>
+                Back
+              </Button>
+              <Button variant="ghost" onClick={() => router.push("/dashboard")}>
+                Skip to Dashboard
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

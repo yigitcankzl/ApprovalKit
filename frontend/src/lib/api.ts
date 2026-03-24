@@ -51,4 +51,11 @@ export const api = {
 
   // Connections
   revokeConnection: (id: string) => fetchAPI(`/api/v1/connections/${id}/revoke`, { method: "POST" }),
+  createConnection: (data: { name: string; service: string; slug: string; actions: string[] }) =>
+    fetchAPI("/api/v1/connections", { method: "POST", body: JSON.stringify(data) }),
+
+  // Workspace
+  setupWorkspace: (data: { name: string; auth0_tenant: string }) =>
+    fetchAPI("/api/v1/workspace/setup", { method: "POST", body: JSON.stringify(data) }),
+  getWorkspace: () => fetchAPI("/api/v1/workspace"),
 };

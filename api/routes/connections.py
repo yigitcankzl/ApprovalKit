@@ -3,11 +3,13 @@ Connections management routes
 ==============================
 Manage ServiceConnections and their encrypted credentials.
 
+POST /api/v1/connections                   — create a new connection
 POST /api/v1/connections/{id}/credentials  — store encrypted credentials
 GET  /api/v1/connections                   — list connections (no creds exposed)
 GET  /api/v1/connections/{id}              — single connection detail
 """
 import uuid
+from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -16,9 +18,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.database import get_db
 from api.models.connection import ServiceConnection
+from api.models.workspace import Workspace
 from api.services.token_vault import encrypt_credentials, decrypt_credentials
 
 router = APIRouter(prefix="/api/v1/connections", tags=["connections"])
+
+
+class CreateConnectionRequest(BaseModel):
+    name: str
+    service: str
+    slug: str
+    actions: List[str] = []
 
 
 class StoreCredentialsRequest(BaseModel):
@@ -36,6 +46,40 @@ def _conn_to_dict(c: ServiceConnection) -> dict:
         "is_active":       c.is_active,
         "created_at":      c.created_at.isoformat(),
     }
+
+
+@router.post("", status_code=201)
+async def create_connection(body: CreateConnectionRequest, db: AsyncSession = Depends(get_db)):
+    """Create a new service connection. Used during onboarding."""
+    # Get the first active workspace
+    result = await db.execute(
+        select(Workspace).where(Workspace.is_active.is_(True)).limit(1)
+    )
+    workspace = result.scalar_one_or_none()
+    if not workspace:
+        raise HTTPException(status_code=400, detail="No workspace configured. Complete onboarding step 1 first.")
+
+    # Idempotent: return existing connection with same slug
+    existing = await db.execute(
+        select(ServiceConnection).where(ServiceConnection.slug == body.slug)
+    )
+    conn = existing.scalar_one_or_none()
+    if conn:
+        return _conn_to_dict(conn)
+
+    conn = ServiceConnection(
+        id=uuid.uuid4(),
+        workspace_id=workspace.id,
+        name=body.name,
+        service=body.service,
+        slug=body.slug,
+        token_vault_connection_id=body.service,
+        actions=body.actions,
+    )
+    db.add(conn)
+    await db.commit()
+    await db.refresh(conn)
+    return _conn_to_dict(conn)
 
 
 @router.get("")
