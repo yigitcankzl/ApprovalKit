@@ -48,7 +48,6 @@ async def submit_approval_request(
     # Check idempotency
     cached = await redis_client.get(f"idem:{request.idempotency_key}")
     if cached:
-        import json
         data = json.loads(cached)
         return ApprovalResponse(**data)
 
