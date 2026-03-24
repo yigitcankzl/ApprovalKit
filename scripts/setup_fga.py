@@ -1,20 +1,9 @@
 #!/usr/bin/env python3
 """
-FGA Setup Script — ApprovalKit
--------------------------------
-Bu script:
-1. FGA store'unda authorization modelini oluşturur
-2. Demo approvers + workspace için FGA tuple'larını yazar
-3. .env dosyasına FGA_STORE_ID ve FGA_MODEL_ID'yi kaydeder
+FGA-only setup — superseded by scripts/setup.py which covers all steps.
 
-Kullanım:
-  python scripts/setup_fga.py
-
-.env'de şunların dolu olması gerekiyor:
-  FGA_API_URL=https://api.us1.fga.dev
-  FGA_STORE_ID=<fga.dev dashboard'dan>
-  FGA_CLIENT_ID=<fga.dev dashboard → Credentials'dan>
-  FGA_CLIENT_SECRET=<fga.dev dashboard → Credentials'dan>
+Use scripts/setup.py for the full one-shot setup:
+  docker compose exec api python scripts/setup.py
 """
 
 import asyncio
