@@ -18,7 +18,7 @@ const navigation = [
   { name: "Onboarding", href: "/onboarding", icon: Rocket },
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Rules", href: "/rules", icon: GitBranch },
-  { name: "Approvers", href: "/rules", icon: Users },
+  { name: "Approvers", href: "/approvers", icon: Users },
   { name: "Audit Log", href: "/audit", icon: ScrollText },
   { name: "Use Cases", href: "/gallery", icon: BookOpen },
   { name: "Simulate", href: "/simulate", icon: FlaskConical },

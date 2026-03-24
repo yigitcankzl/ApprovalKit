@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { ApprovalFlow } from "@/components/rule-graph/approval-flow";
 import { api } from "@/lib/api";
 import type { Rule, Approver } from "@/types";
+import { Pencil, Trash2, ArrowLeft } from "lucide-react";
 
 const modelLabels: Record<string, string> = {
   any_one: "Any One",
@@ -18,10 +20,13 @@ const modelLabels: Record<string, string> = {
 
 export default function RuleDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const [rule, setRule] = useState<Rule | null>(null);
   const [approverNames, setApproverNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     const ruleId = params.id as string;
@@ -38,6 +43,30 @@ export default function RuleDetailPage() {
       .catch((err) => setError(err.message || "Failed to load rule"))
       .finally(() => setLoading(false));
   }, [params.id]);
+
+  const handleDelete = async () => {
+    if (!rule) return;
+    if (!confirmDelete) { setConfirmDelete(true); return; }
+    setDeleting(true);
+    try {
+      await api.deleteRule(rule.id);
+      router.push("/rules");
+    } catch (e: any) {
+      setError(e.message || "Failed to delete rule");
+      setDeleting(false);
+      setConfirmDelete(false);
+    }
+  };
+
+  const handleToggleActive = async () => {
+    if (!rule) return;
+    try {
+      const updated = await api.updateRule(rule.id, { is_active: !rule.is_active });
+      setRule(updated);
+    } catch (e: any) {
+      setError(e.message || "Failed to update rule");
+    }
+  };
 
   if (loading) {
     return (
@@ -59,17 +88,54 @@ export default function RuleDetailPage() {
 
   return (
     <div>
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          {error}
+        </div>
+      )}
       <div className="mb-8 flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-zinc-900">{rule.name}</h1>
-            <Badge variant={rule.is_active ? "success" : "default"}>
-              {rule.is_active ? "Active" : "Inactive"}
-            </Badge>
+        <div className="flex items-center gap-4">
+          <Button variant="outline" size="sm" onClick={() => router.push("/rules")}>
+            <ArrowLeft className="h-4 w-4 mr-1" /> Rules
+          </Button>
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-zinc-900">{rule.name}</h1>
+              <Badge variant={rule.is_active ? "success" : "default"}>
+                {rule.is_active ? "Active" : "Inactive"}
+              </Badge>
+            </div>
+            <p className="text-zinc-500 mt-1">
+              {rule.connection}:{rule.action} — {modelLabels[rule.model]}
+            </p>
           </div>
-          <p className="text-zinc-500 mt-1">
-            {rule.connection}:{rule.action} — {modelLabels[rule.model]}
-          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleToggleActive}>
+            {rule.is_active ? "Deactivate" : "Activate"}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push(`/rules/${rule.id}/edit`)}
+          >
+            <Pencil className="h-4 w-4 mr-1" /> Edit
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className={confirmDelete ? "border-red-500 text-red-600 hover:bg-red-50" : ""}
+            onClick={handleDelete}
+            disabled={deleting}
+          >
+            <Trash2 className="h-4 w-4 mr-1" />
+            {deleting ? "Deleting…" : confirmDelete ? "Confirm Delete?" : "Delete"}
+          </Button>
+          {confirmDelete && (
+            <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(false)}>
+              Cancel
+            </Button>
+          )}
         </div>
       </div>
 
