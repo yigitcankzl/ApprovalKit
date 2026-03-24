@@ -1,14 +1,32 @@
 from contextlib import asynccontextmanager
 
+import sentry_sdk
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 
 from api.config import get_settings
 import api.models  # noqa: F401 — registers all ORM mappers before any query runs
 from api.routes import request, rules, approvers, audit, connections
 
 settings = get_settings()
+
+if settings.SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        environment=settings.ENVIRONMENT,
+        traces_sample_rate=0.2,
+        integrations=[
+            FastApiIntegration(),
+            SqlalchemyIntegration(),
+        ],
+        send_default_pii=False,
+    )
+    logger.info("Sentry error tracking enabled")
+else:
+    logger.warning("SENTRY_DSN not configured — error tracking disabled")
 
 
 @asynccontextmanager

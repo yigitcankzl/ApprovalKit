@@ -45,6 +45,7 @@ class Settings(BaseSettings):
 
     # Sentry
     SENTRY_DSN: str = ""
+    ENVIRONMENT: str = "production"
 
     # Celery
     CELERY_BROKER_URL: str = "redis://localhost:6379/1"
