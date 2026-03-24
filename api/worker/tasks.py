@@ -1,10 +1,13 @@
 import asyncio
+import json
 import uuid
 from datetime import datetime, timedelta
 
+import redis.asyncio as aioredis
 from loguru import logger
 from sqlalchemy import select
 
+from api.config import get_settings
 from api.worker.celery_app import celery_app
 from api.worker.state_machine import validate_transition
 from api.models.approval_job import ApprovalJob, AuditLog, AuditEventType, JobState
@@ -13,6 +16,23 @@ from api.services.ciba import ciba_service
 from api.services.token_vault import token_vault_service
 from api.services.rule_engine import render_binding_message
 from api.middleware.rate_limit import rate_limiter
+
+
+async def _publish(event_type: str, job: ApprovalJob, **kwargs):
+    try:
+        settings = get_settings()
+        r = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+        await r.publish("approval_events", json.dumps({
+            "type": event_type,
+            "job_id": str(job.id),
+            "connection": job.connection,
+            "action": job.action,
+            "timestamp": datetime.utcnow().isoformat(),
+            **kwargs,
+        }))
+        await r.aclose()
+    except Exception as e:
+        logger.warning(f"Failed to publish SSE event: {e}")
 
 
 def run_async(coro):
@@ -316,6 +336,7 @@ async def _process_job(job_id: str):
                     modified_params=job.final_params if params_changed else None,
                 )
                 session.add(audit)
+                await _publish("approved", job, exec_note=exec_note or "")
 
             elif approval_result["status"] == "rejected":
                 job.state = JobState.REJECTED
@@ -327,6 +348,7 @@ async def _process_job(job_id: str):
                     event_type=AuditEventType.REJECTED,
                 )
                 session.add(audit)
+                await _publish("rejected", job)
 
             elif approval_result["status"] == "timeout":
                 if rule.on_timeout.value == "escalate" and rule.escalate_to:
