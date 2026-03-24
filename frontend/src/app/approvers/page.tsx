@@ -280,9 +280,11 @@ export default function ApproversPage() {
                           size="sm"
                           onClick={async () => {
                             try {
-                              await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/approvers/${a.id}/delegate`, { method: "DELETE" });
+                              await api.removeDelegation(a.id);
                               loadApprovers();
-                            } catch {}
+                            } catch (e: any) {
+                              setError(e.message || "Failed to remove delegation");
+                            }
                           }}
                         >
                           Remove Delegation
