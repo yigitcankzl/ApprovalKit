@@ -59,16 +59,10 @@ def _derive_fernet_key() -> bytes:
     if not raw:
         raise RuntimeError("Neither CREDENTIALS_KEY nor HMAC_SECRET is set")
 
-    # If the value is already a valid 32-byte URL-safe base64 Fernet key (44 chars), use directly
-    if len(raw) == 44:
-        try:
-            base64.urlsafe_b64decode(raw + "==")
-            return raw.encode()
-        except Exception:
-            pass
-
-    # HKDF ensures the derived Fernet key is cryptographically independent
-    # of the raw secret, even when the raw secret is shared with HMAC signing.
+    # Always apply HKDF — never use the raw secret as a Fernet key directly.
+    # This ensures:
+    #   • The Fernet key is always 256 bits of HKDF output regardless of input format.
+    #   • The derivation is consistent across setup scripts and the service.
     derived = HKDF(
         algorithm=hashes.SHA256(),
         length=32,
