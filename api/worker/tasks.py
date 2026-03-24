@@ -260,12 +260,18 @@ async def _process_job(job_id: str):
                 else:
                     exec_note = f"execution_failed: {exec_result.get('error', 'unknown')}"
                 logger.info(f"Token Vault result for job {job_id}: {exec_result}")
+                # Record modified params in audit if they differ from original
+                params_changed = (
+                    job.final_params is not None
+                    and job.final_params != job.params
+                )
                 audit = AuditLog(
                     job_id=job.id,
                     workspace_id=job.workspace_id,
                     approver_id=approver_obj.id if approver_obj and hasattr(approver_obj, "id") else None,
                     event_type=AuditEventType.APPROVED,
                     note=exec_note,
+                    modified_params=job.final_params if params_changed else None,
                 )
                 session.add(audit)
 

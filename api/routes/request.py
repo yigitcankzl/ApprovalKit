@@ -162,6 +162,54 @@ async def submit_approval_request(
     return ApprovalResponse(**response_data)
 
 
+@router.patch("/jobs/{job_id}/params")
+async def modify_job_params(
+    job_id: str,
+    body: dict,
+    workspace: Workspace = Depends(verify_hmac_signature),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Allow an approver to submit modified parameters before the CIBA approval
+    is granted.  The worker reads `final_params` (falling back to `params`)
+    when executing the downstream action, so calling this endpoint mid-flight
+    changes what actually gets executed.
+    """
+    from sqlalchemy import select
+    result = await db.execute(
+        select(ApprovalJob).where(
+            ApprovalJob.id == uuid.UUID(job_id),
+            ApprovalJob.workspace_id == workspace.id,
+        )
+    )
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.state not in (JobState.PENDING, JobState.CIBA_SENT):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot modify params for job in state '{job.state.value}'"
+        )
+
+    modified = body.get("params")
+    if not modified or not isinstance(modified, dict):
+        raise HTTPException(status_code=422, detail="Body must contain 'params' dict")
+
+    job.final_params = modified
+
+    audit = AuditLog(
+        job_id=job.id,
+        workspace_id=workspace.id,
+        event_type=AuditEventType.REQUESTED,
+        note=f"params_modified by approver",
+        modified_params=modified,
+    )
+    db.add(audit)
+    await db.commit()
+
+    return {"status": "updated", "job_id": job_id, "final_params": modified}
+
+
 @router.get("/status/{job_id}", response_model=JobStatusResponse)
 async def get_job_status(
     job_id: str,
