@@ -139,17 +139,19 @@ docker compose exec api python scripts/setup.py
 # 3. Install the SDK in your agent's environment
 pip install requests           # only stdlib + requests needed
 
-# 4. Copy examples/approvalkit_sdk.py next to your agent code`} />
+# 4. Install the SDK
+pip install ./sdk       # local install from repo
+# or once published: pip install approvalkit`} />
         </Section>
 
         {/* SDK */}
         <Section id="sdk">
           <h2 className="text-xl font-bold text-zinc-900 mb-4">Python SDK</h2>
           <p className="text-zinc-600 mb-4">
-            The SDK lives in <code className="bg-zinc-100 px-1 rounded text-sm">examples/approvalkit_sdk.py</code>.
-            Copy it into your project — no package install needed.
+            Install from the repo's <code className="bg-zinc-100 px-1 rounded text-sm">sdk/</code> folder,
+            or copy <code className="bg-zinc-100 px-1 rounded text-sm">sdk/approvalkit/__init__.py</code> into your project.
           </p>
-          <CodeBlock code={`from approvalkit_sdk import ApprovalKit, ApprovalDenied
+          <CodeBlock code={`from approvalkit import ApprovalKit, ApprovalDenied
 
 kit = ApprovalKit(
     base_url="http://localhost:8000",
@@ -203,7 +205,7 @@ def charge_customer(amount: int, customer: str):
           <div className="mt-4 mb-2 text-sm font-medium text-zinc-700">
             Handling approval outcomes
           </div>
-          <CodeBlock code={`from approvalkit_sdk import ApprovalDenied
+          <CodeBlock code={`from approvalkit import ApprovalDenied
 
 try:
     charge_customer(99, "alice@example.com")

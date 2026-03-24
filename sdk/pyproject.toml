@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "approvalkit"
+version = "0.1.0"
+description = "Human approval middleware for AI agents — plug in with one decorator"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "requests>=2.28",
+]
+
+[project.urls]
+Homepage = "https://github.com/your-org/approvalkit"
+Documentation = "http://localhost:3000/docs"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["approvalkit*"]

@@ -26,7 +26,7 @@ import random
 import sys
 import time
 
-from approvalkit_sdk import ApprovalKit, ApprovalDenied
+from approvalkit import ApprovalKit, ApprovalDenied
 
 # ------------------------------------------------------------------
 # SDK setup — reads from env, falls back to empty strings
