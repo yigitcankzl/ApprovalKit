@@ -64,6 +64,7 @@ export default function NewRulePage() {
   const [cooldownMax, setCooldownMax] = useState<string>("");
   const [quorumWindow, setQuorumWindow] = useState<string>("");
   const [priority, setPriority] = useState(0);
+  const [escalateTo, setEscalateTo] = useState("");
 
   const availableActions = actions[connection] || [];
 
@@ -85,6 +86,7 @@ export default function NewRulePage() {
         k_value: model === "k_of_n" ? kValue : null,
         timeout_seconds: timeoutSeconds,
         on_timeout: onTimeout,
+        escalate_to: onTimeout === "escalate" ? (escalateTo || null) : null,
         partial_approval: partialApproval,
         context_template: contextTemplate || null,
         blackout_start: blackoutStart || null,
@@ -235,6 +237,17 @@ export default function NewRulePage() {
                   </Select>
                 </div>
               </div>
+              {onTimeout === "escalate" && (
+                <div>
+                  <label className="text-sm font-medium text-zinc-700">Escalation Approver</label>
+                  <Select value={escalateTo} onChange={(e) => setEscalateTo(e.target.value)} className="mt-1">
+                    <option value="">Select escalation approver...</option>
+                    {approvers.map((a) => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
+                    ))}
+                  </Select>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-zinc-700">Blackout Start</label>
@@ -284,6 +297,7 @@ export default function NewRulePage() {
             kValue={kValue}
             timeoutSeconds={timeoutSeconds}
             onTimeout={onTimeout}
+            escalateTo={escalateTo || undefined}
             partialApproval={partialApproval}
             contextTemplate={contextTemplate}
             blackoutStart={blackoutStart}

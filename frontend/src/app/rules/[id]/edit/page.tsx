@@ -58,6 +58,7 @@ export default function EditRulePage() {
   const [cooldownMax, setCooldownMax] = useState("");
   const [quorumWindow, setQuorumWindow] = useState("");
   const [priority, setPriority] = useState(0);
+  const [escalateTo, setEscalateTo] = useState("");
   const [selectedApproverIds, setSelectedApproverIds] = useState<string[]>([]);
 
   useEffect(() => {
@@ -79,6 +80,7 @@ export default function EditRulePage() {
         setCooldownMax(rule.cooldown_max !== null ? String(rule.cooldown_max) : "");
         setQuorumWindow(rule.quorum_window !== null ? String(rule.quorum_window) : "");
         setPriority(rule.priority);
+        setEscalateTo(rule.escalate_to ?? "");
         setSelectedApproverIds(rule.approver_ids);
       })
       .catch((e) => setLoadError(e.message || "Failed to load rule"))
@@ -109,6 +111,7 @@ export default function EditRulePage() {
         k_value: model === "k_of_n" ? kValue : null,
         timeout_seconds: timeoutSeconds,
         on_timeout: onTimeout,
+        escalate_to: onTimeout === "escalate" ? (escalateTo || null) : null,
         partial_approval: partialApproval,
         context_template: contextTemplate || null,
         blackout_start: blackoutStart || null,
@@ -259,6 +262,17 @@ export default function EditRulePage() {
                   </Select>
                 </div>
               </div>
+              {onTimeout === "escalate" && (
+                <div>
+                  <label className="text-sm font-medium text-zinc-700">Escalation Approver</label>
+                  <Select value={escalateTo} onChange={(e) => setEscalateTo(e.target.value)} className="mt-1">
+                    <option value="">Select escalation approver...</option>
+                    {approvers.map((a) => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
+                    ))}
+                  </Select>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-zinc-700">Blackout Start</label>
@@ -304,6 +318,7 @@ export default function EditRulePage() {
             kValue={kValue}
             timeoutSeconds={timeoutSeconds}
             onTimeout={onTimeout}
+            escalateTo={escalateTo || undefined}
             partialApproval={partialApproval}
             contextTemplate={contextTemplate}
             blackoutStart={blackoutStart}
