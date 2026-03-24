@@ -1,0 +1,53 @@
+from pydantic_settings import BaseSettings
+from functools import lru_cache
+
+
+class Settings(BaseSettings):
+    # App
+    APP_NAME: str = "ApprovalKit"
+    DEBUG: bool = False
+    API_VERSION: str = "v1"
+
+    # Database
+    DATABASE_URL: str = "postgresql+asyncpg://localhost:5432/approvalkit"
+
+    # Redis
+    REDIS_URL: str = "redis://localhost:6379/0"
+
+    # Auth0
+    AUTH0_DOMAIN: str = ""
+    AUTH0_CLIENT_ID: str = ""
+    AUTH0_CLIENT_SECRET: str = ""
+    AUTH0_AUDIENCE: str = ""
+    AUTH0_MGMT_API_AUDIENCE: str = ""
+
+    # Auth0 FGA
+    FGA_API_URL: str = ""
+    FGA_STORE_ID: str = ""
+    FGA_MODEL_ID: str = ""
+
+    # CIBA
+    CIBA_POLL_INTERVAL: int = 2
+    CIBA_MAX_POLL_INTERVAL: int = 30
+    CIBA_QUOTA_LIMIT: int = 500
+    CIBA_QUOTA_WARN_PERCENT: int = 80
+
+    # Security
+    HMAC_SECRET: str = ""
+    HMAC_TIMESTAMP_TOLERANCE: int = 300  # 5 minutes
+    API_RATE_LIMIT: int = 100
+    API_RATE_WINDOW: str = "1h"
+
+    # Sentry
+    SENTRY_DSN: str = ""
+
+    # Celery
+    CELERY_BROKER_URL: str = "redis://localhost:6379/1"
+    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/2"
+
+    model_config = {"env_file": ".env", "extra": "ignore"}
+
+
+@lru_cache()
+def get_settings() -> Settings:
+    return Settings()
