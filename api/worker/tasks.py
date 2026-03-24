@@ -16,11 +16,9 @@ from api.middleware.rate_limit import rate_limiter
 
 
 def run_async(coro):
-    loop = asyncio.new_event_loop()
-    try:
-        return loop.run_until_complete(coro)
-    finally:
-        loop.close()
+    # asyncio.run() creates a fresh loop, runs the coro, then closes it cleanly.
+    # This avoids "Future attached to a different loop" errors in Celery fork workers.
+    return asyncio.run(coro)
 
 
 async def _get_db_session():
