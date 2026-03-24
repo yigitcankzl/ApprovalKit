@@ -1,13 +1,19 @@
 import uuid
 from datetime import datetime, time
+from urllib.parse import urlencode
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.config import get_settings
 from api.database import get_db
 from api.models.approver import Approver
 from api.schemas.approver import ApproverCreate, ApproverUpdate, DelegationRequest, ApproverResponse
+
+settings = get_settings()
 
 router = APIRouter(prefix="/api/v1/approvers", tags=["approvers"])
 
@@ -89,6 +95,77 @@ async def list_approvers(
     )
     approvers = result.scalars().all()
     return [_approver_to_response(a) for a in approvers]
+
+
+@router.get("/link-callback")
+async def link_callback(
+    db: AsyncSession = Depends(get_db),
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+):
+    if error:
+        return RedirectResponse(url=f"{settings.FRONTEND_URL}/approvers?error={error}")
+    if not code or not state:
+        return RedirectResponse(url=f"{settings.FRONTEND_URL}/approvers?error=missing_code")
+    try:
+        approver_uuid = uuid.UUID(state)
+    except ValueError:
+        return RedirectResponse(url=f"{settings.FRONTEND_URL}/approvers?error=invalid_state")
+
+    result = await db.execute(select(Approver).where(Approver.id == approver_uuid))
+    approver = result.scalar_one_or_none()
+    if not approver:
+        return RedirectResponse(url=f"{settings.FRONTEND_URL}/approvers?error=approver_not_found")
+
+    callback_url = f"{settings.CALLBACK_BASE_URL}/api/v1/approvers/link-callback"
+    web_client_id = settings.AUTH0_WEB_CLIENT_ID or settings.AUTH0_CLIENT_ID
+    web_client_secret = settings.AUTH0_WEB_CLIENT_SECRET or settings.AUTH0_CLIENT_SECRET
+
+    async with httpx.AsyncClient(timeout=15) as client:
+        token_resp = await client.post(
+            f"https://{settings.AUTH0_DOMAIN}/oauth/token",
+            json={
+                "grant_type": "authorization_code",
+                "client_id": web_client_id,
+                "client_secret": web_client_secret,
+                "code": code,
+                "redirect_uri": callback_url,
+            },
+        )
+        if token_resp.status_code != 200:
+            return RedirectResponse(url=f"{settings.FRONTEND_URL}/approvers?error=token_exchange_failed")
+
+        userinfo_resp = await client.get(
+            f"https://{settings.AUTH0_DOMAIN}/userinfo",
+            headers={"Authorization": f"Bearer {token_resp.json()['access_token']}"},
+        )
+        if userinfo_resp.status_code != 200:
+            return RedirectResponse(url=f"{settings.FRONTEND_URL}/approvers?error=userinfo_failed")
+        userinfo = userinfo_resp.json()
+
+    approver.auth0_user_id = userinfo.get("sub")
+    await db.commit()
+    return RedirectResponse(url=f"{settings.FRONTEND_URL}/approvers?linked={approver.name}")
+
+
+@router.get("/{approver_id}/link-url")
+async def get_link_url(approver_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Approver).where(Approver.id == uuid.UUID(approver_id)))
+    approver = result.scalar_one_or_none()
+    if not approver:
+        raise HTTPException(status_code=404, detail="Approver not found")
+
+    callback_url = f"{settings.CALLBACK_BASE_URL}/api/v1/approvers/link-callback"
+    client_id = settings.AUTH0_WEB_CLIENT_ID or settings.AUTH0_CLIENT_ID
+    params = urlencode({
+        "client_id": client_id,
+        "response_type": "code",
+        "scope": "openid profile email",
+        "state": approver_id,
+        "redirect_uri": callback_url,
+    })
+    return {"url": f"https://{settings.AUTH0_DOMAIN}/authorize?{params}"}
 
 
 @router.get("/{approver_id}", response_model=ApproverResponse)

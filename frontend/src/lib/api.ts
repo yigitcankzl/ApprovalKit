@@ -39,6 +39,7 @@ export const api = {
   deleteApprover: (id: string) => fetchAPI(`/api/v1/approvers/${id}`, { method: "DELETE" }),
   setDelegation: (id: string, data: any) => fetchAPI(`/api/v1/approvers/${id}/delegate`, { method: "PUT", body: JSON.stringify(data) }),
   removeDelegation: (id: string) => fetchAPI(`/api/v1/approvers/${id}/delegate`, { method: "DELETE" }),
+  getLinkUrl: (id: string) => fetchAPI(`/api/v1/approvers/${id}/link-url`),
 
   // Audit & Dashboard
   getAuditLog: (params?: { limit?: number; offset?: number; event_type?: string }) => {

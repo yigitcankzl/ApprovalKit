@@ -7,7 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
 import type { Approver } from "@/types";
-import { Plus, Pencil, Trash2, UserCheck, ChevronDown, ChevronUp, X } from "lucide-react";
+import { Plus, Pencil, Trash2, UserCheck, ChevronDown, ChevronUp, X, Link2, CheckCircle2 } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 
 type FormMode = "create" | "edit" | null;
 
@@ -19,10 +21,12 @@ const emptyForm = {
   blackout_end: "",
 };
 
-export default function ApproversPage() {
+function ApproversContent() {
+  const searchParams = useSearchParams();
   const [approvers, setApprovers] = useState<Approver[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [linkedName, setLinkedName] = useState<string | null>(null);
   const [formMode, setFormMode] = useState<FormMode>(null);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -45,7 +49,22 @@ export default function ApproversPage() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { loadApprovers(); }, []);
+  useEffect(() => {
+    loadApprovers();
+    const linked = searchParams.get("linked");
+    const err = searchParams.get("error");
+    if (linked) setLinkedName(linked);
+    if (err) setError(`Link failed: ${err.replace(/_/g, " ")}`);
+  }, []);
+
+  const handleLinkAccount = async (id: string) => {
+    try {
+      const { url } = await api.getLinkUrl(id);
+      window.location.href = url;
+    } catch (e: any) {
+      setError(e.message || "Failed to get link URL");
+    }
+  };
 
   const openCreate = () => {
     setForm(emptyForm);
@@ -70,8 +89,8 @@ export default function ApproversPage() {
   const closeForm = () => { setFormMode(null); setEditId(null); };
 
   const handleSave = async () => {
-    if (!form.name || !form.email || !form.auth0_user_id) {
-      setFormError("Name, email and Auth0 User ID are required.");
+    if (!form.name || !form.email) {
+      setFormError("Name and email are required.");
       return;
     }
     setSaving(true);
@@ -136,6 +155,7 @@ export default function ApproversPage() {
   return (
     <div>
       <div className="mb-8 flex items-center justify-between">
+
         <div>
           <h1 className="text-2xl font-bold text-zinc-900">Approvers</h1>
           <p className="text-zinc-500 mt-1">Manage who can approve agent actions</p>
@@ -145,6 +165,12 @@ export default function ApproversPage() {
         </Button>
       </div>
 
+      {linkedName && (
+        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700 flex justify-between items-center">
+          <span className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4" /><strong>{linkedName}</strong> linked to Auth0 account — Guardian push enabled.</span>
+          <button onClick={() => setLinkedName(null)}><X className="h-4 w-4" /></button>
+        </div>
+      )}
       {error && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex justify-between">
           {error}
@@ -167,11 +193,6 @@ export default function ApproversPage() {
               <div>
                 <label className="text-sm font-medium text-zinc-700">Email</label>
                 <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="alice@company.com" className="mt-1" />
-              </div>
-              <div className="md:col-span-2">
-                <label className="text-sm font-medium text-zinc-700">Auth0 User ID</label>
-                <Input value={form.auth0_user_id} onChange={(e) => setForm({ ...form, auth0_user_id: e.target.value })} placeholder="auth0|xxxxxxxxxxxxxxxxxxxxxxxx" className="mt-1 font-mono text-sm" />
-                <p className="text-xs text-zinc-400 mt-1">Find it in Auth0 Dashboard → Users → User Details → user_id</p>
               </div>
               <div>
                 <label className="text-sm font-medium text-zinc-700">Blackout Start</label>
@@ -227,9 +248,13 @@ export default function ApproversPage() {
                       </div>
                       <div className="flex items-center gap-3 mt-0.5">
                         <span className="text-sm text-zinc-500">{a.email}</span>
-                        <code className="text-xs text-zinc-400 bg-zinc-50 px-1.5 py-0.5 rounded">
-                          {a.auth0_user_id}
-                        </code>
+                        {a.auth0_user_id ? (
+                          <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 px-1.5 py-0.5 rounded">
+                            <CheckCircle2 className="h-3 w-3" /> Guardian linked
+                          </span>
+                        ) : (
+                          <span className="text-xs text-zinc-400 bg-zinc-50 border border-zinc-200 px-1.5 py-0.5 rounded">Not linked</span>
+                        )}
                       </div>
                       {(a.blackout_start || a.notify_channel?.length > 0) && (
                         <div className="flex items-center gap-2 mt-1">
@@ -246,6 +271,11 @@ export default function ApproversPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    {!a.auth0_user_id && (
+                      <Button size="sm" variant="outline" onClick={() => handleLinkAccount(a.id)}>
+                        <Link2 className="h-3.5 w-3.5 mr-1" /> Link Account
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="sm"
@@ -333,5 +363,13 @@ export default function ApproversPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function ApproversPage() {
+  return (
+    <Suspense>
+      <ApproversContent />
+    </Suspense>
   );
 }

@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field, EmailStr
 class ApproverCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     email: str = Field(min_length=1, max_length=320)
-    auth0_user_id: str = Field(min_length=1, max_length=200)
+    auth0_user_id: str | None | None = Field(default=None, max_length=200)
     notify_channel: list[str] = Field(default=["guardian_push"])
     urgent_channel: list[str] = Field(default=["guardian_push", "email"])
     blackout_start: str | None = None
@@ -31,7 +31,7 @@ class ApproverResponse(BaseModel):
     id: str
     name: str
     email: str
-    auth0_user_id: str
+    auth0_user_id: str | None
     notify_channel: list[str]
     urgent_channel: list[str]
     blackout_start: str | None
