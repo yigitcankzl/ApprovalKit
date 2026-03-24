@@ -148,7 +148,7 @@ pip install ./sdk       # local install from repo
         <Section id="sdk">
           <h2 className="text-xl font-bold text-zinc-900 mb-4">Python SDK</h2>
           <p className="text-zinc-600 mb-4">
-            Install from the repo's <code className="bg-zinc-100 px-1 rounded text-sm">sdk/</code> folder,
+            Install from the repo&apos;s <code className="bg-zinc-100 px-1 rounded text-sm">sdk/</code> folder,
             or copy <code className="bg-zinc-100 px-1 rounded text-sm">sdk/approvalkit/__init__.py</code> into your project.
           </p>
           <CodeBlock code={`from approvalkit import ApprovalKit, ApprovalDenied
