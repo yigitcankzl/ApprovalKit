@@ -196,7 +196,7 @@ export default function ConnectionsPage() {
                   {isOpen && (
                     <div className="mt-4 pt-4 border-t border-zinc-100">
                       {fields.length === 0 ? (
-                        <p className="text-sm text-zinc-400">No credential fields defined for service "{conn.service}".</p>
+                        <p className="text-sm text-zinc-400">No credential fields defined for service &quot;{conn.service}&quot;.</p>
                       ) : (
                         <div className="space-y-3">
                           <p className="text-sm font-medium text-zinc-700">

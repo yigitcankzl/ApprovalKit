@@ -120,7 +120,7 @@ kit = ApprovalKit(
     hmac_secret="...",
 )
 
-# ✅ Add one decorator — everything else stays the same
+# Add one decorator — everything else stays the same
 @kit.requires_approval(connection="stripe-prod", action="charge")
 def charge_customer(amount: int, customer: str):
     stripe.charge(amount=amount, customer=customer)
