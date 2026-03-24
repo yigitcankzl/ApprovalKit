@@ -241,12 +241,15 @@ async def _process_job(job_id: str):
                 job.completed_at = datetime.utcnow()
 
                 # Execute downstream action via Token Vault
+                approver_obj = approval_result.get("approver")
+                approver_auth0_id = getattr(approver_obj, "auth0_user_id", None)
                 exec_result = await token_vault_service.execute_action(
                     connection=job.connection,
                     action=job.action,
                     params=job.final_params or job.params,
                     workspace_id=str(job.workspace_id),
                     db=session,
+                    approver_auth0_id=approver_auth0_id,
                 )
                 exec_note = None
                 if exec_result.get("skipped"):
@@ -257,12 +260,10 @@ async def _process_job(job_id: str):
                 else:
                     exec_note = f"execution_failed: {exec_result.get('error', 'unknown')}"
                 logger.info(f"Token Vault result for job {job_id}: {exec_result}")
-
-                approver_obj = approval_result.get("approver")
                 audit = AuditLog(
                     job_id=job.id,
                     workspace_id=job.workspace_id,
-                    approver_id=approver_obj.id if hasattr(approver_obj, "id") else None,
+                    approver_id=approver_obj.id if approver_obj and hasattr(approver_obj, "id") else None,
                     event_type=AuditEventType.APPROVED,
                     note=exec_note,
                 )
