@@ -112,10 +112,23 @@ export default function AuditPage() {
                             {log.event_type.replace(/_/g, " ")}
                           </Badge>
                         </td>
-                        <td className="p-4 text-zinc-500 text-xs max-w-xs truncate">
-                          {log.note || log.binding_message || "—"}
+                        <td className="p-4 text-xs max-w-sm">
+                          {log.event_type === "ciba_sent" && log.binding_message && (
+                            <span className="inline-flex items-center gap-1 bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded font-mono">
+                              Binding: {log.binding_message}
+                            </span>
+                          )}
+                          {log.event_type === "approved" && log.note?.startsWith("executed:") && (
+                            <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 border border-green-200 px-2 py-0.5 rounded">
+                              Auth0 Token Vault
+                            </span>
+                          )}
+                          {log.note && !log.note.startsWith("executed:") && (
+                            <span className="text-zinc-500">{log.note}</span>
+                          )}
+                          {!log.event_type.includes("ciba") && !log.note && "—"}
                           {log.modified_params && (
-                            <span className="ml-2 text-orange-600">Modified params</span>
+                            <span className="ml-2 text-orange-600 font-medium">Modified params</span>
                           )}
                         </td>
                       </tr>
