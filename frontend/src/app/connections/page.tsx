@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -37,7 +37,7 @@ const SERVICE_SUPPORTED: Record<string, boolean> = {
   gmail:      true,
 };
 
-export default function ConnectionsPage() {
+function ConnectionsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [connections, setConnections] = useState<Connection[]>([]);
@@ -181,7 +181,7 @@ export default function ConnectionsPage() {
                           </Button>
                         </>
                       ) : (
-                        <Badge variant="secondary">OAuth not supported</Badge>
+                        <Badge variant="default">OAuth not supported</Badge>
                       )}
                     </div>
                   </div>
@@ -194,12 +194,20 @@ export default function ConnectionsPage() {
 
       <div className="mt-8 p-4 bg-zinc-50 rounded-lg border border-zinc-200">
         <p className="text-xs text-zinc-500">
-          <strong className="text-zinc-700">How it works:</strong> Clicking "Connect" redirects you to Auth0,
+          <strong className="text-zinc-700">How it works:</strong> Clicking &quot;Connect&quot; redirects you to Auth0,
           which handles the OAuth flow with the service provider. The access token is stored securely
           in Auth0 Token Vault — ApprovalKit never sees or stores your credentials.
           When an agent action is approved, ApprovalKit retrieves the token from Auth0 and executes the action server-side.
         </p>
       </div>
     </div>
+  );
+}
+
+export default function ConnectionsPage() {
+  return (
+    <Suspense>
+      <ConnectionsContent />
+    </Suspense>
   );
 }
