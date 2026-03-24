@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     AUTH0_DOMAIN: str = ""
     AUTH0_CLIENT_ID: str = ""
     AUTH0_CLIENT_SECRET: str = ""
+    AUTH0_WEB_CLIENT_ID: str = ""
+    AUTH0_WEB_CLIENT_SECRET: str = ""
     AUTH0_AUDIENCE: str = ""
     AUTH0_MGMT_API_AUDIENCE: str = ""
 

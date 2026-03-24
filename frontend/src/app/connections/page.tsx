@@ -19,6 +19,7 @@ interface Connection {
   connected_via: "auth0" | null;
   connected_user_name: string | null;
   is_active: boolean;
+  is_auth0_configured: boolean;
 }
 
 const SERVICE_LABEL: Record<string, string> = {
@@ -27,15 +28,6 @@ const SERVICE_LABEL: Record<string, string> = {
   slack:      "Slack",
   salesforce: "Salesforce",
   gmail:      "Google",
-};
-
-// Only services with a configured Auth0 Social Connection in this demo
-const SERVICE_CONFIGURED: Record<string, boolean> = {
-  github:     true,
-  stripe:     false,
-  slack:      false,
-  salesforce: false,
-  gmail:      false,
 };
 
 function ConnectionsContent() {
@@ -128,7 +120,7 @@ function ConnectionsContent() {
         <div className="space-y-4">
           {connections.map((conn) => {
             const label = SERVICE_LABEL[conn.service.toLowerCase()] || conn.service;
-            const configured = SERVICE_CONFIGURED[conn.service.toLowerCase()] ?? false;
+            const configured = conn.is_auth0_configured;
             const isConnecting = connecting === conn.id;
 
             return (

@@ -26,6 +26,46 @@ from api.database import get_db
 from api.models.connection import ServiceConnection
 from api.models.workspace import Workspace
 
+_auth0_connections_cache: set[str] | None = None
+
+
+async def _get_auth0_configured_connections() -> set[str]:
+    """Fetch configured social connections from Auth0 Management API."""
+    global _auth0_connections_cache
+    if _auth0_connections_cache is not None:
+        return _auth0_connections_cache
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            # Get Management API token
+            token_resp = await client.post(
+                f"https://{settings.AUTH0_DOMAIN}/oauth/token",
+                json={
+                    "grant_type": "client_credentials",
+                    "client_id": settings.AUTH0_CLIENT_ID,
+                    "client_secret": settings.AUTH0_CLIENT_SECRET,
+                    "audience": f"https://{settings.AUTH0_DOMAIN}/api/v2/",
+                },
+            )
+            if token_resp.status_code != 200:
+                return set()
+            mgmt_token = token_resp.json().get("access_token", "")
+
+            # List all connections
+            conns_resp = await client.get(
+                f"https://{settings.AUTH0_DOMAIN}/api/v2/connections",
+                headers={"Authorization": f"Bearer {mgmt_token}"},
+                params={"fields": "name,strategy", "per_page": "100"},
+            )
+            if conns_resp.status_code != 200:
+                return set()
+
+            names = {c["name"] for c in conns_resp.json()}
+            _auth0_connections_cache = names
+            return names
+    except Exception:
+        return set()
+
 settings = get_settings()
 
 router = APIRouter(prefix="/api/v1/connections", tags=["connections"])
@@ -44,7 +84,7 @@ _AUTH0_CONNECTION = {
 
 _SERVICE_SCOPE = {
     "github":     "openid profile email repo",
-    "stripe":     "openid profile email read_write",
+    "stripe":     "openid profile email",
     "slack":      "openid profile email",
     "salesforce": "openid profile email",
     "gmail":      "openid profile email",
@@ -120,7 +160,15 @@ async def list_connections(db: AsyncSession = Depends(get_db)):
         select(ServiceConnection).where(ServiceConnection.is_active.is_(True))
         .order_by(ServiceConnection.name)
     )
-    return [_conn_to_dict(c) for c in result.scalars().all()]
+    conns = result.scalars().all()
+    auth0_conns = await _get_auth0_configured_connections()
+    out = []
+    for c in conns:
+        d = _conn_to_dict(c)
+        auth0_name = _AUTH0_CONNECTION.get(c.service.lower(), c.service.lower())
+        d["is_auth0_configured"] = auth0_name in auth0_conns
+        out.append(d)
+    return out
 
 
 @router.get("/oauth/callback")
@@ -160,12 +208,14 @@ async def oauth_callback(
 
     async with httpx.AsyncClient(timeout=15) as client:
         # Exchange authorization code for tokens
+        web_client_id = settings.AUTH0_WEB_CLIENT_ID or settings.AUTH0_CLIENT_ID
+        web_client_secret = settings.AUTH0_WEB_CLIENT_SECRET or settings.AUTH0_CLIENT_SECRET
         token_resp = await client.post(
             f"https://{settings.AUTH0_DOMAIN}/oauth/token",
             json={
                 "grant_type":    "authorization_code",
-                "client_id":     settings.AUTH0_CLIENT_ID,
-                "client_secret": settings.AUTH0_CLIENT_SECRET,
+                "client_id":     web_client_id,
+                "client_secret": web_client_secret,
                 "code":          code,
                 "redirect_uri":  callback_url,
             },
@@ -223,8 +273,9 @@ async def get_connect_url(connection_id: str, db: AsyncSession = Depends(get_db)
     scope = _SERVICE_SCOPE.get(service, "openid profile email")
     callback_url = f"{settings.CALLBACK_BASE_URL}/api/v1/connections/oauth/callback"
 
+    client_id = settings.AUTH0_WEB_CLIENT_ID or settings.AUTH0_CLIENT_ID
     params = urlencode({
-        "client_id":     settings.AUTH0_CLIENT_ID,
+        "client_id":     client_id,
         "response_type": "code",
         "scope":         scope,
         "connection":    auth0_connection,
