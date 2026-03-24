@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Copy, Check, Terminal, Code2, Plug, BookOpen } from "lucide-react";
@@ -54,6 +54,25 @@ const NAV = [
 export default function DocsPage() {
   const [activeSection, setActiveSection] = useState("overview");
 
+  useEffect(() => {
+    const observers: IntersectionObserver[] = [];
+
+    NAV.forEach(({ id }) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const obs = new IntersectionObserver(
+        ([entry]) => {
+          if (entry.isIntersecting) setActiveSection(id);
+        },
+        { rootMargin: "-30% 0px -60% 0px", threshold: 0 }
+      );
+      obs.observe(el);
+      observers.push(obs);
+    });
+
+    return () => observers.forEach((o) => o.disconnect());
+  }, []);
+
   return (
     <div className="flex gap-8 max-w-6xl mx-auto">
       {/* Left nav */}
@@ -66,13 +85,12 @@ export default function DocsPage() {
             <a
               key={item.id}
               href={`#${item.id}`}
-              onClick={() => setActiveSection(item.id)}
-              className={`block px-2 py-1.5 rounded text-sm transition-colors ${
-                item.label.startsWith("—") ? "pl-5 text-zinc-500 hover:text-zinc-700" : "font-medium"
+              className={`block px-2 py-1.5 rounded text-sm transition-all duration-150 ${
+                item.label.startsWith("—") ? "pl-5" : "font-medium"
               } ${
                 activeSection === item.id
-                  ? "bg-zinc-100 text-zinc-900"
-                  : "text-zinc-500 hover:text-zinc-800"
+                  ? "bg-zinc-900 text-white"
+                  : "text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100"
               }`}
             >
               {item.label}
