@@ -1,4 +1,38 @@
+"""
+FGA (Fine-Grained Authorization) Client
+=========================================
+Wraps Auth0 FGA (OpenFGA) API calls.
+
+When FGA_STORE_ID or FGA_API_URL is not configured, every check returns True
+so the system degrades gracefully and existing API calls continue to work.
+
+Authorization model (summary)
+------------------------------
+  workspace
+    admin       — full access
+    approver    — can read audit logs they own
+    agent_owner — can read rules + read their own job logs
+    viewer      — read-only audit access
+
+  rule
+    can_read    — admin or agent_owner (via workspace)
+    can_write   — admin only (via workspace)
+
+  audit_log
+    can_read    — admin, viewer, or (approver AND owner)
+
+FGA API authentication
+-----------------------
+When FGA_CLIENT_ID and FGA_CLIENT_SECRET are set, the client obtains a
+short-lived Bearer token from Auth0 and passes it on every FGA call.
+The token is cached until it expires (minus 60s buffer).
+"""
+import asyncio
+import time
+
 import httpx
+from loguru import logger
+
 from api.config import get_settings
 
 settings = get_settings()
@@ -36,74 +70,146 @@ type rule
 
 class FGAClient:
     def __init__(self):
-        self.api_url = settings.FGA_API_URL
+        self.api_url  = settings.FGA_API_URL
         self.store_id = settings.FGA_STORE_ID
         self.model_id = settings.FGA_MODEL_ID
+        self._token:    str | None = None
+        self._token_exp: float = 0.0
+        self._lock = asyncio.Lock()
+
+    # -----------------------------------------------------------------------
+    # Token acquisition (cached, auto-refresh)
+    # -----------------------------------------------------------------------
+
+    async def _get_token(self) -> str:
+        """Return a valid FGA Bearer token, refreshing if necessary."""
+        if not settings.FGA_CLIENT_ID or not settings.FGA_CLIENT_SECRET:
+            return ""
+
+        async with self._lock:
+            if self._token and time.monotonic() < self._token_exp:
+                return self._token
+
+            try:
+                async with httpx.AsyncClient(timeout=10) as c:
+                    r = await c.post(
+                        "https://fga.us.auth0.com/oauth/token",
+                        json={
+                            "client_id":     settings.FGA_CLIENT_ID,
+                            "client_secret": settings.FGA_CLIENT_SECRET,
+                            "audience":      f"{self.api_url}/",
+                            "grant_type":    "client_credentials",
+                        },
+                    )
+                    r.raise_for_status()
+                    data = r.json()
+                    self._token     = data["access_token"]
+                    expires_in      = data.get("expires_in", 3600)
+                    self._token_exp = time.monotonic() + expires_in - 60
+                    return self._token
+            except Exception as e:
+                logger.warning(f"FGA token acquisition failed: {e}")
+                return ""
+
+    def _auth_header(self, token: str) -> dict:
+        return {"Authorization": f"Bearer {token}"} if token else {}
 
     def _base_url(self) -> str:
         return f"{self.api_url}/stores/{self.store_id}"
 
-    async def check(self, user: str, relation: str, obj: str) -> bool:
-        if not self.api_url or not self.store_id:
-            return True  # FGA not configured, allow all
+    def _configured(self) -> bool:
+        return bool(self.api_url and self.store_id)
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{self._base_url()}/check",
-                json={
-                    "tuple_key": {
-                        "user": user,
-                        "relation": relation,
-                        "object": obj,
+    # -----------------------------------------------------------------------
+    # Core check
+    # -----------------------------------------------------------------------
+
+    async def check(self, user: str, relation: str, obj: str) -> bool:
+        """
+        Returns True when the user has the given relation on the object.
+        Falls back to True (allow-all) when FGA is not configured.
+        """
+        if not self._configured():
+            return True
+
+        token = await self._get_token()
+        try:
+            async with httpx.AsyncClient(timeout=10) as c:
+                r = await c.post(
+                    f"{self._base_url()}/check",
+                    headers=self._auth_header(token),
+                    json={
+                        "tuple_key": {
+                            "user":     user,
+                            "relation": relation,
+                            "object":   obj,
+                        },
+                        "authorization_model_id": self.model_id or None,
                     },
-                    "authorization_model_id": self.model_id,
-                },
-            )
-            if response.status_code == 200:
-                return response.json().get("allowed", False)
+                )
+                if r.status_code == 200:
+                    return r.json().get("allowed", False)
+                # 401 — token may have expired, clear cache and retry once
+                if r.status_code == 401:
+                    self._token = None
+                    token = await self._get_token()
+                    r2 = await c.post(
+                        f"{self._base_url()}/check",
+                        headers=self._auth_header(token),
+                        json={
+                            "tuple_key": {
+                                "user": user, "relation": relation, "object": obj,
+                            },
+                        },
+                    )
+                    return r2.json().get("allowed", False) if r2.status_code == 200 else False
+                logger.warning(f"FGA check returned {r.status_code}: {r.text[:200]}")
+                return False
+        except Exception as e:
+            logger.warning(f"FGA check error ({user} {relation} {obj}): {e}")
             return False
 
-    async def write_tuple(self, user: str, relation: str, obj: str):
-        if not self.api_url or not self.store_id:
-            return
+    # -----------------------------------------------------------------------
+    # Tuple management
+    # -----------------------------------------------------------------------
 
-        async with httpx.AsyncClient() as client:
-            await client.post(
-                f"{self._base_url()}/write",
-                json={
-                    "writes": {
-                        "tuple_keys": [
-                            {
-                                "user": user,
-                                "relation": relation,
-                                "object": obj,
-                            }
-                        ]
+    async def write_tuple(self, user: str, relation: str, obj: str):
+        if not self._configured():
+            return
+        token = await self._get_token()
+        try:
+            async with httpx.AsyncClient(timeout=10) as c:
+                await c.post(
+                    f"{self._base_url()}/write",
+                    headers=self._auth_header(token),
+                    json={
+                        "writes": {"tuple_keys": [{"user": user, "relation": relation, "object": obj}]},
+                        "authorization_model_id": self.model_id or None,
                     },
-                    "authorization_model_id": self.model_id,
-                },
-            )
+                )
+        except Exception as e:
+            logger.warning(f"FGA write_tuple error: {e}")
 
     async def delete_tuple(self, user: str, relation: str, obj: str):
-        if not self.api_url or not self.store_id:
+        if not self._configured():
             return
-
-        async with httpx.AsyncClient() as client:
-            await client.post(
-                f"{self._base_url()}/write",
-                json={
-                    "deletes": {
-                        "tuple_keys": [
-                            {
-                                "user": user,
-                                "relation": relation,
-                                "object": obj,
-                            }
-                        ]
+        token = await self._get_token()
+        try:
+            async with httpx.AsyncClient(timeout=10) as c:
+                await c.post(
+                    f"{self._base_url()}/write",
+                    headers=self._auth_header(token),
+                    json={
+                        "deletes": {"tuple_keys": [{"user": user, "relation": relation, "object": obj}]},
+                        "authorization_model_id": self.model_id or None,
                     },
-                    "authorization_model_id": self.model_id,
-                },
-            )
+                )
+        except Exception as e:
+            logger.warning(f"FGA delete_tuple error: {e}")
+
+    # -----------------------------------------------------------------------
+    # Convenience helpers
+    # -----------------------------------------------------------------------
 
     async def check_audit_access(self, user_id: str, log_id: str) -> bool:
         return await self.check(f"user:{user_id}", "can_read", f"audit_log:{log_id}")
@@ -113,6 +219,9 @@ class FGAClient:
 
     async def check_rule_write(self, user_id: str, rule_id: str) -> bool:
         return await self.check(f"user:{user_id}", "can_write", f"rule:{rule_id}")
+
+    async def check_workspace_role(self, user_id: str, role: str, workspace_id: str) -> bool:
+        return await self.check(f"user:{user_id}", role, f"workspace:{workspace_id}")
 
 
 fga_client = FGAClient()

@@ -10,6 +10,7 @@ from api.models.rule import Rule, RuleApprover, ApprovalModel, TimeoutAction
 from api.models.approver import Approver
 from api.schemas.rule import RuleCreate, RuleUpdate, RuleResponse
 from api.services.rule_engine import evaluate_conditions, render_binding_message
+from api.middleware.fga import require_rule_read, require_rule_write, require_workspace_admin
 
 router = APIRouter(prefix="/api/v1/rules", tags=["rules"])
 
@@ -53,6 +54,7 @@ async def create_rule(
     data: RuleCreate,
     db: AsyncSession = Depends(get_db),
     workspace_id: str = "default",
+    _fga: None = Depends(require_workspace_admin),
 ):
     rule = Rule(
         workspace_id=uuid.UUID(workspace_id) if workspace_id != "default" else uuid.uuid4(),
@@ -100,6 +102,7 @@ async def list_rules(
 async def get_rule(
     rule_id: str,
     db: AsyncSession = Depends(get_db),
+    _fga: None = Depends(require_rule_read),
 ):
     result = await db.execute(select(Rule).where(Rule.id == uuid.UUID(rule_id)))
     rule = result.scalar_one_or_none()
@@ -113,6 +116,7 @@ async def update_rule(
     rule_id: str,
     data: RuleUpdate,
     db: AsyncSession = Depends(get_db),
+    _fga: None = Depends(require_rule_write),
 ):
     result = await db.execute(select(Rule).where(Rule.id == uuid.UUID(rule_id)))
     rule = result.scalar_one_or_none()
@@ -149,6 +153,7 @@ async def update_rule(
 async def delete_rule(
     rule_id: str,
     db: AsyncSession = Depends(get_db),
+    _fga: None = Depends(require_rule_write),
 ):
     result = await db.execute(select(Rule).where(Rule.id == uuid.UUID(rule_id)))
     rule = result.scalar_one_or_none()

@@ -1,0 +1,27 @@
+{
+  "name": "ApprovalKit Dev Container",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "."
+  },
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+  "remoteUser": "node",
+
+  "postStartCommand": "sudo /usr/local/bin/init-firewall.sh",
+  "postCreateCommand": "claude --version",
+
+  "mounts": [
+    "source=claude-config,target=/home/node/.claude,type=volume"
+  ],
+
+  "capAdd": ["NET_ADMIN", "NET_RAW"],
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "anthropics.claude-code"
+      ]
+    }
+  }
+}

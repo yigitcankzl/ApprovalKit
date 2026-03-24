@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     HMAC_TIMESTAMP_TOLERANCE: int = 300  # 5 minutes
     API_RATE_LIMIT: int = 100
     API_RATE_WINDOW: str = "1h"
+    # 32-byte URL-safe base64 key for Fernet credential encryption.
+    # Auto-derived from HMAC_SECRET when empty.
+    CREDENTIALS_KEY: str = ""
 
     # Sentry
     SENTRY_DSN: str = ""

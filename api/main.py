@@ -6,7 +6,7 @@ from loguru import logger
 
 from api.config import get_settings
 import api.models  # noqa: F401 — registers all ORM mappers before any query runs
-from api.routes import request, rules, approvers, audit
+from api.routes import request, rules, approvers, audit, connections
 
 settings = get_settings()
 
@@ -41,6 +41,7 @@ app.include_router(request.router)
 app.include_router(rules.router)
 app.include_router(approvers.router)
 app.include_router(audit.router)
+app.include_router(connections.router)
 
 
 @app.get("/")

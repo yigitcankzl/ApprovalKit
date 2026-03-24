@@ -10,6 +10,7 @@ from api.models.approval_job import ApprovalJob, AuditLog, AuditEventType, JobSt
 from api.models.approver import Approver
 from api.schemas.audit import AuditLogResponse, DashboardStats
 from api.services.fga import fga_client
+from api.middleware.fga import require_audit_read
 from api.middleware.rate_limit import rate_limiter
 
 router = APIRouter(prefix="/api/v1", tags=["audit"])
@@ -22,6 +23,7 @@ async def get_audit_log(
     offset: int = Query(default=0, ge=0),
     event_type: str | None = None,
     connection: str | None = None,
+    _fga: None = Depends(require_audit_read),
 ):
     query = (
         select(AuditLog)
