@@ -1,28 +1,20 @@
 """
 Token Vault Service
 ===================
-Manages per-connection credentials (Fernet-encrypted) and executes
-downstream API calls after an approval is granted.
+Executes downstream API calls after an approval is granted.
 
-Credential storage
-------------------
-Credentials are stored as Fernet-encrypted JSON in `connections.credentials_enc`.
-The encryption key is taken from CREDENTIALS_KEY env var, or derived from
-HMAC_SECRET using HKDF-SHA256 when the env var is absent.
+Credentials are NEVER stored locally. All tokens come from Auth0 Token Vault —
+the connected_auth0_user_id on each ServiceConnection points to the Auth0 user
+whose OAuth token is retrieved via the Management API.
 
 Supported service handlers
 ---------------------------
-  stripe  — charge, refund, payout   (Stripe REST API)
-  github  — deploy, rollback         (GitHub Actions / Repos API)
+  stripe  — charge, refund, payout   (Stripe Connect / REST API)
+  github  — deploy, rollback, merge_pr (GitHub API)
 """
-import base64
-import json
 from typing import Any
 
 import httpx
-from cryptography.fernet import Fernet, InvalidToken
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from loguru import logger
 
 from api.config import get_settings
@@ -30,60 +22,14 @@ from api.config import get_settings
 settings = get_settings()
 
 
-# ---------------------------------------------------------------------------
-# Encryption helpers
-# ---------------------------------------------------------------------------
-
-def _derive_fernet_key() -> bytes:
-    """
-    Return a 32-byte Fernet key.
-
-    Key resolution order
-    --------------------
-    1. CREDENTIALS_KEY (preferred) — independent secret, no shared-key risk.
-    2. HMAC_SECRET     (fallback)  — warned: same source for signing & encryption.
-
-    In both cases HKDF-SHA256 is applied so the raw value is never used directly.
-    If CREDENTIALS_KEY is absent a warning is logged once at import time.
-    """
-    if settings.CREDENTIALS_KEY:
-        raw = settings.CREDENTIALS_KEY
-    else:
-        logger.warning(
-            "CREDENTIALS_KEY is not set — falling back to HMAC_SECRET for credential "
-            "encryption. Run `scripts/setup.py` to generate a dedicated key and avoid "
-            "using the same secret for both request signing and credential encryption."
-        )
-        raw = settings.HMAC_SECRET
-
-    if not raw:
-        raise RuntimeError("Neither CREDENTIALS_KEY nor HMAC_SECRET is set")
-
-    # Always apply HKDF — never use the raw secret as a Fernet key directly.
-    # This ensures:
-    #   • The Fernet key is always 256 bits of HKDF output regardless of input format.
-    #   • The derivation is consistent across setup scripts and the service.
-    derived = HKDF(
-        algorithm=hashes.SHA256(),
-        length=32,
-        salt=b"approvalkit-credentials-v1",
-        info=b"fernet-encryption-key",
-    ).derive(raw.encode())
-    return base64.urlsafe_b64encode(derived)
-
-
-def encrypt_credentials(creds: dict) -> str:
-    key = _derive_fernet_key()
-    return Fernet(key).encrypt(json.dumps(creds).encode()).decode()
-
-
-def decrypt_credentials(enc: str) -> dict:
-    key = _derive_fernet_key()
-    try:
-        raw = Fernet(key).decrypt(enc.encode())
-        return json.loads(raw)
-    except InvalidToken:
-        raise ValueError("Invalid or tampered credentials blob")
+# Service → Auth0 provider name (used for token retrieval)
+_PROVIDER_MAP = {
+    "github":     "github",
+    "stripe":     "stripe",
+    "slack":      "slack",
+    "salesforce": "salesforce",
+    "gmail":      "google-oauth2",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -92,18 +38,17 @@ def decrypt_credentials(enc: str) -> dict:
 
 async def _execute_stripe(action: str, params: dict, creds: dict) -> dict:
     """
-    Stripe REST API connector.
-    creds: {"api_key": "sk_test_..."}
+    Stripe Connect API connector.
+    creds: {"api_key": "<stripe_oauth_access_token>"}
     """
-    api_key = creds.get("api_key", "")
+    api_key = creds.get("api_key") or creds.get("access_token", "")
     if not api_key:
-        raise ValueError("Stripe api_key not configured for this connection")
+        raise ValueError("Stripe token not found in Auth0 Token Vault for this connection")
 
     headers = {"Authorization": f"Bearer {api_key}"}
 
     async with httpx.AsyncClient(base_url="https://api.stripe.com", timeout=30) as c:
         if action == "charge":
-            # Create a PaymentIntent in test mode
             amount_cents = int(float(params.get("amount", 0)) * 100)
             currency    = params.get("currency", "usd")
             description = params.get("description", f"Charge for {params.get('customer', 'unknown')}")
@@ -158,16 +103,17 @@ async def _execute_stripe(action: str, params: dict, creds: dict) -> dict:
 async def _execute_github(action: str, params: dict, creds: dict) -> dict:
     """
     GitHub API connector.
-    creds: {"token": "ghp_...", "owner": "myorg", "repo": "myrepo"}
+    creds: {"token": "<github_oauth_token>"}
+    owner and repo may come from creds or params.
     """
     token = creds.get("token") or creds.get("api_key") or creds.get("access_token", "")
     owner = creds.get("owner", params.get("owner", ""))
     repo  = creds.get("repo",  params.get("repo", ""))
 
     if not token:
-        raise ValueError("GitHub credentials incomplete: need token (or api_key / access_token)")
+        raise ValueError("GitHub token not found in Auth0 Token Vault for this connection")
     if not owner or not repo:
-        raise ValueError("GitHub credentials incomplete: need owner, repo")
+        raise ValueError("GitHub requires 'owner' and 'repo' — pass them as params in the approval request")
 
     headers = {
         "Authorization": f"Bearer {token}",
@@ -179,12 +125,10 @@ async def _execute_github(action: str, params: dict, creds: dict) -> dict:
         if action == "deploy":
             ref = params.get("ref", params.get("branch", "main"))
 
-            # Resolve default branch if ref is not valid
             repo_r = await c.get(f"/repos/{owner}/{repo}", headers=headers)
             if repo_r.status_code == 200:
                 repo_info = repo_r.json()
                 default_branch = repo_info.get("default_branch", "main")
-                # If the branch list is empty, use the default_branch
                 branches_r = await c.get(f"/repos/{owner}/{repo}/branches", headers=headers)
                 branches = [b["name"] for b in (branches_r.json() if branches_r.status_code == 200 else [])]
                 if branches and ref not in branches:
@@ -193,7 +137,6 @@ async def _execute_github(action: str, params: dict, creds: dict) -> dict:
             workflow = params.get("workflow", "deploy.yml")
             inputs   = params.get("inputs", {})
 
-            # Try workflow dispatch first
             r = await c.post(
                 f"/repos/{owner}/{repo}/actions/workflows/{workflow}/dispatches",
                 headers=headers,
@@ -203,7 +146,6 @@ async def _execute_github(action: str, params: dict, creds: dict) -> dict:
                 return {"success": True, "action": "deploy", "workflow": workflow, "ref": ref,
                         "id": None, "method": "workflow_dispatch"}
 
-            # Fallback: create a deployment record
             r2 = await c.post(f"/repos/{owner}/{repo}/deployments", headers=headers, json={
                 "ref":               ref,
                 "description":       "Deployment approved via ApprovalKit",
@@ -215,7 +157,6 @@ async def _execute_github(action: str, params: dict, creds: dict) -> dict:
             if r2.status_code in (200, 201, 202):
                 return {"success": True, "action": "deploy", "id": data.get("id"), "ref": ref,
                         "method": "deployment_api"}
-            # If repo has no commits yet, record it as a simulated deployment
             if r2.status_code == 422:
                 logger.warning(f"GitHub deploy: repo {owner}/{repo} has no commits — simulating deployment")
                 return {"success": True, "action": "deploy", "id": None, "ref": ref,
@@ -272,36 +213,10 @@ class TokenVaultService:
         self.client_id     = settings.AUTH0_CLIENT_ID
         self.client_secret = settings.AUTH0_CLIENT_SECRET
 
-    # ---- Credential management ----
-
-    @staticmethod
-    def encrypt_credentials(creds: dict) -> str:
-        return encrypt_credentials(creds)
-
-    @staticmethod
-    def decrypt_credentials(enc: str) -> dict:
-        return decrypt_credentials(enc)
-
-    async def store_credentials(self, connection_id: str, creds: dict, db) -> None:
-        """Encrypt and persist credentials for a connection."""
-        from sqlalchemy import select
-        from api.models.connection import ServiceConnection
-
-        enc = encrypt_credentials(creds)
-        result = await db.execute(select(ServiceConnection).where(ServiceConnection.id == connection_id))
-        conn = result.scalar_one_or_none()
-        if not conn:
-            raise ValueError(f"Connection {connection_id} not found")
-        conn.credentials_enc = enc
-        await db.commit()
-        logger.info(f"Credentials stored for connection {conn.name}")
-
-    # ---- Action execution ----
-
     async def get_token_from_auth0(self, provider: str, auth0_user_id: str) -> str | None:
         """
-        Retrieve a stored OAuth token from Auth0's Token Vault / identity store.
-        Works for social connections like github, stripe, etc.
+        Retrieve a stored OAuth token from Auth0 Token Vault.
+        Uses the Management API to read identities[].access_token for the given user.
         """
         mgmt_token = await self.get_management_token()
         if not mgmt_token:
@@ -313,6 +228,7 @@ class TokenVaultService:
                     headers={"Authorization": f"Bearer {mgmt_token}"},
                 )
                 if r.status_code != 200:
+                    logger.warning(f"Token Vault: Management API returned {r.status_code} for {auth0_user_id}")
                     return None
                 user = r.json()
                 for identity in user.get("identities", []):
@@ -321,6 +237,7 @@ class TokenVaultService:
                         if token:
                             logger.info(f"Token Vault: retrieved {provider} token for {auth0_user_id}")
                             return token
+                logger.warning(f"Token Vault: no {provider} token found for {auth0_user_id}")
         except Exception as e:
             logger.warning(f"Token Vault: failed to get {provider} token for {auth0_user_id}: {e}")
         return None
@@ -336,8 +253,8 @@ class TokenVaultService:
     ) -> dict:
         """
         Execute a downstream action after approval.
-        Looks up the ServiceConnection by slug name, decrypts credentials,
-        routes to the appropriate service handler.
+        Looks up the ServiceConnection by slug, retrieves the OAuth token from
+        Auth0 Token Vault using connected_auth0_user_id, and routes to the handler.
         """
         creds: dict | None = None
         service: str | None = None
@@ -346,7 +263,6 @@ class TokenVaultService:
             from sqlalchemy import select, or_
             from api.models.connection import ServiceConnection
 
-            # Try exact slug match first, then fuzzy name match
             result = await db.execute(
                 select(ServiceConnection).where(
                     or_(
@@ -355,7 +271,6 @@ class TokenVaultService:
                     ),
                     ServiceConnection.is_active.is_(True),
                 ).order_by(
-                    # Prefer exact slug match
                     (ServiceConnection.slug == connection).desc()
                 )
             )
@@ -363,49 +278,30 @@ class TokenVaultService:
 
             if conn_obj:
                 service = conn_obj.service.lower()
-                if conn_obj.credentials_enc:
-                    try:
-                        creds = decrypt_credentials(conn_obj.credentials_enc)
-                    except Exception as e:
-                        logger.error(f"Failed to decrypt credentials for {conn_obj.name}: {e}")
 
-                # If no local credentials and we have an approver, try Auth0 Token Vault
-                if creds is None and approver_auth0_id and service:
-                    provider_map = {"github": "github", "stripe": "stripe"}
-                    provider = provider_map.get(service)
+                if conn_obj.connected_auth0_user_id:
+                    provider = _PROVIDER_MAP.get(service)
                     if provider:
-                        token = await self.get_token_from_auth0(provider, approver_auth0_id)
+                        token = await self.get_token_from_auth0(provider, conn_obj.connected_auth0_user_id)
                         if token:
-                            creds = {"api_key": token, "access_token": token}
-                            logger.info(
-                                f"Token Vault: using Auth0-managed {provider} token "
-                                f"for {approver_auth0_id}"
-                            )
+                            creds = {"api_key": token, "token": token, "access_token": token}
+                    else:
+                        logger.warning(f"Token Vault: no provider mapping for service '{service}'")
+                else:
+                    logger.warning(
+                        f"Connection '{connection}' has no connected_auth0_user_id — "
+                        f"connect it via the /connections page first"
+                    )
 
         if creds is None:
-            # Last resort: try Auth0 Token Vault with known GitHub user
-            if approver_auth0_id and ("github" in connection.lower()):
-                service = service or "github"
-                token = await self.get_token_from_auth0("github", approver_auth0_id)
-                if not token:
-                    # Try the connected github|111859800 identity
-                    token = await self.get_token_from_auth0("github", "github|111859800")
-                if token:
-                    creds = {"api_key": token, "access_token": token}
-                    logger.info(f"Token Vault: fallback GitHub token retrieved")
-
-        if creds is None:
-            logger.warning(
-                f"No credentials configured for connection '{connection}' "
-                f"(service={service}) — logging action without executing"
-            )
+            logger.warning(f"No Auth0 token available for connection '{connection}' (service={service})")
             return {
-                "success": False,
-                "skipped": True,
-                "reason": "no_credentials",
+                "success":    False,
+                "skipped":    True,
+                "reason":     "not_connected_via_auth0",
                 "connection": connection,
-                "action": action,
-                "params": params,
+                "action":     action,
+                "params":     params,
             }
 
         handler = _SERVICE_HANDLERS.get(service)
@@ -421,7 +317,7 @@ class TokenVaultService:
             logger.error(f"Execution failed for {service}/{action}: {e}")
             return {"success": False, "error": str(e), "connection": connection, "action": action}
 
-    # ---- Auth0 Management API helpers (kept for Token Vault list/revoke) ----
+    # ---- Auth0 Management API ----
 
     async def get_management_token(self) -> str | None:
         if not self.domain:

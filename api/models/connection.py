@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, Boolean, DateTime, ForeignKey, Text
+from sqlalchemy import String, Boolean, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -19,8 +19,9 @@ class ServiceConnection(Base):
     actions: Mapped[dict] = mapped_column(JSONB, default=list)
     # Short slug used in approval requests (e.g. "stripe-prod")
     slug: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
-    # Fernet-encrypted JSON blob holding service credentials
-    credentials_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Auth0 Token Vault — OAuth connected account
+    connected_auth0_user_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    connected_user_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
