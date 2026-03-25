@@ -20,6 +20,7 @@ import {
   LogOut,
   Settings,
   Bot,
+  Plug,
 } from "lucide-react";
 
 const navigation = [
@@ -29,8 +30,8 @@ const navigation = [
   { name: "Approvers", href: "/approvers", icon: Users },
   { name: "Audit Log", href: "/audit", icon: ScrollText },
   { name: "Consent", href: "/consent", icon: KeyRound },
+  { name: "Connect Agent", href: "/connect", icon: Plug },
   { name: "Agent Demos", href: "/agents", icon: Bot },
-  { name: "Simulate", href: "/simulate", icon: FlaskConical },
   { name: "Use Cases", href: "/gallery", icon: BookOpen },
   { name: "Docs", href: "/docs", icon: FileText },
   { name: "Settings", href: "/settings", icon: Settings },
