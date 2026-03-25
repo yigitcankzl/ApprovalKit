@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   ShoppingCart, Server, Package, FlaskConical, CreditCard, Mail, Users,
-  Play, CheckCircle2, XCircle, Clock, ChevronRight, ArrowRight, Loader2,
+  Play, CheckCircle2, XCircle, Clock, ChevronRight, ArrowRight, Loader2, Send,
 } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -529,9 +529,12 @@ interface RunResult {
 function ScenarioCard({ scenario }: { scenario: Scenario }) {
   const [result, setResult] = useState<RunResult | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [liveStatus, setLiveStatus] = useState<string | null>(null);
 
   const handleSimulate = async () => {
     setResult({ status: "running" });
+    setLiveStatus(null);
     try {
       const res = await api.simulateRule({ connection: scenario.connection, action: scenario.action, params: scenario.params });
       if (res.matched) {
@@ -540,11 +543,39 @@ function ScenarioCard({ scenario }: { scenario: Scenario }) {
         if (scenario.badge === "success") {
           setResult({ status: "no_match", detail: "No rule configured — auto-approved as expected." });
         } else {
-          setResult({ status: "no_rule", detail: `No matching rule found for "${scenario.connection} / ${scenario.action}". Click "Seed Demo Data" above.` });
+          setResult({ status: "no_rule", detail: `No matching rule found for "${scenario.connection} / ${scenario.action}". Click Setup Demo above.` });
         }
       }
     } catch (e: any) {
       setResult({ status: "error", detail: e.message });
+    }
+  };
+
+  const handleSendReal = async () => {
+    setSending(true);
+    setLiveStatus("sending");
+    try {
+      const res = await api.sendTestRequest({ connection: scenario.connection, action: scenario.action, params: scenario.params });
+      if (res.status === "auto_approved") {
+        setLiveStatus("auto_approved");
+      } else if (res.job_id) {
+        setLiveStatus("ciba_sent");
+        // Poll for result
+        let attempts = 0;
+        const poll = async () => {
+          try {
+            const s = await api.getJobStatus(res.job_id);
+            setLiveStatus(s.status);
+            if (["approved", "rejected", "timeout", "blocked"].includes(s.status)) return;
+          } catch {}
+          if (++attempts < 60) setTimeout(poll, 3000);
+        };
+        poll();
+      }
+    } catch (e: any) {
+      setLiveStatus("error");
+    } finally {
+      setSending(false);
     }
   };
 
@@ -595,13 +626,35 @@ function ScenarioCard({ scenario }: { scenario: Scenario }) {
             </pre>
           </div>
 
-          {/* Simulate */}
-          <div className="flex items-start gap-3">
-            <Button size="sm" onClick={handleSimulate} disabled={result?.status === "running"} className="shrink-0">
+          {/* Actions */}
+          <div className="flex items-start gap-3 flex-wrap">
+            <Button size="sm" variant="outline" onClick={handleSimulate} disabled={result?.status === "running"} className="shrink-0">
               {result?.status === "running"
                 ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Running…</>
-                : <><Play className="h-3.5 w-3.5 mr-1.5" />Simulate</>}
+                : <><FlaskConical className="h-3.5 w-3.5 mr-1.5" />Simulate</>}
             </Button>
+            <Button size="sm" onClick={handleSendReal} disabled={sending || liveStatus === "ciba_sent"} className="shrink-0">
+              {sending
+                ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Sending…</>
+                : <><Send className="h-3.5 w-3.5 mr-1.5" />Send Real Request</>}
+            </Button>
+            {liveStatus && (
+              <Badge variant={
+                liveStatus === "approved" ? "success" :
+                liveStatus === "rejected" ? "danger" :
+                liveStatus === "auto_approved" ? "success" :
+                liveStatus === "ciba_sent" ? "info" :
+                liveStatus === "timeout" ? "warning" : "default"
+              }>
+                {liveStatus === "ciba_sent" && <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Waiting for Guardian...</>}
+                {liveStatus === "approved" && <><CheckCircle2 className="h-3 w-3 mr-1" />Approved via Guardian</>}
+                {liveStatus === "rejected" && <><XCircle className="h-3 w-3 mr-1" />Rejected</>}
+                {liveStatus === "auto_approved" && <><CheckCircle2 className="h-3 w-3 mr-1" />Auto-approved</>}
+                {liveStatus === "timeout" && <>Timed out</>}
+                {liveStatus === "sending" && <>Sending...</>}
+                {liveStatus === "error" && <>Error</>}
+              </Badge>
+            )}
 
             {result && result.status !== "running" && (
               <div className={`flex-1 rounded-lg px-3 py-2 text-xs ${
