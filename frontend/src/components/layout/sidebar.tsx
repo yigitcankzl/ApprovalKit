@@ -30,7 +30,6 @@ const navigation = [
   { name: "Rules", href: "/rules", icon: GitBranch },
   { name: "Approvers", href: "/approvers", icon: Users },
   { name: "Audit Log", href: "/audit", icon: ScrollText },
-  { name: "Consent", href: "/consent", icon: KeyRound },
   { name: "Connect Agent", href: "/connect", icon: Plug },
   { name: "Agents", href: "/agents", icon: Bot },
   { name: "Use Cases", href: "/gallery", icon: BookOpen },

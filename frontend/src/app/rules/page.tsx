@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
 import type { Rule } from "@/types";
-import { Plus, GitBranch, ArrowRight, FlaskConical, Send, Loader2, CheckCircle2, XCircle, ChevronRight, Eye, Pencil, Trash2 } from "lucide-react";
+import { Plus, GitBranch, ArrowRight, FlaskConical, Send, Loader2, CheckCircle2, XCircle, ChevronRight, Eye, Pencil, Trash2, Shield, KeyRound, Activity } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 const modelLabels: Record<string, string> = {
@@ -31,6 +31,7 @@ interface Approver { id: string; name: string; email: string; }
 export default function RulesPage() {
   const [rules, setRules]       = useState<Rule[]>([]);
   const [approvers, setApprovers] = useState<Approver[]>([]);
+  const [consent, setConsent]   = useState<any>(null);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState<string | null>(null);
 
@@ -38,13 +39,15 @@ export default function RulesPage() {
     Promise.all([
       api.getRules(),
       api.getApprovers().catch(() => []),
+      api.getConsent().catch(() => null),
     ])
-      .then(([r, a]) => { setRules(r); setApprovers(a); })
+      .then(([r, a, c]) => { setRules(r); setApprovers(a); setConsent(c); })
       .catch((err) => setError(err.message || "Failed to load rules"))
       .finally(() => setLoading(false));
   }, []);
 
   const approverMap = Object.fromEntries(approvers.map((a) => [a.id, a]));
+  const connectedCount = consent?.services?.filter((s: any) => s.connected_auth0_user_id)?.length || 0;
 
   return (
     <div>
@@ -62,6 +65,33 @@ export default function RulesPage() {
           </Button>
         </Link>
       </div>
+
+      {/* Permissions Summary */}
+      {consent && (
+        <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="bg-white rounded-xl border border-zinc-200 p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs text-zinc-500">Connected Services</p>
+              <p className="text-2xl font-bold text-zinc-900">{connectedCount} / {consent.services?.length || 0}</p>
+            </div>
+            <KeyRound className="h-6 w-6 text-blue-500" />
+          </div>
+          <div className="bg-white rounded-xl border border-zinc-200 p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs text-zinc-500">Active Rules</p>
+              <p className="text-2xl font-bold text-zinc-900">{consent.total_rules || 0}</p>
+            </div>
+            <Shield className="h-6 w-6 text-green-500" />
+          </div>
+          <div className="bg-white rounded-xl border border-zinc-200 p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs text-zinc-500">Known Agents</p>
+              <p className="text-2xl font-bold text-zinc-900">{consent.total_agents || 0}</p>
+            </div>
+            <Activity className="h-6 w-6 text-purple-500" />
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center h-64">
