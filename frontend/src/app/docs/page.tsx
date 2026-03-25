@@ -45,9 +45,17 @@ const NAV = [
   { id: "sdk",         label: "Python SDK" },
   { id: "decorator",   label: "— @requires_approval" },
   { id: "gate",        label: "— kit.gate()" },
+  { id: "async",       label: "— Async Support" },
+  { id: "errors",      label: "— Error Handling" },
+  { id: "token-vault", label: "Token Vault" },
+  { id: "step-up",     label: "Step-up Auth" },
+  { id: "ciba",        label: "CIBA / Guardian" },
+  { id: "sse",         label: "Real-time Events" },
   { id: "demo",        label: "Shopping Bot Demo" },
+  { id: "travelops",   label: "TravelOps Agent" },
   { id: "endpoints",   label: "API Reference" },
   { id: "approval-models", label: "Approval Models" },
+  { id: "multi-tenant", label: "Multi-tenant" },
   { id: "security",    label: "Security" },
 ];
 
@@ -255,6 +263,180 @@ except ApprovalDenied as e:
     print(f"Blocked: {e.status}")`} />
         </Section>
 
+        {/* Async Support */}
+        <Section id="async">
+          <h2 className="text-xl font-bold text-zinc-900 mb-1">
+            <code className="text-lg bg-zinc-100 px-2 py-0.5 rounded">Async Support</code>
+          </h2>
+          <p className="text-zinc-500 text-sm mb-4">
+            Full async/await support for asyncio-based agents (LangChain, LlamaIndex, etc.).
+          </p>
+          <CodeBlock code={`from approvalkit import ApprovalKit
+
+kit = ApprovalKit(base_url="...", api_key="...", hmac_secret="...")
+
+# Async decorator
+@kit.async_requires_approval(connection="stripe-prod", action="charge")
+async def charge_customer(amount: int, customer: str):
+    pass  # Token Vault executes
+
+# Async inline gate
+result = await kit.async_gate("github-main", "deploy", {
+    "ref": "main",
+    "environment": "production",
+})
+
+# Works with any async framework
+async def langchain_tool():
+    await kit.async_gate("stripe-prod", "charge", {"amount": 500})
+    return "Payment approved and executed"`} />
+        </Section>
+
+        {/* Error Handling */}
+        <Section id="errors">
+          <h2 className="text-xl font-bold text-zinc-900 mb-1">Error Handling</h2>
+          <p className="text-zinc-500 text-sm mb-4">
+            <code className="bg-zinc-100 px-1 rounded text-sm">ApprovalDenied</code> is raised when the request is rejected, times out, or is blocked by a rule.
+          </p>
+          <CodeBlock code={`from approvalkit import ApprovalKit, ApprovalDenied
+
+kit = ApprovalKit(...)
+
+try:
+    result = kit.gate("stripe-prod", "charge", {"amount": 5000})
+    # result contains: status, final_params, job_id
+    print(f"Approved! Final params: {result['final_params']}")
+
+except ApprovalDenied as e:
+    print(f"Status: {e.status}")   # "rejected" | "timeout" | "blocked"
+    print(f"Job ID: {e.job_id}")   # For audit trail lookup
+
+    if e.status == "rejected":
+        print("Approver denied this action")
+    elif e.status == "timeout":
+        print("No response within timeout window")
+    elif e.status == "blocked":
+        print("Blocked by rule (blackout/cooldown)")`} />
+        </Section>
+
+        {/* Token Vault */}
+        <Section id="token-vault">
+          <h2 className="text-xl font-bold text-zinc-900 mb-4">Token Vault</h2>
+          <p className="text-zinc-600 mb-4">
+            Auth0 Token Vault stores OAuth tokens for external services. ApprovalKit retrieves them via <strong>Token Exchange (RFC 8693)</strong> — the agent never sees raw credentials.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm font-semibold text-red-800 mb-2">Without Token Vault</p>
+              <ul className="text-xs text-red-700 space-y-1">
+                <li>Agent holds Stripe API key in memory</li>
+                <li>Key exposed if agent is compromised</li>
+                <li>No way to revoke without rotating key</li>
+                <li>Agent can charge any amount</li>
+              </ul>
+            </div>
+            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+              <p className="text-sm font-semibold text-green-800 mb-2">With Token Vault</p>
+              <ul className="text-xs text-green-700 space-y-1">
+                <li>Tokens stored in Auth0, never in agent</li>
+                <li>Fresh token via RFC 8693 exchange</li>
+                <li>Revoke from dashboard instantly</li>
+                <li>Rules control what agent can do</li>
+              </ul>
+            </div>
+          </div>
+          <p className="text-sm font-semibold text-zinc-700 mb-2">How it works:</p>
+          <CodeBlock language="text" code={`1. User connects service via Connected Accounts flow
+   POST /me/v1/connected-accounts/connect → Auth0 stores federated refresh token
+
+2. Agent requests action → human approves via Guardian
+
+3. Platform exchanges refresh token for provider access token:
+   POST /oauth/token
+   grant_type=urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token
+   subject_token={auth0_refresh_token}
+   connection=stripe
+
+4. Auth0 returns fresh Stripe access token → platform executes charge
+   Agent never saw the token.`} />
+          <p className="text-xs text-zinc-400 mt-3">
+            Fallback: For providers without refresh tokens (e.g., GitHub), the Management API reads long-lived tokens from user identities.
+          </p>
+        </Section>
+
+        {/* Step-up Auth */}
+        <Section id="step-up">
+          <h2 className="text-xl font-bold text-zinc-900 mb-4">Step-up Authentication</h2>
+          <p className="text-zinc-600 mb-4">
+            Rules can define step-up conditions — when matched, the approval model automatically escalates to a stricter level.
+          </p>
+          <CodeBlock language="json" code={`{
+  "name": "Stripe charge",
+  "connection": "stripe-prod",
+  "action": "charge",
+  "model": "any_one",
+  "step_up_model": "all_of_n",
+  "step_up_conditions": [
+    { "field": "amount_usd", "operator": "gte", "value": 1000 }
+  ],
+  "approver_ids": ["manager-uuid", "cfo-uuid"]
+}
+
+// $349 charge → any_one (manager only)
+// $5000 charge → step-up → all_of_n (manager + CFO both approve)`} />
+          <p className="text-xs text-zinc-400 mt-3">
+            Step-up evaluation happens in the Celery worker before dispatching to the approval model processor. A <code>step_up</code> audit event is logged.
+          </p>
+        </Section>
+
+        {/* CIBA / Guardian */}
+        <Section id="ciba">
+          <h2 className="text-xl font-bold text-zinc-900 mb-4">CIBA / Guardian Push</h2>
+          <p className="text-zinc-600 mb-4">
+            Auth0 CIBA (Client-Initiated Backchannel Authentication) sends push notifications to the approver via the Auth0 Guardian app. The approver sees a binding message and taps Approve or Deny.
+          </p>
+          <div className="space-y-3 mb-4">
+            <div className="flex items-start gap-3 p-3 bg-zinc-50 rounded-lg">
+              <span className="text-xs font-mono bg-blue-100 text-blue-700 px-2 py-0.5 rounded">1</span>
+              <div className="text-sm text-zinc-600"><strong>bc-authorize</strong> — Platform sends CIBA request with binding message (max 64 chars)</div>
+            </div>
+            <div className="flex items-start gap-3 p-3 bg-zinc-50 rounded-lg">
+              <span className="text-xs font-mono bg-blue-100 text-blue-700 px-2 py-0.5 rounded">2</span>
+              <div className="text-sm text-zinc-600"><strong>Guardian push</strong> — Approver sees the binding message on their phone</div>
+            </div>
+            <div className="flex items-start gap-3 p-3 bg-zinc-50 rounded-lg">
+              <span className="text-xs font-mono bg-blue-100 text-blue-700 px-2 py-0.5 rounded">3</span>
+              <div className="text-sm text-zinc-600"><strong>Poll</strong> — Worker polls with exponential backoff (handles 429, slow_down)</div>
+            </div>
+            <div className="flex items-start gap-3 p-3 bg-zinc-50 rounded-lg">
+              <span className="text-xs font-mono bg-blue-100 text-blue-700 px-2 py-0.5 rounded">4</span>
+              <div className="text-sm text-zinc-600"><strong>Result</strong> — approved, rejected (access_denied), or timeout (300s default)</div>
+            </div>
+          </div>
+          <p className="text-xs text-zinc-400">Guardian enrollment: Auth0 Dashboard → Users → select user → Guardian tab → scan QR code with Guardian app.</p>
+        </Section>
+
+        {/* Real-time Events */}
+        <Section id="sse">
+          <h2 className="text-xl font-bold text-zinc-900 mb-4">Real-time Events (SSE)</h2>
+          <p className="text-zinc-600 mb-4">
+            Subscribe to live approval events via Server-Sent Events. Every state change is published to a Redis channel and streamed to connected clients.
+          </p>
+          <CodeBlock language="javascript" code={`// Browser
+const events = new EventSource("http://localhost:8000/api/v1/events");
+
+events.onmessage = (e) => {
+  const event = JSON.parse(e.data);
+  console.log(event.type);       // "requested" | "approved" | "rejected" | "step_up_triggered"
+  console.log(event.connection);  // "stripe-prod"
+  console.log(event.action);     // "charge"
+  console.log(event.job_id);     // UUID
+  console.log(event.timestamp);  // ISO 8601
+};
+
+// Events: requested, ciba_sent, approved, rejected, timeout, blocked, step_up_triggered`} />
+        </Section>
+
         {/* Demo */}
         <Section id="demo">
           <h2 className="text-xl font-bold text-zinc-900 mb-4">Shopping Bot Demo</h2>
@@ -353,6 +535,42 @@ Content-Type: application/json
           </div>
         </Section>
 
+        {/* TravelOps Agent */}
+        <Section id="travelops">
+          <h2 className="text-xl font-bold text-zinc-900 mb-4">TravelOps Agent</h2>
+          <p className="text-zinc-600 mb-4">
+            A complete corporate travel booking agent demonstrating ApprovalKit in a real-world scenario. Available as a <strong>separate project</strong> with its own dashboard.
+          </p>
+          <div className="space-y-2 mb-4">
+            {[
+              { step: "1", label: "Book flight", detail: "Stripe charge — step-up for > $2000" },
+              { step: "2", label: "Reserve hotel", detail: "Stripe charge — approval for > $150/night" },
+              { step: "3", label: "Travel insurance", detail: "Stripe charge — auto-approve (< $120)" },
+              { step: "4", label: "Add to calendar", detail: "Google Calendar — auto" },
+              { step: "5", label: "Notify team", detail: "Slack message — auto" },
+              { step: "6", label: "Log expense", detail: "Internal — auto" },
+              { step: "7", label: "Visa reminder", detail: "Gmail — auto if visa required" },
+            ].map(s => (
+              <div key={s.step} className="flex items-center gap-3 text-sm">
+                <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold">{s.step}</span>
+                <span className="font-medium text-zinc-700 w-36">{s.label}</span>
+                <span className="text-zinc-500">{s.detail}</span>
+              </div>
+            ))}
+          </div>
+          <CodeBlock code={`# Run the safe version (with ApprovalKit)
+cd travelops/with-approvalkit
+python agent.py --dest "new york" --flight-price 3200 --class business
+
+# Run the unsafe version (without ApprovalKit) for comparison
+cd travelops/without-approvalkit
+python agent.py --dest "new york" --flight-price 3200 --class business
+
+# Open the TravelOps dashboard (separate app on port 3001)
+cd travelops && docker compose up -d
+open http://localhost:3001`} />
+        </Section>
+
         {/* Approval Models */}
         <Section id="approval-models">
           <h2 className="text-xl font-bold text-zinc-900 mb-4">Approval Models</h2>
@@ -393,6 +611,40 @@ Content-Type: application/json
         </Section>
 
         {/* Security */}
+        {/* Multi-tenant */}
+        <Section id="multi-tenant">
+          <h2 className="text-xl font-bold text-zinc-900 mb-4">Multi-tenant</h2>
+          <p className="text-zinc-600 mb-4">
+            Each organization stores its own Auth0 and FGA credentials in the database. No <code>.env</code> editing needed — everything configured via the Settings page.
+          </p>
+          <div className="space-y-3 mb-4">
+            <div className="p-3 bg-zinc-50 rounded-lg text-sm">
+              <span className="font-semibold text-zinc-700">Workspace credentials stored in DB:</span>
+              <span className="text-zinc-500 ml-2">Auth0 domain, M2M client, Web client, FGA store, FGA client</span>
+            </div>
+            <div className="p-3 bg-zinc-50 rounded-lg text-sm">
+              <span className="font-semibold text-zinc-700">Encryption at rest:</span>
+              <span className="text-zinc-500 ml-2">Client secrets encrypted with Fernet (AES-128-CBC + HMAC-SHA256)</span>
+            </div>
+            <div className="p-3 bg-zinc-50 rounded-lg text-sm">
+              <span className="font-semibold text-zinc-700">Fallback chain:</span>
+              <span className="text-zinc-500 ml-2">DB workspace value → .env global value → empty</span>
+            </div>
+          </div>
+          <CodeBlock language="text" code={`# Organization A configures via dashboard:
+Settings → Auth0 Domain: org-a.us.auth0.com
+Settings → M2M Client ID: xxx
+Settings → Web Client ID: yyy
+
+# Organization B has completely separate credentials:
+Settings → Auth0 Domain: org-b.eu.auth0.com
+Settings → M2M Client ID: aaa
+Settings → Web Client ID: bbb
+
+# Both orgs share the same ApprovalKit deployment
+# but never see each other's data`} />
+        </Section>
+
         <Section id="security">
           <h2 className="text-xl font-bold text-zinc-900 mb-4">Security</h2>
           <div className="space-y-4">
