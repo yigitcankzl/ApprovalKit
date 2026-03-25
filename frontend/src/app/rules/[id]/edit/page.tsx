@@ -60,6 +60,9 @@ export default function EditRulePage() {
   const [priority, setPriority] = useState(0);
   const [escalateTo, setEscalateTo] = useState("");
   const [selectedApproverIds, setSelectedApproverIds] = useState<string[]>([]);
+  const [stepUpEnabled, setStepUpEnabled] = useState(false);
+  const [stepUpModel, setStepUpModel] = useState<ApprovalModel>("all_of_n");
+  const [stepUpConditions, setStepUpConditions] = useState<Condition[]>([]);
 
   useEffect(() => {
     Promise.all([api.getRule(ruleId), api.getApprovers()])
@@ -82,6 +85,9 @@ export default function EditRulePage() {
         setPriority(rule.priority);
         setEscalateTo(rule.escalate_to ?? "");
         setSelectedApproverIds(rule.approver_ids);
+        setStepUpEnabled(!!rule.step_up_model);
+        setStepUpModel(rule.step_up_model || "all_of_n");
+        setStepUpConditions(rule.step_up_conditions || []);
       })
       .catch((e) => setLoadError(e.message || "Failed to load rule"))
       .finally(() => setLoading(false));
@@ -119,6 +125,8 @@ export default function EditRulePage() {
         cooldown_max: cooldownMax ? parseInt(cooldownMax) : null,
         quorum_window: quorumWindow ? parseInt(quorumWindow) : null,
         priority,
+        step_up_model: stepUpEnabled ? stepUpModel : null,
+        step_up_conditions: stepUpEnabled ? stepUpConditions : [],
       });
       router.push(`/rules/${ruleId}`);
     } catch (e: any) {
@@ -243,6 +251,35 @@ export default function EditRulePage() {
                 </div>
                 <p className="text-xs text-zinc-500 mt-1">{selectedApproverIds.length} selected</p>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle>Step-up Authentication</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-2">
+                <input type="checkbox" id="stepUp" checked={stepUpEnabled} onChange={(e) => setStepUpEnabled(e.target.checked)} className="rounded border-zinc-300" />
+                <label htmlFor="stepUp" className="text-sm text-zinc-700">Enable step-up for high-value requests</label>
+              </div>
+              {stepUpEnabled && (
+                <>
+                  <p className="text-xs text-zinc-500">When request parameters match these conditions, the approval model escalates automatically.</p>
+                  <div>
+                    <label className="text-sm font-medium text-zinc-700">Step-up Conditions</label>
+                    <ConditionBuilder conditions={stepUpConditions} onChange={setStepUpConditions} />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-zinc-700">Escalate to Model</label>
+                    <Select value={stepUpModel} onChange={(e) => setStepUpModel(e.target.value as ApprovalModel)} className="mt-1">
+                      <option value="any_one">Any One</option>
+                      <option value="specific">Specific</option>
+                      <option value="all_of_n">All of N</option>
+                      <option value="k_of_n">K of N</option>
+                      <option value="sequential">Sequential</option>
+                    </Select>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 
