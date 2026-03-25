@@ -371,11 +371,21 @@ async def get_connect_url(connection_id: str, request: Request, db: AsyncSession
     return {"url": url, "service": service, "connection": auth0_connection, "flow": "authorize"}
 
 
-# In-memory store for auth_session + user_token (simple for hackathon)
-_auth_sessions: dict[str, dict] = {}
+# Auth session store — Redis-backed for multi-instance deployments
+import redis.asyncio as aioredis
+
+async def _get_session_redis() -> aioredis.Redis:
+    return aioredis.from_url(settings.REDIS_URL, decode_responses=True)
 
 async def _store_auth_session(connection_id: str, auth_session: str, user_token: str = ""):
-    _auth_sessions[connection_id] = {"auth_session": auth_session, "user_token": user_token}
+    r = await _get_session_redis()
+    import json as _json
+    await r.setex(
+        f"auth_session:{connection_id}",
+        600,  # 10 min TTL
+        _json.dumps({"auth_session": auth_session, "user_token": user_token}),
+    )
+    await r.aclose()
 
 
 @router.get("/connected-accounts/callback")
@@ -393,7 +403,11 @@ async def connected_accounts_callback(
         return RedirectResponse(url=f"{settings.FRONTEND_URL}/connections?error=missing_connect_code")
 
     connection_id = state
-    session_data = _auth_sessions.pop(connection_id, {})
+    import json as _json
+    r = await _get_session_redis()
+    raw = await r.getdel(f"auth_session:{connection_id}")
+    await r.aclose()
+    session_data = _json.loads(raw) if raw else {}
     auth_session = session_data.get("auth_session", "")
     user_token = session_data.get("user_token", "")
     if not auth_session:

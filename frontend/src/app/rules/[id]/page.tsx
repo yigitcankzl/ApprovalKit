@@ -5,7 +5,11 @@ import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ApprovalFlow } from "@/components/rule-graph/approval-flow";
+import dynamic from "next/dynamic";
+const ApprovalFlow = dynamic(
+  () => import("@/components/rule-graph/approval-flow").then((m) => m.ApprovalFlow),
+  { ssr: false, loading: () => <div className="h-48 flex items-center justify-center text-sm text-zinc-400">Loading flow graph...</div> },
+);
 import { api } from "@/lib/api";
 import type { Rule, Approver } from "@/types";
 import { Pencil, Trash2, ArrowLeft } from "lucide-react";
