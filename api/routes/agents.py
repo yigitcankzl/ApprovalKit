@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.database import get_db
 from api.models.agent import RegisteredAgent, AgentScenario
+from api.models.connection import ServiceConnection
 from api.models.workspace import Workspace
 
 router = APIRouter(prefix="/api/v1/agents", tags=["agents"])
@@ -95,6 +96,20 @@ async def list_agents(db: AsyncSession = Depends(get_db)):
 @router.post("", status_code=201)
 async def create_agent(body: AgentIn, db: AsyncSession = Depends(get_db)):
     ws = await _get_workspace(db)
+
+    # Validate allowed_connections against existing slugs
+    if body.allowed_connections:
+        result = await db.execute(
+            select(ServiceConnection.slug).where(ServiceConnection.workspace_id == ws.id)
+        )
+        valid_slugs = {row[0] for row in result.all()}
+        invalid = [c for c in body.allowed_connections if c not in valid_slugs]
+        if invalid:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown connections: {', '.join(invalid)}. Valid: {', '.join(sorted(valid_slugs))}",
+            )
+
     agent_api_key = f"ak_{secrets.token_urlsafe(32)}"
     agent = RegisteredAgent(
         workspace_id=ws.id,

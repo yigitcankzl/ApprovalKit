@@ -23,7 +23,7 @@ export interface Rule {
   cooldown_max: number | null;
   blackout_start: string | null;
   blackout_end: string | null;
-  pre_approval: any;
+  pre_approval: { expires_at?: string; conditions?: Condition[] } | null;
   context_template: string | null;
   partial_approval: boolean;
   quorum_window: number | null;
@@ -59,7 +59,7 @@ export interface AuditEntry {
   action: string;
   connection: string;
   binding_message: string | null;
-  modified_params: any;
+  modified_params: Record<string, unknown> | null;
   note: string | null;
   created_at: string;
 }
