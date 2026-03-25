@@ -197,19 +197,23 @@ export default function ConnectPage() {
   };
 
   const stopPoll = () => {
-    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    if (pollRef.current) { clearTimeout(pollRef.current as unknown as number); pollRef.current = null; }
   };
 
   const startPoll = (id: string) => {
     stopPoll();
-    pollRef.current = setInterval(async () => {
+    let delay = 2000;
+    const poll = async () => {
       try {
         const s = await api.getJobStatus(id);
         setJobState(s);
         const terminal = ["approved", "rejected", "timeout", "blocked"];
-        if (terminal.includes(s.status)) stopPoll();
+        if (terminal.includes(s.status)) { stopPoll(); return; }
       } catch {}
-    }, 2000);
+      delay = Math.min(delay * 1.5, 15000);
+      pollRef.current = setTimeout(poll, delay) as unknown as ReturnType<typeof setInterval>;
+    };
+    pollRef.current = setTimeout(poll, delay) as unknown as ReturnType<typeof setInterval>;
   };
 
   const handleSend = async () => {
