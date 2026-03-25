@@ -59,15 +59,15 @@ export default function DashboardPage() {
       .then(([s, sec]) => { setStats(s); setSecurity(sec); });
 
   useEffect(() => {
-    let active = true;
+    const ctrl = { active: true };
     Promise.all([
       loadStats(),
       api.getRecentActivity(20)
-        .then((rows: LiveEvent[]) => { if (active) setEvents(Array.isArray(rows) ? rows : []); })
+        .then((rows: LiveEvent[]) => { if (ctrl.active) setEvents(Array.isArray(rows) ? rows : []); })
         .catch(() => {}),
     ])
-      .catch((err) => { if (active) setError(err.message || "Failed to load"); })
-      .finally(() => { if (active) setLoading(false); });
+      .catch((err) => { if (ctrl.active) setError(err.message || "Failed to load"); })
+      .finally(() => { if (ctrl.active) setLoading(false); });
 
     // Auto-refresh stats only — do not replace Live Activity (SSE + initial hydrate)
     const refreshInterval = setInterval(() => { loadStats(); }, 30000);
@@ -102,6 +102,7 @@ export default function DashboardPage() {
     connectSSE();
 
     return () => {
+      ctrl.active = false;
       cancelled = true;
       es?.close();
       if (reconnectTimer) clearTimeout(reconnectTimer);
