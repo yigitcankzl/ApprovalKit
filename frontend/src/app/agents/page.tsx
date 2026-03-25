@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useUser } from "@auth0/nextjs-auth0/client";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import {
   ShoppingCart, Server, Package, FlaskConical, CreditCard, Mail, Users,
   Play, CheckCircle2, XCircle, Clock, ChevronRight, ArrowRight, Loader2, Send,
+  Bot, Trash2, Plus, Plug, RefreshCw,
 } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -728,10 +729,310 @@ function ScenarioCard({ scenario }: { scenario: Scenario }) {
   );
 }
 
+// ── Icon resolver for registered agents ──────────────────────────────────────
+
+const ICON_MAP: Record<string, React.ElementType> = {
+  "bot":           Bot,
+  "shopping-cart": ShoppingCart,
+  "users":         Users,
+  "server":        Server,
+  "package":       Package,
+  "flask":         FlaskConical,
+  "credit-card":   CreditCard,
+  "mail":          Mail,
+};
+function AgentIcon({ icon }: { icon: string }) {
+  const Icon = ICON_MAP[icon] ?? Bot;
+  return <Icon className="h-5 w-5 text-zinc-700" />;
+}
+
+// ── My Agent scenario card (live test inline) ─────────────────────────────────
+
+interface MyAgentScenario {
+  id: string;
+  title: string;
+  connection: string;
+  action: string;
+  params: Record<string, unknown>;
+}
+
+interface LiveState {
+  status: "idle" | "running" | "pending" | "approved" | "rejected" | "auto_approved" | "timeout" | "error";
+  jobId?: string;
+  message?: string;
+  error?: string;
+}
+
+function MyScenarioCard({ scenario }: { scenario: MyAgentScenario }) {
+  const [expanded, setExpanded] = useState(false);
+  const [live, setLive] = useState<LiveState>({ status: "idle" });
+  const [deciding, setDeciding] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopPoll = () => {
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+  };
+
+  const startPoll = (id: string) => {
+    stopPoll();
+    pollRef.current = setInterval(async () => {
+      try {
+        const s = await api.getJobStatus(id);
+        const terminal = ["approved", "rejected", "timeout", "blocked"];
+        setLive((prev) => ({ ...prev, status: terminal.includes(s.status) ? s.status : "pending", jobId: id }));
+        if (terminal.includes(s.status)) stopPoll();
+      } catch {}
+    }, 2000);
+  };
+
+  const handleTest = async () => {
+    setLive({ status: "running" });
+    try {
+      const res = await api.sendTestRequest({ connection: scenario.connection, action: scenario.action, params: scenario.params });
+      if (res.job_id) {
+        setLive({ status: "pending", jobId: res.job_id, message: res.message });
+        startPoll(res.job_id);
+      } else {
+        setLive({ status: res.status, message: res.message });
+      }
+    } catch (e: any) {
+      setLive({ status: "error", error: e.message });
+    }
+  };
+
+  const handleDecide = async (decision: "approve" | "reject") => {
+    if (!live.jobId) return;
+    setDeciding(true);
+    try {
+      await api.submitDecision(live.jobId, { decision });
+      const s = await api.getJobStatus(live.jobId);
+      setLive((prev) => ({ ...prev, status: s.status }));
+      stopPoll();
+    } catch {}
+    setDeciding(false);
+  };
+
+  const isPending = live.status === "pending";
+  const isDone = ["approved", "rejected", "auto_approved", "timeout", "error"].includes(live.status);
+
+  return (
+    <div className="border border-zinc-200 rounded-xl overflow-hidden">
+      <button className="w-full text-left p-4 hover:bg-zinc-50 transition-colors" onClick={() => setExpanded((v) => !v)}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <code className="text-xs bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded font-mono">
+              {scenario.connection} / {scenario.action}
+            </code>
+            <span className="text-sm font-medium text-zinc-800">{scenario.title}</span>
+          </div>
+          <ChevronRight className={`h-4 w-4 text-zinc-400 transition-transform ${expanded ? "rotate-90" : ""}`} />
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="px-4 pb-4 border-t border-zinc-100 bg-zinc-50/50 space-y-3">
+          <pre className="mt-3 bg-zinc-900 text-zinc-100 text-xs rounded-lg p-3 overflow-x-auto">
+            {JSON.stringify(scenario.params, null, 2)}
+          </pre>
+
+          <div className="flex items-start gap-3">
+            <Button size="sm" onClick={handleTest} disabled={live.status === "running" || isPending} className="shrink-0">
+              {live.status === "running"
+                ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Sending…</>
+                : <><Play className="h-3.5 w-3.5 mr-1.5" />Live Test</>}
+            </Button>
+
+            {live.status !== "idle" && (
+              <div className={`flex-1 rounded-lg px-3 py-2 text-xs ${
+                live.status === "approved" || live.status === "auto_approved" ? "bg-green-50 border border-green-200 text-green-800" :
+                live.status === "rejected" ? "bg-red-50 border border-red-200 text-red-800" :
+                isPending ? "bg-blue-50 border border-blue-200 text-blue-800" :
+                live.status === "error" ? "bg-red-50 border border-red-200 text-red-800" :
+                "bg-zinc-50 border border-zinc-200 text-zinc-700"
+              }`}>
+                {isPending && (
+                  <div className="flex items-center gap-1.5">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span>Waiting for approval… {live.message && <span className="opacity-70">— {live.message}</span>}</span>
+                  </div>
+                )}
+                {(live.status === "approved" || live.status === "auto_approved") && (
+                  <div className="flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" /> {live.status === "auto_approved" ? "Auto-approved (no rule)" : "Approved"}</div>
+                )}
+                {live.status === "rejected" && <div className="flex items-center gap-1"><XCircle className="h-3.5 w-3.5" /> Rejected</div>}
+                {live.status === "error" && <div className="flex items-center gap-1"><XCircle className="h-3.5 w-3.5" /> {live.error}</div>}
+              </div>
+            )}
+          </div>
+
+          {isPending && live.jobId && (
+            <div className="flex gap-2">
+              <Button size="sm" onClick={() => handleDecide("approve")} disabled={deciding} className="flex-1 bg-green-600 hover:bg-green-700 text-white">
+                {deciding ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5 mr-1" />} Approve
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => handleDecide("reject")} disabled={deciding} className="flex-1 border-red-200 text-red-600 hover:bg-red-50">
+                {deciding ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <XCircle className="h-3.5 w-3.5 mr-1" />} Reject
+              </Button>
+            </div>
+          )}
+
+          {isDone && (
+            <button className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-600" onClick={() => setLive({ status: "idle" })}>
+              <RefreshCw className="h-3 w-3" /> Test again
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── My Agents tab ─────────────────────────────────────────────────────────────
+
+interface MyAgent {
+  id: string;
+  name: string;
+  description?: string;
+  icon: string;
+  created_at: string;
+  scenarios: MyAgentScenario[];
+}
+
+function MyAgentsTab() {
+  const [agents, setAgents] = useState<MyAgent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const data = await api.getMyAgents();
+      setAgents(data);
+      if (data.length > 0 && !activeId) setActiveId(data[0].id);
+    } catch {}
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const handleDelete = async (id: string) => {
+    setDeleting(id);
+    try {
+      await api.deleteMyAgent(id);
+      setAgents((prev) => prev.filter((a) => a.id !== id));
+      if (activeId === id) setActiveId(agents.find((a) => a.id !== id)?.id ?? null);
+    } catch {}
+    setDeleting(null);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 py-16 justify-center text-zinc-400">
+        <Loader2 className="h-5 w-5 animate-spin" /> Loading your agents…
+      </div>
+    );
+  }
+
+  if (agents.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <div className="p-4 bg-zinc-100 rounded-2xl mb-4">
+          <Bot className="h-10 w-10 text-zinc-400" />
+        </div>
+        <h3 className="text-base font-semibold text-zinc-700 mb-1">No agents yet</h3>
+        <p className="text-sm text-zinc-400 mb-4 max-w-xs">
+          Go to Connect Agent, configure your connection and action, then save it as an agent.
+        </p>
+        <a
+          href="/connect"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-zinc-900 text-white rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors"
+        >
+          <Plug className="h-4 w-4" /> Connect Your Agent
+        </a>
+      </div>
+    );
+  }
+
+  const active = agents.find((a) => a.id === activeId) ?? agents[0];
+
+  return (
+    <div className="flex gap-6">
+      {/* Sidebar */}
+      <aside className="w-52 shrink-0">
+        <div className="space-y-1 sticky top-6">
+          {agents.map((a) => (
+            <button
+              key={a.id}
+              onClick={() => setActiveId(a.id)}
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium text-left transition-colors ${
+                activeId === a.id ? "bg-zinc-900 text-white" : "text-zinc-600 hover:bg-zinc-100"
+              }`}
+            >
+              <AgentIcon icon={a.icon} />
+              <span className="truncate">{a.name}</span>
+            </button>
+          ))}
+          <a
+            href="/connect"
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition-colors"
+          >
+            <Plus className="h-4 w-4 shrink-0" /> Add agent
+          </a>
+        </div>
+      </aside>
+
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        <Card className="mb-6">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-zinc-100 rounded-lg">
+                  <AgentIcon icon={active.icon} />
+                </div>
+                <div>
+                  <CardTitle>{active.name}</CardTitle>
+                  <p className="text-sm text-zinc-500 mt-0.5">{active.description || "No description"}</p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleDelete(active.id)}
+                disabled={deleting === active.id}
+                className="border-red-200 text-red-600 hover:bg-red-50"
+              >
+                {deleting === active.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              </Button>
+            </div>
+          </CardHeader>
+        </Card>
+
+        {active.scenarios.length === 0 ? (
+          <div className="border border-dashed border-zinc-200 rounded-xl p-8 text-center text-zinc-400">
+            <p className="text-sm">No scenarios yet.</p>
+            <a href="/connect" className="text-xs text-zinc-500 underline mt-1 inline-block">
+              Add a scenario from the Connect Agent page
+            </a>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {active.scenarios.map((scenario) => (
+              <MyScenarioCard key={scenario.id} scenario={scenario} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AgentsPage() {
   const { user } = useUser();
+  const [tab, setTab] = useState<"demo" | "my">("demo");
   const [activeId, setActiveId] = useState(AGENTS[0].id);
   const [settingUp, setSettingUp] = useState<string | null>(null);
   const [setupDone, setSetupDone] = useState<Record<string, boolean>>({});
@@ -769,14 +1070,36 @@ export default function AgentsPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-zinc-900">Agent Demos</h1>
+        <h1 className="text-2xl font-bold text-zinc-900">Agents</h1>
         <p className="text-zinc-500 mt-1">
           Seven real-world agents with interactive approval flow diagrams.
           Expand any scenario to see the chain, then hit Check Rule to test against your rules.
         </p>
       </div>
 
-      <div className="flex gap-6">
+      {/* Tab switcher */}
+      <div className="flex gap-1 mb-6 border-b border-zinc-200">
+        <button
+          onClick={() => setTab("demo")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
+            tab === "demo" ? "border-zinc-900 text-zinc-900" : "border-transparent text-zinc-500 hover:text-zinc-700"
+          }`}
+        >
+          Demo Agents
+        </button>
+        <button
+          onClick={() => setTab("my")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
+            tab === "my" ? "border-zinc-900 text-zinc-900" : "border-transparent text-zinc-500 hover:text-zinc-700"
+          }`}
+        >
+          My Agents
+        </button>
+      </div>
+
+      {tab === "my" && <MyAgentsTab />}
+
+      {tab === "demo" && <div className="flex gap-6">
         {/* Sidebar */}
         <aside className="w-52 shrink-0">
           <div className="space-y-1 sticky top-6">
@@ -834,7 +1157,7 @@ export default function AgentsPage() {
             ))}
           </div>
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

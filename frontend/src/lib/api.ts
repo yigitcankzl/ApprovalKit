@@ -95,9 +95,14 @@ export const api = {
   },
   clearDemoData: () => fetchAPI("/api/v1/demo/seed", { method: "DELETE" }),
 
-  // Credentials & live test (no HMAC required)
+  // Credentials
   getCredentials: () => fetchAPI("/api/v1/workspace/credentials"),
-  sendTestRequest: (data: { connection: string; action: string; params: Record<string, unknown> }) =>
-    fetchAPI("/api/v1/test-request", { method: "POST", body: JSON.stringify(data) }),
-  getTestStatus: (jobId: string) => fetchAPI(`/api/v1/test-status/${jobId}`),
+
+  // Registered agents (My Agents)
+  getMyAgents: () => fetchAPI("/api/v1/agents"),
+  createMyAgent: (data: { name: string; description?: string; icon?: string; scenarios?: { title: string; connection: string; action: string; params: Record<string, unknown> }[] }) =>
+    fetchAPI("/api/v1/agents", { method: "POST", body: JSON.stringify(data) }),
+  deleteMyAgent: (id: string) => fetchAPI(`/api/v1/agents/${id}`, { method: "DELETE" }),
+  addScenarioToAgent: (agentId: string, data: { title: string; connection: string; action: string; params: Record<string, unknown> }) =>
+    fetchAPI(`/api/v1/agents/${agentId}/scenarios`, { method: "POST", body: JSON.stringify(data) }),
 };
