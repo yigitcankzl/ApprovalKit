@@ -94,6 +94,14 @@ class ApprovalKit:
             "Content-Type": "application/json",
         }
 
+    def _validate_inputs(self, connection: str, action: str, params: dict):
+        if not connection or not isinstance(connection, str):
+            raise ValueError("connection must be a non-empty string (e.g. 'stripe-prod')")
+        if not action or not isinstance(action, str):
+            raise ValueError("action must be a non-empty string (e.g. 'charge')")
+        if not isinstance(params, dict):
+            raise TypeError(f"params must be a dict, got {type(params).__name__}")
+
     def _request_approval(self, connection: str, action: str, params: dict) -> dict:
         payload = {
             "connection": connection,
@@ -161,6 +169,7 @@ class ApprovalKit:
         Returns {"status": "approved"/"pre_approved", "final_params": {...}}
         Raises ApprovalDenied on rejection/timeout/block.
         """
+        self._validate_inputs(connection, action, params)
         print(f"\n[ApprovalKit] {connection}/{action}")
         print(f"             params: {json.dumps(params)}")
 
