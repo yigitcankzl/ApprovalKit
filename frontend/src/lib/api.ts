@@ -65,6 +65,7 @@ export const api = {
       },
     }),
   disconnectAuth: (id: string) => fetchAPI(`/api/v1/connections/${id}/auth`, { method: "DELETE" }),
+  deleteConnection: (id: string) => fetchAPI(`/api/v1/connections/${id}`, { method: "DELETE" }),
 
   // Jobs
   getPendingJobs: () => fetchAPI("/api/v1/jobs/pending"),

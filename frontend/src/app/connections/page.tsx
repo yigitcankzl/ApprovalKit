@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
-import { CheckCircle2, Link2, Unlink, X, AlertCircle, Info } from "lucide-react";
+import { CheckCircle2, Link2, Unlink, X, AlertCircle, Info, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 interface Connection {
@@ -86,6 +86,16 @@ function ConnectionsContent() {
       load();
     } catch (e: any) {
       setError(e.message || "Failed to disconnect");
+    }
+  };
+
+  const handleDelete = async (conn: Connection) => {
+    if (!confirm(`Delete ${conn.name}? This cannot be undone.`)) return;
+    try {
+      await api.deleteConnection(conn.id);
+      load();
+    } catch (e: any) {
+      setError(e.message || "Failed to delete");
     }
   };
 
@@ -193,6 +203,14 @@ function ConnectionsContent() {
                           </button>
                         </div>
                       )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-zinc-400 hover:text-red-600 hover:bg-red-50"
+                        onClick={() => handleDelete(conn)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
                 </CardContent>

@@ -113,7 +113,7 @@ export default function OnboardingPage() {
           })
         )
       );
-      setCurrentStep(3);
+      router.push("/connections");
     } catch (err: any) {
       setError(err.message || "Failed to create connections.");
     } finally {

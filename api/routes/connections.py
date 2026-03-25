@@ -425,5 +425,20 @@ async def disconnect_auth(connection_id: str, db: AsyncSession = Depends(get_db)
 
     conn.connected_auth0_user_id = None
     conn.connected_user_name = None
+    conn.auth0_refresh_token = None
     await db.commit()
     return {"status": "disconnected", "connection": conn.name}
+
+
+@router.delete("/{connection_id}", status_code=200)
+async def delete_connection(connection_id: str, db: AsyncSession = Depends(get_db)):
+    """Permanently delete a service connection."""
+    result = await db.execute(
+        select(ServiceConnection).where(ServiceConnection.id == uuid.UUID(connection_id))
+    )
+    conn = result.scalar_one_or_none()
+    if not conn:
+        raise HTTPException(status_code=404, detail="Connection not found")
+    await db.delete(conn)
+    await db.commit()
+    return {"status": "deleted", "connection": conn.name}
