@@ -1,9 +1,17 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+// Cached user sub from Auth0 session
+let _userSub: string | null = null;
+
+export function setUserSub(sub: string | null) {
+  _userSub = sub;
+}
+
 async function fetchAPI(path: string, options?: RequestInit) {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: {
       "Content-Type": "application/json",
+      ...(_userSub ? { "X-User-Sub": _userSub } : {}),
       ...options?.headers,
     },
     ...options,

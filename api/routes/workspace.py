@@ -8,7 +8,7 @@ import secrets
 import uuid
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,6 +18,7 @@ from api.config import get_settings
 from api.database import get_db
 from api.models.workspace import Workspace
 from api.services.encryption import encrypt_secret
+from api.middleware.workspace import get_current_workspace
 
 router = APIRouter(prefix="/api/v1/workspace", tags=["workspace"])
 settings = get_settings()
@@ -64,15 +65,30 @@ async def _validate_auth0(domain: str, client_id: str, client_secret: str) -> bo
 
 
 @router.post("/setup")
-async def setup_workspace(body: WorkspaceSetupRequest, db: AsyncSession = Depends(get_db)):
+async def setup_workspace(body: WorkspaceSetupRequest, request: Request, db: AsyncSession = Depends(get_db)):
     """
     Create workspace with Auth0/FGA credentials stored in DB.
     If workspace exists, update its credentials.
     """
-    result = await db.execute(
-        select(Workspace).where(Workspace.is_active.is_(True)).limit(1)
-    )
-    existing = result.scalar_one_or_none()
+    user_sub = request.headers.get("X-User-Sub", "").strip()
+
+    # Try to find workspace for this user first
+    existing = None
+    if user_sub:
+        result = await db.execute(
+            select(Workspace).where(
+                Workspace.owner_auth0_sub == user_sub,
+                Workspace.is_active.is_(True),
+            ).limit(1)
+        )
+        existing = result.scalar_one_or_none()
+
+    # Fallback: first active workspace (backwards compat)
+    if not existing:
+        result = await db.execute(
+            select(Workspace).where(Workspace.is_active.is_(True)).limit(1)
+        )
+        existing = result.scalar_one_or_none()
 
     # Determine Auth0 domain — from body or .env fallback
     domain = body.auth0_domain or body.auth0_tenant or settings.AUTH0_DOMAIN
@@ -133,6 +149,7 @@ async def setup_workspace(body: WorkspaceSetupRequest, db: AsyncSession = Depend
         auth0_tenant=domain,
         api_key=api_key,
         hmac_secret=hmac_secret,
+        owner_auth0_sub=user_sub or None,
         auth0_domain=body.auth0_domain,
         auth0_m2m_client_id=body.auth0_m2m_client_id,
         auth0_m2m_client_secret=encrypt_secret(body.auth0_m2m_client_secret),
@@ -162,14 +179,7 @@ async def setup_workspace(body: WorkspaceSetupRequest, db: AsyncSession = Depend
 
 
 @router.get("/credentials")
-async def get_workspace_credentials(db: AsyncSession = Depends(get_db)):
-    """Return api_key and hmac_secret for the active workspace (dashboard use only)."""
-    result = await db.execute(
-        select(Workspace).where(Workspace.is_active.is_(True)).limit(1)
-    )
-    workspace = result.scalar_one_or_none()
-    if not workspace:
-        raise HTTPException(status_code=404, detail="No workspace configured yet")
+async def get_workspace_credentials(workspace: Workspace = Depends(get_current_workspace)):
     return {
         "workspace_id": str(workspace.id),
         "name": workspace.name,
@@ -179,14 +189,7 @@ async def get_workspace_credentials(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("")
-async def get_workspace(db: AsyncSession = Depends(get_db)):
-    """Return current workspace info without sensitive fields."""
-    result = await db.execute(
-        select(Workspace).where(Workspace.is_active.is_(True)).limit(1)
-    )
-    workspace = result.scalar_one_or_none()
-    if not workspace:
-        raise HTTPException(status_code=404, detail="No workspace configured yet")
+async def get_workspace(workspace: Workspace = Depends(get_current_workspace)):
     return {
         "workspace_id": str(workspace.id),
         "name": workspace.name,

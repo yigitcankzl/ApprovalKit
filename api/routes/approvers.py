@@ -11,7 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.config import get_settings
 from api.database import get_db
 from api.models.approver import Approver
+from api.models.workspace import Workspace
 from api.schemas.approver import ApproverCreate, ApproverUpdate, DelegationRequest, ApproverResponse
+from api.middleware.workspace import get_current_workspace
 
 settings = get_settings()
 
@@ -19,22 +21,9 @@ router = APIRouter(prefix="/api/v1/approvers", tags=["approvers"])
 
 
 async def _resolve_workspace_id(
-    workspace_id: str | None = Query(default=None),
-    db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
 ) -> uuid.UUID:
-    if workspace_id:
-        try:
-            return uuid.UUID(workspace_id)
-        except ValueError:
-            pass
-    from api.models.workspace import Workspace
-    result = await db.execute(
-        select(Workspace).where(Workspace.is_active.is_(True)).limit(1)
-    )
-    ws = result.scalar_one_or_none()
-    if not ws:
-        raise HTTPException(status_code=500, detail="No active workspace found")
-    return ws.id
+    return workspace.id
 
 
 def _approver_to_response(a: Approver) -> dict:

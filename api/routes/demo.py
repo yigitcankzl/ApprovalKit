@@ -11,7 +11,7 @@ resources that already exist.
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,6 +20,7 @@ from api.models.approver import Approver
 from api.models.connection import ServiceConnection
 from api.models.rule import Rule, RuleApprover, ApprovalModel, TimeoutAction
 from api.models.workspace import Workspace
+from api.middleware.workspace import get_current_workspace
 
 router = APIRouter(prefix="/api/v1/demo", tags=["demo"])
 
@@ -829,7 +830,7 @@ async def list_demo_agents():
 
 
 @router.post("/seed")
-async def seed_demo_data(agent_id: str | None = None, real_user_id: str | None = None, db: AsyncSession = Depends(get_db)):
+async def seed_demo_data(request: Request, agent_id: str | None = None, real_user_id: str | None = None, db: AsyncSession = Depends(get_db)):
     """
     Idempotently seed demo data. Pass ?agent_id=ecommerce to seed only
     one agent's data. Without agent_id, seeds everything.
@@ -838,13 +839,26 @@ async def seed_demo_data(agent_id: str | None = None, real_user_id: str | None =
         "created": [], "skipped": []
     }
 
-    # ── 1. Workspace ──────────────────────────────────────────────────────────
-    ws_result = await db.execute(
-        select(Workspace).where(Workspace.is_active.is_(True)).limit(1)
-    )
-    workspace = ws_result.scalar_one_or_none()
+    # ── 1. Workspace (resolve per user) ────────────────────────────────────────
+    user_sub = request.headers.get("X-User-Sub", "").strip()
+    workspace = None
+    if user_sub:
+        ws_result = await db.execute(
+            select(Workspace).where(Workspace.owner_auth0_sub == user_sub, Workspace.is_active.is_(True)).limit(1)
+        )
+        workspace = ws_result.scalar_one_or_none()
     if not workspace:
-        workspace = Workspace(name="Demo Workspace", is_active=True)
+        ws_result = await db.execute(
+            select(Workspace).where(Workspace.is_active.is_(True)).limit(1)
+        )
+        workspace = ws_result.scalar_one_or_none()
+    if not workspace:
+        import secrets as _secrets
+        workspace = Workspace(
+            name="Demo Workspace", is_active=True, auth0_tenant="demo",
+            api_key=_secrets.token_urlsafe(32), hmac_secret=_secrets.token_hex(32),
+            owner_auth0_sub=user_sub or None,
+        )
         db.add(workspace)
         await db.flush()
         report["created"].append("workspace: Demo Workspace")
@@ -960,14 +974,8 @@ async def seed_demo_data(agent_id: str | None = None, real_user_id: str | None =
 
 
 @router.delete("/seed")
-async def clear_demo_data(db: AsyncSession = Depends(get_db)):
+async def clear_demo_data(workspace: Workspace = Depends(get_current_workspace), db: AsyncSession = Depends(get_db)):
     """Remove all demo resources (names start with '[Demo]')."""
-    ws_result = await db.execute(
-        select(Workspace).where(Workspace.is_active.is_(True)).limit(1)
-    )
-    workspace = ws_result.scalar_one_or_none()
-    if not workspace:
-        return {"status": "ok", "deleted": 0}
 
     rules_result = await db.execute(
         select(Rule).where(

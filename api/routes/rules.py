@@ -11,33 +11,16 @@ from api.models.approver import Approver
 from api.schemas.rule import RuleCreate, RuleUpdate, RuleResponse
 from api.services.rule_engine import evaluate_conditions, render_binding_message
 from api.middleware.fga import require_rule_read, require_rule_write, require_workspace_admin
+from api.middleware.workspace import get_current_workspace
+from api.models.workspace import Workspace
 
 router = APIRouter(prefix="/api/v1/rules", tags=["rules"])
 
 
 async def _resolve_workspace_id(
-    workspace_id: str | None = Query(default=None),
-    db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
 ) -> uuid.UUID:
-    """
-    Return the workspace UUID.
-    - If a valid UUID is supplied, use it.
-    - Otherwise fall back to the first active workspace in the database.
-    """
-    if workspace_id:
-        try:
-            return uuid.UUID(workspace_id)
-        except ValueError:
-            pass
-
-    from api.models.workspace import Workspace
-    result = await db.execute(
-        select(Workspace).where(Workspace.is_active.is_(True)).limit(1)
-    )
-    ws = result.scalar_one_or_none()
-    if not ws:
-        raise HTTPException(status_code=500, detail="No active workspace found")
-    return ws.id
+    return workspace.id
 
 
 def _parse_time(t: str | None) -> time | None:

@@ -26,6 +26,7 @@ from api.config import get_settings
 from api.database import get_db
 from api.models.connection import ServiceConnection
 from api.models.workspace import Workspace
+from api.middleware.workspace import get_current_workspace
 
 _auth0_connections_cache: set[str] | None = None
 
@@ -161,14 +162,8 @@ class CreateConnectionRequest(BaseModel):
 
 
 @router.post("", status_code=201)
-async def create_connection(body: CreateConnectionRequest, db: AsyncSession = Depends(get_db)):
+async def create_connection(body: CreateConnectionRequest, workspace: Workspace = Depends(get_current_workspace), db: AsyncSession = Depends(get_db)):
     """Create a new service connection. Used during onboarding."""
-    result = await db.execute(
-        select(Workspace).where(Workspace.is_active.is_(True)).limit(1)
-    )
-    workspace = result.scalar_one_or_none()
-    if not workspace:
-        raise HTTPException(status_code=400, detail="No workspace configured. Complete onboarding step 1 first.")
 
     existing = await db.execute(
         select(ServiceConnection).where(ServiceConnection.slug == body.slug)

@@ -19,6 +19,7 @@ from api.database import get_db
 from api.models.agent import RegisteredAgent, AgentScenario
 from api.models.connection import ServiceConnection
 from api.models.workspace import Workspace
+from api.middleware.workspace import get_current_workspace
 
 router = APIRouter(prefix="/api/v1/agents", tags=["agents"])
 
@@ -42,13 +43,7 @@ class AgentIn(BaseModel):
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-async def _get_workspace(db: AsyncSession) -> Workspace:
-    result = await db.execute(
-        select(Workspace).where(Workspace.is_active.is_(True)).limit(1)
-    )
-    ws = result.scalar_one_or_none()
-    if not ws:
-        raise HTTPException(status_code=400, detail="No active workspace found")
+async def _get_workspace(ws: Workspace = Depends(get_current_workspace)) -> Workspace:
     return ws
 
 

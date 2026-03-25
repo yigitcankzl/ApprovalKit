@@ -14,6 +14,7 @@ from api.models.workspace import Workspace
 from api.models.approval_job import ApprovalJob, AuditLog, AuditEventType, JobState
 from api.models.connection import ServiceConnection
 from api.constants import REDIS_KEY_IDEMPOTENCY
+from api.middleware.workspace import get_current_workspace
 from api.schemas.request import ApprovalRequest, ApprovalResponse, JobStatusResponse
 from api.services.rule_engine import (
     find_matching_rule,
@@ -193,6 +194,7 @@ class TestRequest(ApprovalRequest):
 @router.post("/test-request", status_code=202)
 async def dashboard_test_request(
     body: TestRequest,
+    workspace: Workspace = Depends(get_current_workspace),
     db: AsyncSession = Depends(get_db),
     redis_client: aioredis.Redis = Depends(get_redis),
 ):
@@ -202,13 +204,6 @@ async def dashboard_test_request(
     """
     if not body.idempotency_key:
         body.idempotency_key = f"test-{uuid.uuid4()}"
-
-    result = await db.execute(
-        select(Workspace).where(Workspace.is_active.is_(True)).limit(1)
-    )
-    workspace = result.scalar_one_or_none()
-    if not workspace:
-        raise HTTPException(status_code=400, detail="No workspace configured")
 
     rule = await find_matching_rule(
         workspace.id, body.connection, body.action, body.params, db

@@ -2,14 +2,22 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import { useUser } from "@auth0/nextjs-auth0/client";
 import { Sidebar } from "./sidebar";
+import { setUserSub } from "@/lib/api";
 
 const STORAGE_KEY = "sidebar-collapsed";
 
 export function ConditionalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { user } = useUser();
   const isWelcome = pathname === "/" || pathname === "/docs";
   const [collapsed, setCollapsed] = useState(false);
+
+  // Sync Auth0 user sub to API client so every request includes X-User-Sub
+  useEffect(() => {
+    setUserSub(user?.sub ?? null);
+  }, [user?.sub]);
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
