@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TravelOps — Corporate Travel Manager</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .pulse-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
+  </style>
+</head>
+<body class="bg-zinc-50 min-h-screen">
+
+<div id="app" class="max-w-6xl mx-auto px-4 py-8">
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-8">
+    <div>
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+        </div>
+        <div>
+          <h1 class="text-2xl font-bold text-zinc-900">TravelOps</h1>
+          <p class="text-sm text-zinc-500">Corporate Travel Manager — powered by ApprovalKit</p>
+        </div>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <span class="w-2 h-2 rounded-full bg-green-500"></span>
+      <span class="text-xs text-zinc-500">ApprovalKit connected</span>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Left: Trip Form -->
+    <div class="space-y-4">
+      <div class="bg-white rounded-xl border border-zinc-200 p-5">
+        <h2 class="text-sm font-semibold text-zinc-900 mb-4">Plan Your Trip</h2>
+
+        <div class="space-y-3">
+          <div>
+            <label class="text-xs font-medium text-zinc-500">Traveler</label>
+            <input id="traveler" value="alice@company.com" class="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none">
+          </div>
+          <div>
+            <label class="text-xs font-medium text-zinc-500">Destination</label>
+            <select id="destination" onchange="loadOptions()" class="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 outline-none">
+              <option value="berlin">Berlin, Germany</option>
+              <option value="london">London, UK</option>
+              <option value="new york">New York, USA (visa)</option>
+              <option value="san francisco">San Francisco, USA (visa)</option>
+              <option value="tokyo">Tokyo, Japan (visa)</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs font-medium text-zinc-500">Purpose</label>
+            <input id="purpose" value="React Conf 2026" class="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 outline-none">
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs font-medium text-zinc-500">Nights</label>
+              <input id="nights" type="number" value="3" min="1" max="14" class="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none">
+            </div>
+            <div>
+              <label class="text-xs font-medium text-zinc-500">Flight</label>
+              <select id="flight" class="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none"></select>
+            </div>
+          </div>
+          <div>
+            <label class="text-xs font-medium text-zinc-500">Hotel</label>
+            <select id="hotel" class="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none"></select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cost Breakdown -->
+      <div class="bg-white rounded-xl border border-zinc-200 p-5">
+        <h2 class="text-sm font-semibold text-zinc-900 mb-3">Cost Estimate</h2>
+        <div id="cost-breakdown" class="space-y-2 text-sm"></div>
+        <div class="border-t border-zinc-200 mt-3 pt-3 flex justify-between font-semibold text-zinc-900">
+          <span>Total</span>
+          <span id="total-cost">$0</span>
+        </div>
+      </div>
+
+      <button onclick="bookTrip()" id="book-btn" class="w-full bg-blue-600 text-white rounded-lg py-3 text-sm font-semibold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+        Book Trip
+      </button>
+    </div>
+
+    <!-- Right: Live Booking Steps -->
+    <div class="lg:col-span-2">
+      <div class="bg-white rounded-xl border border-zinc-200 p-5">
+        <div class="flex items-center justify-between mb-5">
+          <h2 class="text-sm font-semibold text-zinc-900" id="steps-title">Booking Steps</h2>
+          <span id="steps-badge" class="hidden text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full"></span>
+        </div>
+
+        <div id="steps-container" class="space-y-3">
+          <!-- Steps rendered by JS -->
+          <div class="text-center py-16 text-zinc-400">
+            <svg class="w-12 h-12 mx-auto mb-3 text-zinc-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+            <p class="text-sm">Configure your trip and click Book Trip</p>
+          </div>
+        </div>
+
+        <!-- Summary -->
+        <div id="summary" class="hidden mt-6 bg-zinc-900 rounded-lg p-5 text-white">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-semibold">Trip Summary</span>
+            <span class="text-xl font-bold" id="summary-total"></span>
+          </div>
+          <div class="text-xs text-zinc-400" id="summary-detail"></div>
+          <div class="flex gap-2 mt-3" id="summary-badges"></div>
+        </div>
+      </div>
+
+      <!-- Approval Flow Explainer -->
+      <div class="mt-4 bg-white rounded-xl border border-zinc-200 p-5">
+        <h3 class="text-xs font-semibold text-zinc-400 uppercase tracking-wide mb-3">How Approvals Work</h3>
+        <div class="flex items-center gap-2 flex-wrap text-xs">
+          <span class="bg-zinc-800 text-white px-2.5 py-1 rounded-lg">TravelOps Agent</span>
+          <span class="text-zinc-400">-></span>
+          <span class="bg-blue-100 text-blue-700 px-2.5 py-1 rounded-lg">ApprovalKit API</span>
+          <span class="text-zinc-400">-></span>
+          <span class="bg-amber-100 text-amber-700 px-2.5 py-1 rounded-lg">Guardian Push</span>
+          <span class="text-zinc-400">-></span>
+          <span class="bg-green-100 text-green-700 px-2.5 py-1 rounded-lg border border-green-200">Auth0 Token Vault</span>
+          <span class="text-zinc-400">-></span>
+          <span class="bg-purple-100 text-purple-700 px-2.5 py-1 rounded-lg">Stripe Charge</span>
+        </div>
+        <p class="text-xs text-zinc-400 mt-2">Flight &lt; $500 auto-approves. $500-$2000 needs manager. &gt; $2000 needs manager + CFO (step-up).</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';
+let flights = [], hotels = [];
+
+const STEPS = [
+  { key: 'flight', label: 'Book Flight', icon: 'M12 19l9 2-9-18-9 18 9-2zm0 0v-8', color: 'blue' },
+  { key: 'hotel', label: 'Reserve Hotel', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6', color: 'purple' },
+  { key: 'insurance', label: 'Travel Insurance', icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z', color: 'green' },
+  { key: 'calendar', label: 'Add to Calendar', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', color: 'orange' },
+  { key: 'slack', label: 'Notify Team', icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z', color: 'pink' },
+  { key: 'expense', label: 'Log Expense', icon: 'M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z', color: 'cyan' },
+  { key: 'visa', label: 'Visa Check', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', color: 'red' },
+];
+
+const stepStates = {};
+let tripData = null;
+
+async function loadOptions() {
+  const dest = document.getElementById('destination').value;
+  const [f, h] = await Promise.all([
+    fetch(`${API}/api/flights/${dest}`).then(r => r.json()),
+    fetch(`${API}/api/hotels/${dest}`).then(r => r.json()),
+  ]);
+  flights = f; hotels = h;
+
+  const fs = document.getElementById('flight');
+  fs.innerHTML = f.map(x => `<option value="${x.id}">${x.airline} ${x.flight_no} (${x.class}) — $${x.price}</option>`).join('');
+
+  const hs = document.getElementById('hotel');
+  hs.innerHTML = h.map(x => `<option value="${x.id}">${x.name} — $${x.price}/night</option>`).join('');
+
+  updateCost();
+}
+
+function getSelectedFlight() { return flights.find(f => f.id === document.getElementById('flight').value); }
+function getSelectedHotel() { return hotels.find(h => h.id === document.getElementById('hotel').value); }
+
+function updateCost() {
+  const f = getSelectedFlight();
+  const h = getSelectedHotel();
+  const n = parseInt(document.getElementById('nights').value) || 1;
+  if (!f || !h) return;
+  const ht = h.price * n;
+  document.getElementById('cost-breakdown').innerHTML = `
+    <div class="flex justify-between text-zinc-600"><span>Flight (${f.class})</span><span>$${f.price}</span></div>
+    <div class="flex justify-between text-zinc-600"><span>Hotel (${n} nights)</span><span>$${ht}</span></div>
+    <div class="flex justify-between text-zinc-600"><span>Insurance</span><span>$29</span></div>
+  `;
+  document.getElementById('total-cost').textContent = `$${f.price + ht + 29}`;
+}
+
+document.getElementById('flight').addEventListener('change', updateCost);
+document.getElementById('hotel').addEventListener('change', updateCost);
+document.getElementById('nights').addEventListener('input', updateCost);
+
+function renderSteps() {
+  const container = document.getElementById('steps-container');
+  container.innerHTML = STEPS.map((s, idx) => {
+    const state = stepStates[s.key] || { status: 'idle' };
+    const isActive = state.status === 'waiting' || state.status === 'sending';
+    const isDone = ['approved', 'auto', 'denied', 'skipped'].includes(state.status);
+    const bgMap = { approved: 'bg-green-50 border-green-200', auto: 'bg-green-50 border-green-200', denied: 'bg-red-50 border-red-200', waiting: 'bg-blue-50 border-blue-200', sending: 'bg-blue-50 border-blue-200', idle: 'bg-zinc-50 border-zinc-100', skipped: 'bg-zinc-50 border-zinc-200' };
+    const dotMap = { approved: 'bg-green-500', auto: 'bg-green-500', denied: 'bg-red-500', waiting: 'bg-blue-500 pulse-dot', sending: 'bg-blue-500 pulse-dot', idle: 'bg-zinc-300', skipped: 'bg-zinc-300' };
+    const badgeMap = { approved: '<span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Guardian Approved</span>', auto: '<span class="text-xs bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded-full">Auto</span>', denied: '<span class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">Denied</span>', waiting: '<span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-blue-500 pulse-dot"></span>Waiting for Guardian</span>', sending: '<span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Sending...</span>', skipped: '<span class="text-xs bg-zinc-100 text-zinc-500 px-2 py-0.5 rounded-full">Skipped</span>' };
+
+    return `<div class="flex items-start gap-4 p-3 rounded-lg border transition-all ${bgMap[state.status] || bgMap.idle} ${state.status === 'idle' ? 'opacity-40' : ''}">
+      <div class="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${isDone ? (state.status === 'denied' ? 'bg-red-100' : 'bg-green-100') : isActive ? 'bg-blue-100' : 'bg-zinc-100'}">
+        <span class="w-2.5 h-2.5 rounded-full ${dotMap[state.status] || dotMap.idle}"></span>
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center justify-between">
+          <span class="text-sm font-medium ${state.status === 'idle' ? 'text-zinc-400' : 'text-zinc-900'}">${s.label}</span>
+          <div class="flex items-center gap-2">
+            ${state.cost ? `<span class="text-xs font-mono text-zinc-500">$${state.cost}</span>` : ''}
+            ${badgeMap[state.status] || ''}
+          </div>
+        </div>
+        ${state.detail ? `<p class="text-xs text-zinc-500 mt-0.5">${state.detail}</p>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function setStep(key, state) {
+  stepStates[key] = state;
+  renderSteps();
+}
+
+async function sendApproval(connection, action, params) {
+  const res = await fetch(`${API}/api/approve-step`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ connection, action, params }),
+  }).then(r => r.json());
+
+  if (res.status === 'approved' || res.status === 'pre_approved') return 'auto';
+  if (!res.job_id) return 'auto';
+
+  // Poll
+  for (let i = 0; i < 90; i++) {
+    await new Promise(r => setTimeout(r, 2000));
+    const s = await fetch(`${API}/api/job/${res.job_id}`).then(r => r.json());
+    if (s.status === 'approved') return 'approved';
+    if (['rejected', 'timeout', 'blocked'].includes(s.status)) return 'denied';
+  }
+  return 'denied';
+}
+
+async function bookTrip() {
+  const btn = document.getElementById('book-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> Booking...';
+
+  document.getElementById('summary').classList.add('hidden');
+  document.getElementById('steps-badge').classList.remove('hidden');
+  document.getElementById('steps-badge').textContent = 'In progress';
+
+  const traveler = document.getElementById('traveler').value;
+  const dest = document.getElementById('destination').value;
+  const purpose = document.getElementById('purpose').value;
+  const nights = parseInt(document.getElementById('nights').value) || 3;
+  const flight = getSelectedFlight();
+  const hotel = getSelectedHotel();
+  const hotelTotal = hotel.price * nights;
+  const destInfo = [{id:'new york',v:true},{id:'san francisco',v:true},{id:'tokyo',v:true}];
+  const needsVisa = destInfo.some(d => d.id === dest && d.v);
+  let totalCost = 0;
+
+  // Reset
+  STEPS.forEach(s => { stepStates[s.key] = { status: 'idle' }; });
+  renderSteps();
+
+  // 1. Flight
+  setStep('flight', { status: 'sending', detail: `${flight.airline} ${flight.flight_no} (${flight.class})`, cost: flight.price });
+  setStep('flight', { status: 'waiting', detail: `${flight.airline} ${flight.flight_no} — $${flight.price}`, cost: flight.price });
+
+  const fr = await sendApproval('stripe-prod', 'charge', {
+    amount_usd: flight.price, customer: traveler,
+    description: `Flight ${flight.flight_no} to ${dest} (${flight.class})`,
+  });
+
+  if (fr === 'denied') {
+    setStep('flight', { status: 'denied', detail: 'Flight denied — trip cancelled', cost: flight.price });
+    finish(btn, 0); return;
+  }
+  totalCost += flight.price;
+  setStep('flight', { status: fr === 'auto' ? 'auto' : 'approved', detail: `${flight.airline} ${flight.flight_no}`, cost: flight.price });
+
+  // 2. Hotel
+  setStep('hotel', { status: 'waiting', detail: `${hotel.name} — $${hotel.price}/night x ${nights}`, cost: hotelTotal });
+  const hr = await sendApproval('stripe-prod', 'charge', {
+    amount_usd: hotelTotal, customer: traveler,
+    description: `Hotel ${hotel.name} ${nights}n in ${dest}`,
+  });
+  if (hr === 'denied') {
+    setStep('hotel', { status: 'denied', detail: 'Hotel denied', cost: hotelTotal });
+  } else {
+    totalCost += hotelTotal;
+    setStep('hotel', { status: hr === 'auto' ? 'auto' : 'approved', detail: `${hotel.name} — ${nights} nights`, cost: hotelTotal });
+  }
+
+  // 3. Insurance
+  setStep('insurance', { status: 'waiting', detail: 'Basic Travel Cover — $29', cost: 29 });
+  const ir = await sendApproval('stripe-prod', 'charge', {
+    amount_usd: 29, customer: traveler, description: 'Travel insurance: Basic Travel Cover',
+  });
+  totalCost += 29;
+  setStep('insurance', { status: 'auto', detail: 'Basic Travel Cover ($50,000)', cost: 29 });
+
+  // 4. Calendar
+  setStep('calendar', { status: 'auto', detail: `${purpose} — ${dest}` });
+
+  // 5. Slack
+  setStep('slack', { status: 'waiting', detail: 'Posting to #travel' });
+  await sendApproval('slack-prod', 'send_message', {
+    channel: '#travel', message: `${traveler} traveling to ${dest} for ${purpose}`,
+  });
+  setStep('slack', { status: 'auto', detail: '#travel notified' });
+
+  // 6. Expense
+  setStep('expense', { status: 'auto', detail: `$${totalCost} logged`, cost: totalCost });
+
+  // 7. Visa
+  if (needsVisa) {
+    setStep('visa', { status: 'waiting', detail: 'Visa required — sending reminder' });
+    await sendApproval('gmail-prod', 'send_email', {
+      recipient: traveler, subject: `Visa reminder: ${dest}`,
+      body: `Your trip to ${dest} requires a visa.`, type: 'visa_reminder',
+    });
+    setStep('visa', { status: 'auto', detail: 'Reminder sent via Gmail' });
+  } else {
+    setStep('visa', { status: 'skipped', detail: 'Not required' });
+  }
+
+  finish(btn, totalCost);
+}
+
+function finish(btn, total) {
+  btn.disabled = false;
+  btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg> Book Trip';
+
+  document.getElementById('steps-badge').textContent = total > 0 ? 'Complete' : 'Failed';
+  document.getElementById('steps-badge').className = `text-xs px-2 py-0.5 rounded-full ${total > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`;
+
+  if (total > 0) {
+    const s = document.getElementById('summary');
+    s.classList.remove('hidden');
+    document.getElementById('summary-total').textContent = `$${total}`;
+    document.getElementById('summary-detail').textContent = `${document.getElementById('traveler').value} — ${document.getElementById('destination').value} — ${document.getElementById('purpose').value}`;
+    const badges = document.getElementById('summary-badges');
+    badges.innerHTML = STEPS.map(st => {
+      const state = stepStates[st.key];
+      if (!state) return '';
+      const ok = ['approved', 'auto', 'skipped'].includes(state.status);
+      return `<span class="px-1.5 py-0.5 rounded text-xs ${ok ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}">${st.key}</span>`;
+    }).join('');
+  }
+}
+
+// Init
+loadOptions();
+renderSteps();
+</script>
+</body>
+</html>

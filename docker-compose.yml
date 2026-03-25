@@ -98,5 +98,20 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  travelops:
+    build:
+      context: ./agents/travelops
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      APPROVALKIT_URL: http://api:8000
+      APPROVALKIT_API_KEY: ${APPROVALKIT_API_KEY:-}
+      APPROVALKIT_HMAC_SECRET: ${APPROVALKIT_HMAC_SECRET:-}
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   pgdata:
