@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -55,6 +55,15 @@ export default function OnboardingPage() {
   const [error, setError] = useState<string | null>(null);
   const [workspaceApiKey, setWorkspaceApiKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [existingWorkspace, setExistingWorkspace] = useState<any>(null);
+  const [editMode, setEditMode] = useState(false);
+
+  useEffect(() => {
+    api.getWorkspace().then((ws) => {
+      setExistingWorkspace(ws);
+      if (ws.auth0_tenant) setTenant(ws.auth0_tenant);
+    }).catch(() => {});
+  }, []);
 
   const toggleService = (id: string) => {
     setSelectedServices((prev) =>
@@ -161,13 +170,41 @@ export default function OnboardingPage() {
       </div>
 
       {/* Step 1: Connect Auth0 */}
-      {currentStep === 1 && (
+      {currentStep === 1 && existingWorkspace && !editMode ? (
         <Card>
           <CardHeader>
-            <CardTitle>Connect Auth0</CardTitle>
+            <CardTitle>Workspace Already Configured</CardTitle>
             <CardDescription>
-              Enter your Auth0 tenant credentials. The platform will validate the connection
-              and create your workspace.
+              Your organization <strong>{existingWorkspace.name}</strong> is set up with Auth0 tenant <code className="text-xs bg-zinc-100 px-1.5 py-0.5 rounded">{existingWorkspace.auth0_tenant}</code>.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-3">
+              {existingWorkspace.has_auth0_credentials && (
+                <Badge variant="success"><CheckCircle2 className="h-3 w-3 mr-1" /> Auth0 Connected</Badge>
+              )}
+              {existingWorkspace.has_fga_credentials && (
+                <Badge variant="success"><CheckCircle2 className="h-3 w-3 mr-1" /> FGA Configured</Badge>
+              )}
+            </div>
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={() => setEditMode(true)}>
+                Edit Credentials
+              </Button>
+              <Button onClick={() => setCurrentStep(2)}>
+                Continue to Connections <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : currentStep === 1 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{editMode ? "Update Credentials" : "Connect Auth0"}</CardTitle>
+            <CardDescription>
+              {editMode
+                ? "Update your Auth0 and FGA credentials. Only changed fields will be updated."
+                : "Enter your Auth0 tenant credentials. The platform will validate the connection and create your workspace."}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
