@@ -17,7 +17,7 @@ function CodeBlock({ code, language = "python" }: { code: string; language?: str
   return (
     <div className="relative rounded-lg bg-zinc-950 text-zinc-100 text-sm font-mono overflow-hidden">
       <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800">
-        <span className="text-xs text-zinc-500">{language}</span>
+        <span className="text-xs text-zinc-500 dark:text-zinc-400">{language}</span>
         <button
           onClick={handleCopy}
           className="flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
@@ -98,7 +98,7 @@ export default function DocsPage() {
               } ${
                 activeSection === item.id
                   ? "bg-zinc-900 text-white"
-                  : "text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100"
+                  : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:bg-zinc-800"
               }`}
             >
               {item.label}
@@ -113,18 +113,18 @@ export default function DocsPage() {
         {/* Header */}
         <div>
           <div className="flex items-center gap-2 mb-4">
-            <BookOpen className="h-6 w-6 text-zinc-700" />
-            <h1 className="text-3xl font-bold text-zinc-900">Documentation</h1>
+            <BookOpen className="h-6 w-6 text-zinc-700 dark:text-zinc-300 dark:text-zinc-600" />
+            <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">Documentation</h1>
           </div>
-          <p className="text-zinc-500 text-lg">
+          <p className="text-zinc-500 dark:text-zinc-400 text-lg">
             Human approval middleware for AI agents — plug in with one decorator.
           </p>
         </div>
 
         {/* Overview */}
         <Section id="overview">
-          <h2 className="text-xl font-bold text-zinc-900 mb-4">Overview</h2>
-          <p className="text-zinc-600 mb-4">
+          <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">Overview</h2>
+          <p className="text-zinc-600 dark:text-zinc-400 mb-4">
             ApprovalKit sits between your AI agent and any high-risk action. When an agent wants to
             charge a card, deploy to production, or send an email blast, it asks ApprovalKit first.
             A human gets a push notification, taps Approve or Deny, and the platform responds.
@@ -139,8 +139,8 @@ export default function DocsPage() {
               <Card key={item.title}>
                 <CardContent className="pt-5">
                   <div className="text-2xl mb-2">{item.icon}</div>
-                  <p className="font-semibold text-zinc-800 text-sm">{item.title}</p>
-                  <p className="text-zinc-500 text-xs mt-1">{item.desc}</p>
+                  <p className="font-semibold text-zinc-800 dark:text-zinc-200 text-sm">{item.title}</p>
+                  <p className="text-zinc-500 dark:text-zinc-400 text-xs mt-1">{item.desc}</p>
                 </CardContent>
               </Card>
             ))}
@@ -149,8 +149,8 @@ export default function DocsPage() {
 
         {/* Quick Start */}
         <Section id="quickstart">
-          <h2 className="text-xl font-bold text-zinc-900 mb-4">Quick Start</h2>
-          <p className="text-zinc-600 mb-4">
+          <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">Quick Start</h2>
+          <p className="text-zinc-600 dark:text-zinc-400 mb-4">
             Spin up the platform locally with Docker, then point your agent at it.
           </p>
           <CodeBlock language="bash" code={`# 1. Clone & configure
@@ -172,10 +172,10 @@ pip install ./sdk       # local install from repo
 
         {/* SDK */}
         <Section id="sdk">
-          <h2 className="text-xl font-bold text-zinc-900 mb-4">Python SDK</h2>
-          <p className="text-zinc-600 mb-4">
-            Install from the repo&apos;s <code className="bg-zinc-100 px-1 rounded text-sm">sdk/</code> folder,
-            or copy <code className="bg-zinc-100 px-1 rounded text-sm">sdk/approvalkit/__init__.py</code> into your project.
+          <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">Python SDK</h2>
+          <p className="text-zinc-600 dark:text-zinc-400 mb-4">
+            Install from the repo&apos;s <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded text-sm">sdk/</code> folder,
+            or copy <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded text-sm">sdk/approvalkit/__init__.py</code> into your project.
           </p>
           <CodeBlock code={`from approvalkit import ApprovalKit, ApprovalDenied
 
@@ -191,10 +191,10 @@ kit = ApprovalKit(
 
         {/* Decorator */}
         <Section id="decorator">
-          <h2 className="text-xl font-bold text-zinc-900 mb-1">
-            <code className="text-lg bg-zinc-100 px-2 py-0.5 rounded">@requires_approval</code>
+          <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-1">
+            <code className="text-lg bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded">@requires_approval</code>
           </h2>
-          <p className="text-zinc-500 text-sm mb-4">Add one decorator. Everything else stays the same.</p>
+          <p className="text-zinc-500 dark:text-zinc-400 text-sm mb-4">Add one decorator. Everything else stays the same.</p>
           <CodeBlock code={`# BEFORE — runs immediately, no approval
 def charge_customer(amount: int, customer: str):
     stripe.charge(amount=amount, customer=customer)
@@ -209,12 +209,12 @@ def charge_customer(amount: int, customer: str):
     stripe.charge(amount=amount, customer=customer)
     # this line only runs after approval`} />
 
-          <div className="mt-4 mb-2 text-sm font-medium text-zinc-700">
+          <div className="mt-4 mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">
             Custom params mapping
           </div>
-          <p className="text-zinc-500 text-sm mb-3">
+          <p className="text-zinc-500 dark:text-zinc-400 text-sm mb-3">
             By default the decorator sends all function arguments as approval params.
-            Use <code className="bg-zinc-100 px-1 rounded text-xs">params_fn</code> to control exactly what the approver sees.
+            Use <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded text-xs">params_fn</code> to control exactly what the approver sees.
           </p>
           <CodeBlock code={`@kit.requires_approval(
     connection="stripe-prod",
@@ -228,7 +228,7 @@ def charge_customer(amount: int, customer: str):
 def charge_customer(amount: int, customer: str):
     ...`} />
 
-          <div className="mt-4 mb-2 text-sm font-medium text-zinc-700">
+          <div className="mt-4 mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">
             Handling approval outcomes
           </div>
           <CodeBlock code={`from approvalkit import ApprovalDenied
@@ -244,10 +244,10 @@ except ApprovalDenied as e:
 
         {/* Gate */}
         <Section id="gate">
-          <h2 className="text-xl font-bold text-zinc-900 mb-1">
-            <code className="text-lg bg-zinc-100 px-2 py-0.5 rounded">kit.gate()</code>
+          <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-1">
+            <code className="text-lg bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded">kit.gate()</code>
           </h2>
-          <p className="text-zinc-500 text-sm mb-4">
+          <p className="text-zinc-500 dark:text-zinc-400 text-sm mb-4">
             Inline alternative to the decorator — useful inside conditional branches.
           </p>
           <CodeBlock code={`# Approval gate inline — no decorator needed
@@ -265,10 +265,10 @@ except ApprovalDenied as e:
 
         {/* Async Support */}
         <Section id="async">
-          <h2 className="text-xl font-bold text-zinc-900 mb-1">
-            <code className="text-lg bg-zinc-100 px-2 py-0.5 rounded">Async Support</code>
+          <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-1">
+            <code className="text-lg bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded">Async Support</code>
           </h2>
-          <p className="text-zinc-500 text-sm mb-4">
+          <p className="text-zinc-500 dark:text-zinc-400 text-sm mb-4">
             Full async/await support for asyncio-based agents (LangChain, LlamaIndex, etc.).
           </p>
           <CodeBlock code={`from approvalkit import ApprovalKit
@@ -294,9 +294,9 @@ async def langchain_tool():
 
         {/* Error Handling */}
         <Section id="errors">
-          <h2 className="text-xl font-bold text-zinc-900 mb-1">Error Handling</h2>
-          <p className="text-zinc-500 text-sm mb-4">
-            <code className="bg-zinc-100 px-1 rounded text-sm">ApprovalDenied</code> is raised when the request is rejected, times out, or is blocked by a rule.
+          <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-1">Error Handling</h2>
+          <p className="text-zinc-500 dark:text-zinc-400 text-sm mb-4">
+            <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded text-sm">ApprovalDenied</code> is raised when the request is rejected, times out, or is blocked by a rule.
           </p>
           <CodeBlock code={`from approvalkit import ApprovalKit, ApprovalDenied
 
@@ -321,23 +321,23 @@ except ApprovalDenied as e:
 
         {/* Token Vault */}
         <Section id="token-vault">
-          <h2 className="text-xl font-bold text-zinc-900 mb-4">Token Vault</h2>
-          <p className="text-zinc-600 mb-4">
+          <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">Token Vault</h2>
+          <p className="text-zinc-600 dark:text-zinc-400 mb-4">
             Auth0 Token Vault stores OAuth tokens for external services. ApprovalKit retrieves them via <strong>Token Exchange (RFC 8693)</strong> — the agent never sees raw credentials.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div className="p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg">
               <p className="text-sm font-semibold text-red-800 mb-2">Without Token Vault</p>
-              <ul className="text-xs text-red-700 space-y-1">
+              <ul className="text-xs text-red-700 dark:text-red-400 space-y-1">
                 <li>Agent holds Stripe API key in memory</li>
                 <li>Key exposed if agent is compromised</li>
                 <li>No way to revoke without rotating key</li>
                 <li>Agent can charge any amount</li>
               </ul>
             </div>
-            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-              <p className="text-sm font-semibold text-green-800 mb-2">With Token Vault</p>
-              <ul className="text-xs text-green-700 space-y-1">
+            <div className="p-4 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg">
+              <p className="text-sm font-semibold text-green-800 dark:text-green-300 mb-2">With Token Vault</p>
+              <ul className="text-xs text-green-700 dark:text-green-400 space-y-1">
                 <li>Tokens stored in Auth0, never in agent</li>
                 <li>Fresh token via RFC 8693 exchange</li>
                 <li>Revoke from dashboard instantly</li>
@@ -345,7 +345,7 @@ except ApprovalDenied as e:
               </ul>
             </div>
           </div>
-          <p className="text-sm font-semibold text-zinc-700 mb-2">How it works:</p>
+          <p className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 dark:text-zinc-600 mb-2">How it works:</p>
           <CodeBlock language="text" code={`1. User connects service via Connected Accounts flow
    POST /me/v1/connected-accounts/connect → Auth0 stores federated refresh token
 
@@ -366,8 +366,8 @@ except ApprovalDenied as e:
 
         {/* Step-up Auth */}
         <Section id="step-up">
-          <h2 className="text-xl font-bold text-zinc-900 mb-4">Step-up Authentication</h2>
-          <p className="text-zinc-600 mb-4">
+          <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">Step-up Authentication</h2>
+          <p className="text-zinc-600 dark:text-zinc-400 mb-4">
             Rules can define step-up conditions — when matched, the approval model automatically escalates to a stricter level.
           </p>
           <CodeBlock language="json" code={`{
@@ -391,26 +391,26 @@ except ApprovalDenied as e:
 
         {/* CIBA / Guardian */}
         <Section id="ciba">
-          <h2 className="text-xl font-bold text-zinc-900 mb-4">CIBA / Guardian Push</h2>
-          <p className="text-zinc-600 mb-4">
+          <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">CIBA / Guardian Push</h2>
+          <p className="text-zinc-600 dark:text-zinc-400 mb-4">
             Auth0 CIBA (Client-Initiated Backchannel Authentication) sends push notifications to the approver via the Auth0 Guardian app. The approver sees a binding message and taps Approve or Deny.
           </p>
           <div className="space-y-3 mb-4">
-            <div className="flex items-start gap-3 p-3 bg-zinc-50 rounded-lg">
-              <span className="text-xs font-mono bg-blue-100 text-blue-700 px-2 py-0.5 rounded">1</span>
-              <div className="text-sm text-zinc-600"><strong>bc-authorize</strong> — Platform sends CIBA request with binding message (max 64 chars)</div>
+            <div className="flex items-start gap-3 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
+              <span className="text-xs font-mono bg-blue-100 text-blue-700 dark:text-blue-400 px-2 py-0.5 rounded">1</span>
+              <div className="text-sm text-zinc-600 dark:text-zinc-400"><strong>bc-authorize</strong> — Platform sends CIBA request with binding message (max 64 chars)</div>
             </div>
-            <div className="flex items-start gap-3 p-3 bg-zinc-50 rounded-lg">
-              <span className="text-xs font-mono bg-blue-100 text-blue-700 px-2 py-0.5 rounded">2</span>
-              <div className="text-sm text-zinc-600"><strong>Guardian push</strong> — Approver sees the binding message on their phone</div>
+            <div className="flex items-start gap-3 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
+              <span className="text-xs font-mono bg-blue-100 text-blue-700 dark:text-blue-400 px-2 py-0.5 rounded">2</span>
+              <div className="text-sm text-zinc-600 dark:text-zinc-400"><strong>Guardian push</strong> — Approver sees the binding message on their phone</div>
             </div>
-            <div className="flex items-start gap-3 p-3 bg-zinc-50 rounded-lg">
-              <span className="text-xs font-mono bg-blue-100 text-blue-700 px-2 py-0.5 rounded">3</span>
-              <div className="text-sm text-zinc-600"><strong>Poll</strong> — Worker polls with exponential backoff (handles 429, slow_down)</div>
+            <div className="flex items-start gap-3 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
+              <span className="text-xs font-mono bg-blue-100 text-blue-700 dark:text-blue-400 px-2 py-0.5 rounded">3</span>
+              <div className="text-sm text-zinc-600 dark:text-zinc-400"><strong>Poll</strong> — Worker polls with exponential backoff (handles 429, slow_down)</div>
             </div>
-            <div className="flex items-start gap-3 p-3 bg-zinc-50 rounded-lg">
-              <span className="text-xs font-mono bg-blue-100 text-blue-700 px-2 py-0.5 rounded">4</span>
-              <div className="text-sm text-zinc-600"><strong>Result</strong> — approved, rejected (access_denied), or timeout (300s default)</div>
+            <div className="flex items-start gap-3 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
+              <span className="text-xs font-mono bg-blue-100 text-blue-700 dark:text-blue-400 px-2 py-0.5 rounded">4</span>
+              <div className="text-sm text-zinc-600 dark:text-zinc-400"><strong>Result</strong> — approved, rejected (access_denied), or timeout (300s default)</div>
             </div>
           </div>
           <p className="text-xs text-zinc-400">Guardian enrollment: Auth0 Dashboard → Users → select user → Guardian tab → scan QR code with Guardian app.</p>
@@ -418,8 +418,8 @@ except ApprovalDenied as e:
 
         {/* Real-time Events */}
         <Section id="sse">
-          <h2 className="text-xl font-bold text-zinc-900 mb-4">Real-time Events (SSE)</h2>
-          <p className="text-zinc-600 mb-4">
+          <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">Real-time Events (SSE)</h2>
+          <p className="text-zinc-600 dark:text-zinc-400 mb-4">
             Subscribe to live approval events via Server-Sent Events. Every state change is published to a Redis channel and streamed to connected clients.
           </p>
           <CodeBlock language="javascript" code={`// Browser
@@ -439,9 +439,9 @@ events.onmessage = (e) => {
 
         {/* Demo */}
         <Section id="demo">
-          <h2 className="text-xl font-bold text-zinc-900 mb-4">Shopping Bot Demo</h2>
-          <p className="text-zinc-600 mb-4">
-            <code className="bg-zinc-100 px-1 rounded text-sm">examples/shopping_bot.py</code> is a
+          <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">Shopping Bot Demo</h2>
+          <p className="text-zinc-600 dark:text-zinc-400 mb-4">
+            <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded text-sm">examples/shopping_bot.py</code> is a
             complete demo showing a bot before and after integration. The diff between the two
             versions is exactly 6 lines — only the two decorators.
           </p>
@@ -455,18 +455,18 @@ python examples/shopping_bot.py alice@example.com "Headphones" 1
 # With refund demo
 DEMO_REFUND=1 python examples/shopping_bot.py alice@example.com "Headphones" 1`} />
 
-          <div className="mt-4 rounded-lg bg-zinc-50 border border-zinc-200 p-4 font-mono text-xs text-zinc-700 space-y-1">
+          <div className="mt-4 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 p-4 font-mono text-xs text-zinc-700 dark:text-zinc-300 dark:text-zinc-600 space-y-1">
             <p className="text-zinc-400"># terminal output</p>
             <p>============================================================</p>
             <p>  Shopping Bot  |  customer: alice@example.com</p>
             <p>============================================================</p>
-            <p className="text-zinc-500"></p>
+            <p className="text-zinc-500 dark:text-zinc-400"></p>
             <p>Searching for &apos;Headphones&apos;...</p>
             <p>Found: Sony WH-1000XM5 Headphones — $349</p>
-            <p className="text-zinc-500"></p>
+            <p className="text-zinc-500 dark:text-zinc-400"></p>
             <p>Adding 1x to cart...</p>
             <p>   Cart created: CART_4821</p>
-            <p className="text-zinc-500"></p>
+            <p className="text-zinc-500 dark:text-zinc-400"></p>
             <p>Initiating payment: $349</p>
             <p className="text-blue-600">[ApprovalKit] Requesting approval: stripe-prod/charge</p>
             <p className="text-blue-600">[ApprovalKit] Waiting for approval... (job=a1b2c3d4...)</p>
@@ -474,14 +474,14 @@ DEMO_REFUND=1 python examples/shopping_bot.py alice@example.com "Headphones" 1`}
             <p className="text-zinc-400">... approver taps Approve in Auth0 Guardian ...</p>
             <p className="text-green-600">[ApprovalKit] Approved — executing function.</p>
             <p>   Stripe charged: $349 → alice@example.com  (id=ch_52841)</p>
-            <p className="text-zinc-500"></p>
+            <p className="text-zinc-500 dark:text-zinc-400"></p>
             <p>Order complete. Charge ID: ch_52841</p>
           </div>
         </Section>
 
         {/* Endpoints */}
         <Section id="endpoints">
-          <h2 className="text-xl font-bold text-zinc-900 mb-4">API Reference</h2>
+          <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">API Reference</h2>
           <div className="space-y-2">
             {[
               { method: "POST",   path: "/api/v1/request",            desc: "Submit an approval request. Returns 202 pending, 200 pre-approved, or 403 blocked." },
@@ -499,7 +499,7 @@ DEMO_REFUND=1 python examples/shopping_bot.py alice@example.com "Headphones" 1`}
               { method: "GET",    path: "/api/v1/security-status",    desc: "Live status of HMAC, FGA, Token Vault, key isolation, Sentry." },
               { method: "GET",    path: "/api/v1/ciba-quota",         desc: "Auth0 CIBA usage (500/hour limit)." },
             ].map((ep) => (
-              <div key={ep.path} className="flex items-start gap-3 py-3 border-b border-zinc-100 last:border-0">
+              <div key={ep.path} className="flex items-start gap-3 py-3 border-b border-zinc-100 dark:border-zinc-800 last:border-0">
                 <Badge
                   variant={
                     ep.method === "POST" ? "default" :
@@ -511,15 +511,15 @@ DEMO_REFUND=1 python examples/shopping_bot.py alice@example.com "Headphones" 1`}
                   {ep.method}
                 </Badge>
                 <div>
-                  <code className="text-sm text-zinc-800">{ep.path}</code>
-                  <p className="text-xs text-zinc-500 mt-0.5">{ep.desc}</p>
+                  <code className="text-sm text-zinc-800 dark:text-zinc-200">{ep.path}</code>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">{ep.desc}</p>
                 </div>
               </div>
             ))}
           </div>
 
           <div className="mt-6">
-            <p className="text-sm font-medium text-zinc-700 mb-3">Authentication</p>
+            <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600 mb-3">Authentication</p>
             <CodeBlock language="http" code={`POST /api/v1/request HTTP/1.1
 Authorization: Bearer <API_KEY>
 X-Signature: hmac-sha256=<timestamp>.<sha256_hex>
@@ -537,8 +537,8 @@ Content-Type: application/json
 
         {/* TravelOps Agent */}
         <Section id="travelops">
-          <h2 className="text-xl font-bold text-zinc-900 mb-4">TravelOps Agent</h2>
-          <p className="text-zinc-600 mb-4">
+          <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">TravelOps Agent</h2>
+          <p className="text-zinc-600 dark:text-zinc-400 mb-4">
             A complete corporate travel booking agent demonstrating ApprovalKit in a real-world scenario. Available as a <strong>separate project</strong> with its own dashboard.
           </p>
           <div className="space-y-2 mb-4">
@@ -552,9 +552,9 @@ Content-Type: application/json
               { step: "7", label: "Visa reminder", detail: "Gmail — auto if visa required" },
             ].map(s => (
               <div key={s.step} className="flex items-center gap-3 text-sm">
-                <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold">{s.step}</span>
-                <span className="font-medium text-zinc-700 w-36">{s.label}</span>
-                <span className="text-zinc-500">{s.detail}</span>
+                <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 dark:text-blue-400 flex items-center justify-center text-xs font-bold">{s.step}</span>
+                <span className="font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600 w-36">{s.label}</span>
+                <span className="text-zinc-500 dark:text-zinc-400">{s.detail}</span>
               </div>
             ))}
           </div>
@@ -573,7 +573,7 @@ open http://localhost:3001`} />
 
         {/* Approval Models */}
         <Section id="approval-models">
-          <h2 className="text-xl font-bold text-zinc-900 mb-4">Approval Models</h2>
+          <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">Approval Models</h2>
           <div className="space-y-3">
             {[
               { model: "any_one",    label: "Any One",    desc: "First approval from any listed approver unblocks the action." },
@@ -582,20 +582,20 @@ open http://localhost:3001`} />
               { model: "k_of_n",     label: "K of N",     desc: "k out of n approvers must approve within the quorum window." },
               { model: "sequential", label: "Sequential", desc: "Approvers are asked in order (A → B → C). Any rejection stops the chain." },
             ].map((m) => (
-              <div key={m.model} className="flex items-start gap-4 p-4 rounded-lg bg-zinc-50 border border-zinc-100">
-                <code className="text-sm font-mono bg-white border border-zinc-200 px-2 py-1 rounded shrink-0">
+              <div key={m.model} className="flex items-start gap-4 p-4 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800">
+                <code className="text-sm font-mono bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 px-2 py-1 rounded shrink-0">
                   {m.model}
                 </code>
                 <div>
-                  <p className="text-sm font-medium text-zinc-800">{m.label}</p>
-                  <p className="text-xs text-zinc-500 mt-0.5">{m.desc}</p>
+                  <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200">{m.label}</p>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">{m.desc}</p>
                 </div>
               </div>
             ))}
           </div>
 
           <div className="mt-6">
-            <p className="text-sm font-medium text-zinc-700 mb-3">Rule with k_of_n + quorum window</p>
+            <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600 mb-3">Rule with k_of_n + quorum window</p>
             <CodeBlock language="json" code={`{
   "name": "Large transfer approval",
   "connection": "stripe-prod",
@@ -613,22 +613,22 @@ open http://localhost:3001`} />
         {/* Security */}
         {/* Multi-tenant */}
         <Section id="multi-tenant">
-          <h2 className="text-xl font-bold text-zinc-900 mb-4">Multi-tenant</h2>
-          <p className="text-zinc-600 mb-4">
+          <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">Multi-tenant</h2>
+          <p className="text-zinc-600 dark:text-zinc-400 mb-4">
             Each organization stores its own Auth0 and FGA credentials in the database. No <code>.env</code> editing needed — everything configured via the Settings page.
           </p>
           <div className="space-y-3 mb-4">
-            <div className="p-3 bg-zinc-50 rounded-lg text-sm">
-              <span className="font-semibold text-zinc-700">Workspace credentials stored in DB:</span>
-              <span className="text-zinc-500 ml-2">Auth0 domain, M2M client, Web client, FGA store, FGA client</span>
+            <div className="p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg text-sm">
+              <span className="font-semibold text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Workspace credentials stored in DB:</span>
+              <span className="text-zinc-500 dark:text-zinc-400 ml-2">Auth0 domain, M2M client, Web client, FGA store, FGA client</span>
             </div>
-            <div className="p-3 bg-zinc-50 rounded-lg text-sm">
-              <span className="font-semibold text-zinc-700">Encryption at rest:</span>
-              <span className="text-zinc-500 ml-2">Client secrets encrypted with Fernet (AES-128-CBC + HMAC-SHA256)</span>
+            <div className="p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg text-sm">
+              <span className="font-semibold text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Encryption at rest:</span>
+              <span className="text-zinc-500 dark:text-zinc-400 ml-2">Client secrets encrypted with Fernet (AES-128-CBC + HMAC-SHA256)</span>
             </div>
-            <div className="p-3 bg-zinc-50 rounded-lg text-sm">
-              <span className="font-semibold text-zinc-700">Fallback chain:</span>
-              <span className="text-zinc-500 ml-2">DB workspace value → .env global value → empty</span>
+            <div className="p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg text-sm">
+              <span className="font-semibold text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Fallback chain:</span>
+              <span className="text-zinc-500 dark:text-zinc-400 ml-2">DB workspace value → .env global value → empty</span>
             </div>
           </div>
           <CodeBlock language="text" code={`# Organization A configures via dashboard:
@@ -646,7 +646,7 @@ Settings → Web Client ID: bbb
         </Section>
 
         <Section id="security">
-          <h2 className="text-xl font-bold text-zinc-900 mb-4">Security</h2>
+          <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">Security</h2>
           <div className="space-y-4">
             {[
               {
@@ -684,7 +684,7 @@ headers["X-Signature"] = f"hmac-sha256={timestamp}.{sig}"`,
                   <CardTitle className="text-base">{item.title}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <p className="text-sm text-zinc-500">{item.desc}</p>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400">{item.desc}</p>
                   {item.code && <CodeBlock code={item.code} />}
                 </CardContent>
               </Card>

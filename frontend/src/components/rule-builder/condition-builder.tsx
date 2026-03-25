@@ -39,7 +39,7 @@ export function ConditionBuilder({ conditions, onChange }: ConditionBuilderProps
 
   return (
     <div className="space-y-3">
-      <label className="text-sm font-medium text-zinc-700">Conditions</label>
+      <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Conditions</label>
       {conditions.map((condition, index) => (
         <div key={index} className="flex items-center gap-2">
           {index > 0 && <span className="text-xs font-medium text-zinc-400 w-8">AND</span>}

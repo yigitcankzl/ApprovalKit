@@ -146,8 +146,8 @@ export default function OnboardingPage() {
   return (
     <div className="max-w-3xl mx-auto">
       <div className="text-center mb-10">
-        <h1 className="text-3xl font-bold text-zinc-900">Settings</h1>
-        <p className="text-zinc-500 mt-2">
+        <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">Settings</h1>
+        <p className="text-zinc-500 dark:text-zinc-400 mt-2">
           Configure your Auth0 credentials and service connections
         </p>
       </div>
@@ -159,10 +159,10 @@ export default function OnboardingPage() {
             <div
               className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${
                 currentStep > step.number
-                  ? "bg-green-500 text-white"
+                  ? "bg-green-50 dark:bg-green-950/300 text-white"
                   : currentStep === step.number
                   ? "bg-zinc-900 text-white"
-                  : "bg-zinc-200 text-zinc-500"
+                  : "bg-zinc-200 text-zinc-500 dark:text-zinc-400"
               }`}
             >
               {currentStep > step.number ? (
@@ -173,12 +173,12 @@ export default function OnboardingPage() {
             </div>
             <span
               className={`text-sm font-medium ${
-                currentStep >= step.number ? "text-zinc-900" : "text-zinc-400"
+                currentStep >= step.number ? "text-zinc-900 dark:text-zinc-100" : "text-zinc-400"
               }`}
             >
               {step.title}
             </span>
-            {step.number < 3 && <ArrowRight className="h-4 w-4 text-zinc-300 mx-2" />}
+            {step.number < 3 && <ArrowRight className="h-4 w-4 text-zinc-300 dark:text-zinc-600 mx-2" />}
           </div>
         ))}
       </div>
@@ -189,7 +189,7 @@ export default function OnboardingPage() {
           <CardHeader>
             <CardTitle>Workspace Already Configured</CardTitle>
             <CardDescription>
-              Your organization <strong>{existingWorkspace.name}</strong> is set up with Auth0 tenant <code className="text-xs bg-zinc-100 px-1.5 py-0.5 rounded">{existingWorkspace.auth0_tenant}</code>.
+              Your organization <strong>{existingWorkspace.name}</strong> is set up with Auth0 tenant <code className="text-xs bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">{existingWorkspace.auth0_tenant}</code>.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -223,51 +223,51 @@ export default function OnboardingPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <label className="text-sm font-medium text-zinc-700">Auth0 Domain</label>
+              <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Auth0 Domain</label>
               <Input placeholder="your-tenant.us.auth0.com" value={tenant} onChange={(e) => setTenant(e.target.value)} className="mt-1" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium text-zinc-700">M2M Client ID</label>
+                <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">M2M Client ID</label>
                 <Input placeholder="Machine to Machine app" value={m2mClientId} onChange={(e) => setM2mClientId(e.target.value)} className="mt-1 font-mono text-xs" />
               </div>
               <div>
-                <label className="text-sm font-medium text-zinc-700">M2M Client Secret</label>
+                <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">M2M Client Secret</label>
                 <Input type="password" placeholder="Client secret" value={m2mClientSecret} onChange={(e) => setM2mClientSecret(e.target.value)} className="mt-1 font-mono text-xs" />
               </div>
               <div>
-                <label className="text-sm font-medium text-zinc-700">Web App Client ID</label>
+                <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Web App Client ID</label>
                 <Input placeholder="Regular Web Application" value={webClientId} onChange={(e) => setWebClientId(e.target.value)} className="mt-1 font-mono text-xs" />
               </div>
               <div>
-                <label className="text-sm font-medium text-zinc-700">Web App Client Secret</label>
+                <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Web App Client Secret</label>
                 <Input type="password" placeholder="Client secret" value={webClientSecret} onChange={(e) => setWebClientSecret(e.target.value)} className="mt-1 font-mono text-xs" />
               </div>
             </div>
-            <div className="border-t border-zinc-200 pt-4">
-              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">FGA (Optional)</p>
+            <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4">
+              <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-3">FGA (Optional)</p>
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="text-sm font-medium text-zinc-700">Store ID</label>
+                  <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Store ID</label>
                   <Input placeholder="01KMG6..." value={fgaStoreId} onChange={(e) => setFgaStoreId(e.target.value)} className="mt-1 font-mono text-xs" />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-zinc-700">Client ID</label>
+                  <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Client ID</label>
                   <Input placeholder="FGA client" value={fgaClientId} onChange={(e) => setFgaClientId(e.target.value)} className="mt-1 font-mono text-xs" />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-zinc-700">Client Secret</label>
+                  <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Client Secret</label>
                   <Input type="password" value={fgaClientSecret} onChange={(e) => setFgaClientSecret(e.target.value)} className="mt-1 font-mono text-xs" />
                 </div>
               </div>
             </div>
-            <div className="p-3 bg-blue-50 rounded-lg">
-              <p className="text-sm text-blue-700">
+            <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg">
+              <p className="text-sm text-blue-700 dark:text-blue-400">
                 All credentials are stored securely in the database — no .env files needed. Token Vault and CIBA must be enabled on your Auth0 tenant.
               </p>
             </div>
             {error && (
-              <div className="flex items-center gap-2 p-3 bg-red-50 rounded-lg text-red-700 text-sm">
+              <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-950/30 rounded-lg text-red-700 dark:text-red-400 text-sm">
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 {error}
               </div>
@@ -292,17 +292,17 @@ export default function OnboardingPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             {workspaceApiKey && (
-              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                <p className="text-sm font-medium text-green-800 mb-2">
+              <div className="p-4 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg">
+                <p className="text-sm font-medium text-green-800 dark:text-green-300 mb-2">
                   Workspace created. Save your API key — shown only once.
                 </p>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 text-xs bg-white border border-green-200 rounded px-3 py-2 font-mono truncate">
+                  <code className="flex-1 text-xs bg-white dark:bg-zinc-900 border border-green-200 dark:border-green-800 rounded px-3 py-2 font-mono truncate">
                     {workspaceApiKey}
                   </code>
                   <button
                     onClick={handleCopy}
-                    className="p-2 rounded hover:bg-green-100 transition-colors text-green-700"
+                    className="p-2 rounded hover:bg-green-100 transition-colors text-green-700 dark:text-green-400"
                     title="Copy API key"
                   >
                     {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
@@ -317,12 +317,12 @@ export default function OnboardingPage() {
                   onClick={() => toggleService(svc.id)}
                   className={`p-4 rounded-lg border text-left transition-colors ${
                     selectedServices.includes(svc.id)
-                      ? "border-zinc-900 bg-zinc-50"
-                      : "border-zinc-200 hover:border-zinc-300"
+                      ? "border-zinc-900 bg-zinc-50 dark:bg-zinc-800/50"
+                      : "border-zinc-200 dark:border-zinc-700 hover:border-zinc-300"
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-medium text-zinc-900">{svc.name}</span>
+                    <span className="font-medium text-zinc-900 dark:text-zinc-100">{svc.name}</span>
                     {selectedServices.includes(svc.id) && (
                       <CheckCircle2 className="h-5 w-5 text-green-500" />
                     )}
@@ -338,7 +338,7 @@ export default function OnboardingPage() {
               ))}
             </div>
             {error && (
-              <div className="flex items-center gap-2 p-3 bg-red-50 rounded-lg text-red-700 text-sm">
+              <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-950/30 rounded-lg text-red-700 dark:text-red-400 text-sm">
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 {error}
               </div>
@@ -365,9 +365,9 @@ export default function OnboardingPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="p-6 bg-zinc-50 rounded-lg text-center">
+            <div className="p-6 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg text-center">
               <GitBranch className="h-12 w-12 text-zinc-400 mx-auto mb-4" />
-              <p className="text-zinc-600 mb-4">
+              <p className="text-zinc-600 dark:text-zinc-400 mb-4">
                 Your workspace is configured with {selectedServices.length} service
                 {selectedServices.length > 1 ? "s" : ""}. Now create your first approval rule.
               </p>

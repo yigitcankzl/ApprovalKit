@@ -20,8 +20,8 @@ export default function GlobalError({
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       </div>
-      <h2 className="text-xl font-semibold text-zinc-900">Something went wrong</h2>
-      <p className="max-w-md text-sm text-zinc-500">
+      <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Something went wrong</h2>
+      <p className="max-w-md text-sm text-zinc-500 dark:text-zinc-400">
         {error.message || "An unexpected error occurred. Please try again."}
       </p>
       <button

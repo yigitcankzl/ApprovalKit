@@ -53,8 +53,8 @@ export default function RulesPage() {
     <div>
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900">Rules</h1>
-          <p className="text-zinc-500 mt-1">
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Rules</h1>
+          <p className="text-zinc-500 dark:text-zinc-400 mt-1">
             Define approval workflows for each service action
           </p>
         </div>
@@ -69,24 +69,24 @@ export default function RulesPage() {
       {/* Permissions Summary */}
       {consent && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-          <div className="bg-white rounded-xl border border-zinc-200 p-4 flex items-center justify-between">
+          <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4 flex items-center justify-between">
             <div>
-              <p className="text-xs text-zinc-500">Connected Services</p>
-              <p className="text-2xl font-bold text-zinc-900">{connectedCount} / {consent.services?.length || 0}</p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">Connected Services</p>
+              <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{connectedCount} / {consent.services?.length || 0}</p>
             </div>
             <KeyRound className="h-6 w-6 text-blue-500" />
           </div>
-          <div className="bg-white rounded-xl border border-zinc-200 p-4 flex items-center justify-between">
+          <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4 flex items-center justify-between">
             <div>
-              <p className="text-xs text-zinc-500">Active Rules</p>
-              <p className="text-2xl font-bold text-zinc-900">{consent.total_rules || 0}</p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">Active Rules</p>
+              <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{consent.total_rules || 0}</p>
             </div>
             <Shield className="h-6 w-6 text-green-500" />
           </div>
-          <div className="bg-white rounded-xl border border-zinc-200 p-4 flex items-center justify-between">
+          <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4 flex items-center justify-between">
             <div>
-              <p className="text-xs text-zinc-500">Known Agents</p>
-              <p className="text-2xl font-bold text-zinc-900">{consent.total_agents || 0}</p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">Known Agents</p>
+              <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{consent.total_agents || 0}</p>
             </div>
             <Activity className="h-6 w-6 text-purple-500" />
           </div>
@@ -106,9 +106,9 @@ export default function RulesPage() {
       ) : rules.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16">
-            <GitBranch className="h-12 w-12 text-zinc-300 mb-4" />
-            <h3 className="text-lg font-medium text-zinc-900">No rules yet</h3>
-            <p className="text-zinc-500 mt-1">Create your first approval rule to get started</p>
+            <GitBranch className="h-12 w-12 text-zinc-300 dark:text-zinc-600 mb-4" />
+            <h3 className="text-lg font-medium text-zinc-900 dark:text-zinc-100">No rules yet</h3>
+            <p className="text-zinc-500 dark:text-zinc-400 mt-1">Create your first approval rule to get started</p>
             <Link href="/rules/new" className="mt-4">
               <Button>Create Rule</Button>
             </Link>
@@ -192,19 +192,19 @@ function RuleCard({ rule, approverMap, onDelete }: { rule: Rule; approverMap: Re
   };
 
   return (
-    <div className="border border-zinc-200 rounded-xl overflow-hidden mb-3">
+    <div className="border border-zinc-200 dark:border-zinc-700 rounded-xl overflow-hidden mb-3">
       {/* Header — clickable to expand */}
-      <button className="w-full text-left p-4 hover:bg-zinc-50 transition-colors" onClick={() => setExpanded(v => !v)}>
+      <button className="w-full text-left p-4 hover:bg-zinc-50 dark:hover:bg-zinc-800 dark:bg-zinc-800/50 transition-colors" onClick={() => setExpanded(v => !v)}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <ChevronRight className={`h-4 w-4 text-zinc-400 transition-transform ${expanded ? "rotate-90" : ""}`} />
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="font-medium text-zinc-900">{rule.name}</h3>
+                <h3 className="font-medium text-zinc-900 dark:text-zinc-100">{rule.name}</h3>
                 {!rule.is_active && <Badge variant="default">Inactive</Badge>}
               </div>
-              <p className="text-sm text-zinc-500 mt-0.5">
-                <code className="text-xs bg-zinc-100 px-1.5 py-0.5 rounded">{rule.connection}:{rule.action}</code>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
+                <code className="text-xs bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">{rule.connection}:{rule.action}</code>
                 {rule.conditions.length > 0 && <span className="ml-2 text-xs">({rule.conditions.length} condition{rule.conditions.length > 1 ? "s" : ""})</span>}
               </p>
             </div>
@@ -222,7 +222,7 @@ function RuleCard({ rule, approverMap, onDelete }: { rule: Rule; approverMap: Re
 
       {/* Expanded panel */}
       {expanded && (
-        <div className="px-4 pb-4 border-t border-zinc-100 bg-zinc-50/50 space-y-4">
+        <div className="px-4 pb-4 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50/50 space-y-4">
           {/* Trust Chain */}
           {rule.approver_ids.length > 0 && (
             <div className="mt-3">
@@ -230,18 +230,18 @@ function RuleCard({ rule, approverMap, onDelete }: { rule: Rule; approverMap: Re
                 {rule.model === "sequential" ? "Approval chain" : "Approvers"}
               </p>
               <div className="flex items-center gap-2 flex-wrap">
-                <code className="text-xs bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded font-mono">{rule.connection}:{rule.action}</code>
+                <code className="text-xs bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 px-2 py-0.5 rounded font-mono">{rule.connection}:{rule.action}</code>
                 {rule.approver_ids.map((id, idx) => {
                   const a = approverMap[id];
                   return (
                     <div key={id} className="flex items-center gap-1">
-                      <span className="text-zinc-300 text-xs">→</span>
-                      <span className="text-xs bg-blue-50 border border-blue-200 text-blue-700 px-2 py-0.5 rounded">{a ? a.name : `Approver ${idx + 1}`}</span>
+                      <span className="text-zinc-300 dark:text-zinc-600 text-xs">→</span>
+                      <span className="text-xs bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400 px-2 py-0.5 rounded">{a ? a.name : `Approver ${idx + 1}`}</span>
                     </div>
                   );
                 })}
-                <span className="text-zinc-300 text-xs">→</span>
-                <span className="text-xs bg-green-50 border border-green-200 text-green-700 px-2 py-0.5 rounded">Auth0 Token Vault</span>
+                <span className="text-zinc-300 dark:text-zinc-600 text-xs">→</span>
+                <span className="text-xs bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 px-2 py-0.5 rounded">Auth0 Token Vault</span>
               </div>
             </div>
           )}
@@ -267,7 +267,7 @@ function RuleCard({ rule, approverMap, onDelete }: { rule: Rule; approverMap: Re
               <Button size="sm" variant="ghost" onClick={() => router.push(`/rules/${rule.id}/edit`)}>
                 <Pencil className="h-3.5 w-3.5 mr-1.5" />Edit
               </Button>
-              <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={handleDelete}>
+              <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700 dark:text-red-400 hover:bg-red-50 dark:bg-red-950/30" onClick={handleDelete}>
                 <Trash2 className="h-3.5 w-3.5 mr-1.5" />Delete
               </Button>
             </div>
@@ -276,9 +276,9 @@ function RuleCard({ rule, approverMap, onDelete }: { rule: Rule; approverMap: Re
           {/* Check Rule result */}
           {checkResult && (
             <div className={`px-3 py-2 rounded-lg text-xs ${
-              checkResult.matched ? "bg-blue-50 border border-blue-200 text-blue-800" :
-              checkResult.error ? "bg-red-50 border border-red-200 text-red-800" :
-              "bg-green-50 border border-green-200 text-green-800"
+              checkResult.matched ? "bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-blue-800" :
+              checkResult.error ? "bg-red-50 dark:bg-red-950/30 border border-red-200 text-red-800" :
+              "bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 text-green-800 dark:text-green-300"
             }`}>
               {checkResult.matched ? (
                 <span><CheckCircle2 className="h-3 w-3 inline mr-1" />Matched: {checkResult.rule_name} ({checkResult.model}){checkResult.step_up_triggered ? ` → Step-up: ${checkResult.effective_model}` : ""}</span>
@@ -293,9 +293,9 @@ function RuleCard({ rule, approverMap, onDelete }: { rule: Rule; approverMap: Re
           {/* Run Live status */}
           {liveStatus && (
             <div className={`px-3 py-2 rounded-lg text-xs flex items-center gap-2 ${
-              liveStatus === "approved" ? "bg-green-50 border border-green-200 text-green-800" :
-              liveStatus === "rejected" || liveStatus === "timeout" ? "bg-red-50 border border-red-200 text-red-800" :
-              "bg-blue-50 border border-blue-200 text-blue-800"
+              liveStatus === "approved" ? "bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 text-green-800 dark:text-green-300" :
+              liveStatus === "rejected" || liveStatus === "timeout" ? "bg-red-50 dark:bg-red-950/30 border border-red-200 text-red-800" :
+              "bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-blue-800"
             }`}>
               {liveStatus === "submitting" && <><Loader2 className="h-3 w-3 animate-spin" />Submitting...</>}
               {liveStatus === "ciba_sent" && <><Loader2 className="h-3 w-3 animate-spin" />Guardian push sent — waiting for approval...</>}

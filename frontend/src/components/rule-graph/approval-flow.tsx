@@ -36,12 +36,12 @@ function buildNodes(rule: Rule, approverNames: Record<string, string>): Node[] {
     data: {
       label: (
         <div className="text-center">
-          <div className="font-semibold text-blue-700">TRIGGER</div>
+          <div className="font-semibold text-blue-700 dark:text-blue-400">TRIGGER</div>
           <div className="text-xs mt-1">
             {rule.connection}:{rule.action}
           </div>
           {rule.conditions.length > 0 && (
-            <div className="text-xs text-zinc-500 mt-1">
+            <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
               {rule.conditions.map((c, i) => (
                 <div key={i}>
                   {c.field} {c.operator} {String(c.value)}
@@ -160,7 +160,7 @@ function buildNodes(rule: Rule, approverNames: Record<string, string>): Node[] {
     data: {
       label: (
         <div className="text-center">
-          <div className="font-semibold text-green-700">APPROVED</div>
+          <div className="font-semibold text-green-700 dark:text-green-400">APPROVED</div>
           <div className="text-xs mt-1">Token Vault executes action</div>
         </div>
       ),
@@ -208,7 +208,7 @@ function buildNodes(rule: Rule, approverNames: Record<string, string>): Node[] {
       data: {
         label: (
           <div className="text-center">
-            <div className="font-semibold text-red-700">BLOCKED</div>
+            <div className="font-semibold text-red-700 dark:text-red-400">BLOCKED</div>
             <div className="text-xs mt-1">403 Forbidden</div>
           </div>
         ),
@@ -229,7 +229,7 @@ function buildNodes(rule: Rule, approverNames: Record<string, string>): Node[] {
       data: {
         label: (
           <div className="text-center">
-            <div className="font-semibold text-red-700">BLOCKED</div>
+            <div className="font-semibold text-red-700 dark:text-red-400">BLOCKED</div>
             <div className="text-xs mt-1">Timeout — 403 Forbidden</div>
           </div>
         ),
@@ -353,7 +353,7 @@ export function ApprovalFlow({ rule, approverNames = {} }: ApprovalFlowProps) {
   const edges = useMemo(() => buildEdges(rule), [rule]);
 
   return (
-    <div className="h-[600px] w-full rounded-xl border border-zinc-200 bg-white">
+    <div className="h-[600px] w-full rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
       <ReactFlow
         nodes={nodes}
         edges={edges}

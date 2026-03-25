@@ -116,8 +116,8 @@ export default function NewRulePage() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-zinc-900">Create Rule</h1>
-        <p className="text-zinc-500 mt-1">Define an approval workflow for a service action</p>
+        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Create Rule</h1>
+        <p className="text-zinc-500 dark:text-zinc-400 mt-1">Define an approval workflow for a service action</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -129,12 +129,12 @@ export default function NewRulePage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <label className="text-sm font-medium text-zinc-700">Rule Name</label>
+                <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Rule Name</label>
                 <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. High-value Stripe charges" className="mt-1" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium text-zinc-700">Service</label>
+                  <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Service</label>
                   <Select value={connection} onChange={(e) => { setConnection(e.target.value); setAction(""); }} className="mt-1">
                     <option value="">Select service...</option>
                     {services.map((s) => (
@@ -143,7 +143,7 @@ export default function NewRulePage() {
                   </Select>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-zinc-700">Action</label>
+                  <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Action</label>
                   <Select value={action} onChange={(e) => setAction(e.target.value)} className="mt-1">
                     <option value="">Select action...</option>
                     {availableActions.map((a) => (
@@ -153,7 +153,7 @@ export default function NewRulePage() {
                 </div>
               </div>
               <div>
-                <label className="text-sm font-medium text-zinc-700">Priority</label>
+                <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Priority</label>
                 <Input type="number" min={0} max={100} value={priority} onChange={(e) => setPriority(parseInt(e.target.value) || 0)} className="mt-1 w-32" />
               </div>
             </CardContent>
@@ -184,34 +184,34 @@ export default function NewRulePage() {
               </Select>
               {model === "k_of_n" && (
                 <div className="flex items-center gap-2">
-                  <label className="text-sm text-zinc-600">Required approvals (k):</label>
+                  <label className="text-sm text-zinc-600 dark:text-zinc-400">Required approvals (k):</label>
                   <Input type="number" min={1} value={kValue} onChange={(e) => setKValue(parseInt(e.target.value) || 1)} className="w-20" />
                 </div>
               )}
               {model === "k_of_n" && (
                 <div className="flex items-center gap-2">
-                  <label className="text-sm text-zinc-600">Quorum window (seconds):</label>
+                  <label className="text-sm text-zinc-600 dark:text-zinc-400">Quorum window (seconds):</label>
                   <Input type="number" value={quorumWindow} onChange={(e) => setQuorumWindow(e.target.value)} placeholder="3600" className="w-32" />
                 </div>
               )}
               <div>
-                <label className="text-sm font-medium text-zinc-700">Approvers</label>
+                <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Approvers</label>
                 {approvers.length === 0 ? (
                   <p className="text-sm text-zinc-400 mt-2">
                     No approvers found.{" "}
                     <a href="/approvers" className="text-blue-600 underline">Add approvers first.</a>
                   </p>
                 ) : (
-                  <div className="mt-2 space-y-2 max-h-48 overflow-y-auto border border-zinc-200 rounded-lg p-3">
+                  <div className="mt-2 space-y-2 max-h-48 overflow-y-auto border border-zinc-200 dark:border-zinc-700 rounded-lg p-3">
                     {approvers.map((a) => (
-                      <label key={a.id} className="flex items-center gap-3 cursor-pointer hover:bg-zinc-50 rounded px-1 py-0.5">
+                      <label key={a.id} className="flex items-center gap-3 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800 dark:bg-zinc-800/50 rounded px-1 py-0.5">
                         <input
                           type="checkbox"
                           checked={selectedApproverIds.includes(a.id)}
                           onChange={() => toggleApprover(a.id)}
-                          className="rounded border-zinc-300"
+                          className="rounded border-zinc-300 dark:border-zinc-600"
                         />
-                        <span className="text-sm font-medium text-zinc-800">{a.name}</span>
+                        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">{a.name}</span>
                         <span className="text-xs text-zinc-400">{a.email}</span>
                         {a.delegate_to && (
                           <span className="text-xs text-orange-500 ml-auto">delegated</span>
@@ -221,7 +221,7 @@ export default function NewRulePage() {
                   </div>
                 )}
                 {selectedApproverIds.length > 0 && (
-                  <p className="text-xs text-zinc-500 mt-1">{selectedApproverIds.length} approver{selectedApproverIds.length > 1 ? "s" : ""} selected</p>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{selectedApproverIds.length} approver{selectedApproverIds.length > 1 ? "s" : ""} selected</p>
                 )}
               </div>
             </CardContent>
@@ -234,20 +234,20 @@ export default function NewRulePage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center gap-2">
-                <input type="checkbox" id="stepUp" checked={stepUpEnabled} onChange={(e) => setStepUpEnabled(e.target.checked)} className="rounded border-zinc-300" />
-                <label htmlFor="stepUp" className="text-sm text-zinc-700">Enable step-up for high-value requests</label>
+                <input type="checkbox" id="stepUp" checked={stepUpEnabled} onChange={(e) => setStepUpEnabled(e.target.checked)} className="rounded border-zinc-300 dark:border-zinc-600" />
+                <label htmlFor="stepUp" className="text-sm text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Enable step-up for high-value requests</label>
               </div>
               {stepUpEnabled && (
                 <>
-                  <p className="text-xs text-zinc-500">
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
                     When request parameters match these conditions, the approval model escalates automatically.
                   </p>
                   <div>
-                    <label className="text-sm font-medium text-zinc-700">Step-up Conditions</label>
+                    <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Step-up Conditions</label>
                     <ConditionBuilder conditions={stepUpConditions} onChange={setStepUpConditions} />
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-zinc-700">Escalate to Model</label>
+                    <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Escalate to Model</label>
                     <Select value={stepUpModel} onChange={(e) => setStepUpModel(e.target.value as ApprovalModel)} className="mt-1">
                       <option value="any_one">Any One</option>
                       <option value="specific">Specific</option>
@@ -269,11 +269,11 @@ export default function NewRulePage() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium text-zinc-700">Timeout (seconds)</label>
+                  <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Timeout (seconds)</label>
                   <Input type="number" min={30} max={3600} value={timeoutSeconds} onChange={(e) => setTimeoutSeconds(parseInt(e.target.value) || 300)} className="mt-1" />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-zinc-700">On Timeout</label>
+                  <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">On Timeout</label>
                   <Select value={onTimeout} onChange={(e) => setOnTimeout(e.target.value as TimeoutAction)} className="mt-1">
                     <option value="block">Block — permanently cancel</option>
                     <option value="escalate">Escalate — send to backup approver</option>
@@ -282,7 +282,7 @@ export default function NewRulePage() {
               </div>
               {onTimeout === "escalate" && (
                 <div>
-                  <label className="text-sm font-medium text-zinc-700">Escalation Approver</label>
+                  <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Escalation Approver</label>
                   <Select value={escalateTo} onChange={(e) => setEscalateTo(e.target.value)} className="mt-1">
                     <option value="">Select escalation approver...</option>
                     {approvers.map((a) => (
@@ -293,24 +293,24 @@ export default function NewRulePage() {
               )}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium text-zinc-700">Blackout Start</label>
+                  <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Blackout Start</label>
                   <Input type="time" value={blackoutStart} onChange={(e) => setBlackoutStart(e.target.value)} className="mt-1" />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-zinc-700">Blackout End</label>
+                  <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Blackout End</label>
                   <Input type="time" value={blackoutEnd} onChange={(e) => setBlackoutEnd(e.target.value)} className="mt-1" />
                 </div>
               </div>
               <div>
-                <label className="text-sm font-medium text-zinc-700">Cooldown (max triggers/hour)</label>
+                <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Cooldown (max triggers/hour)</label>
                 <Input type="number" value={cooldownMax} onChange={(e) => setCooldownMax(e.target.value)} placeholder="No limit" className="mt-1 w-32" />
               </div>
               <div className="flex items-center gap-2">
-                <input type="checkbox" id="partial" checked={partialApproval} onChange={(e) => setPartialApproval(e.target.checked)} className="rounded border-zinc-300" />
-                <label htmlFor="partial" className="text-sm text-zinc-700">Allow partial approval (approver can modify params)</label>
+                <input type="checkbox" id="partial" checked={partialApproval} onChange={(e) => setPartialApproval(e.target.checked)} className="rounded border-zinc-300 dark:border-zinc-600" />
+                <label htmlFor="partial" className="text-sm text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Allow partial approval (approver can modify params)</label>
               </div>
               <div>
-                <label className="text-sm font-medium text-zinc-700">Context Template (binding message)</label>
+                <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Context Template (binding message)</label>
                 <Input value={contextTemplate} onChange={(e) => setContextTemplate(e.target.value)} placeholder="Charge of ${{amount}} for {{customer}}" className="mt-1" />
                 <p className="text-xs text-zinc-400 mt-1">Use {"{{variable}}"} for dynamic values from params</p>
               </div>

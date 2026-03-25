@@ -44,8 +44,8 @@ export default function AuditPage() {
     <div>
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900">Consent History & Audit Log</h1>
-          <p className="text-zinc-500 mt-1">
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Consent History & Audit Log</h1>
+          <p className="text-zinc-500 dark:text-zinc-400 mt-1">
             FGA-controlled — approvers see own history only, admins see everything
           </p>
         </div>
@@ -77,12 +77,12 @@ export default function AuditPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-zinc-200 bg-zinc-50">
-                    <th className="text-left p-4 font-medium text-zinc-500">Time</th>
-                    <th className="text-left p-4 font-medium text-zinc-500">Action</th>
-                    <th className="text-left p-4 font-medium text-zinc-500">Approver</th>
-                    <th className="text-left p-4 font-medium text-zinc-500">Decision</th>
-                    <th className="text-left p-4 font-medium text-zinc-500">Notes</th>
+                  <tr className="border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50">
+                    <th className="text-left p-4 font-medium text-zinc-500 dark:text-zinc-400">Time</th>
+                    <th className="text-left p-4 font-medium text-zinc-500 dark:text-zinc-400">Action</th>
+                    <th className="text-left p-4 font-medium text-zinc-500 dark:text-zinc-400">Approver</th>
+                    <th className="text-left p-4 font-medium text-zinc-500 dark:text-zinc-400">Decision</th>
+                    <th className="text-left p-4 font-medium text-zinc-500 dark:text-zinc-400">Notes</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -94,8 +94,8 @@ export default function AuditPage() {
                     </tr>
                   ) : (
                     filteredLogs.map((log) => (
-                      <tr key={log.id} className="border-b border-zinc-100 hover:bg-zinc-50">
-                        <td className="p-4 text-zinc-600 text-xs whitespace-nowrap">
+                      <tr key={log.id} className="border-b border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800 dark:bg-zinc-800/50">
+                        <td className="p-4 text-zinc-600 dark:text-zinc-400 text-xs whitespace-nowrap">
                           {new Date(log.created_at).toLocaleString([], {
                             month: "short", day: "numeric",
                             hour: "2-digit", minute: "2-digit",
@@ -106,7 +106,7 @@ export default function AuditPage() {
                             {log.connection}:{log.action}
                           </code>
                         </td>
-                        <td className="p-4 text-zinc-600">
+                        <td className="p-4 text-zinc-600 dark:text-zinc-400">
                           {log.approver_name || "—"}
                         </td>
                         <td className="p-4">
@@ -121,12 +121,12 @@ export default function AuditPage() {
                             </span>
                           )}
                           {log.event_type === "approved" && log.note?.startsWith("executed:") && (
-                            <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 border border-green-200 px-2 py-0.5 rounded">
+                            <span className="inline-flex items-center gap-1 bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800 px-2 py-0.5 rounded">
                               Auth0 Token Vault
                             </span>
                           )}
                           {log.note && !log.note.startsWith("executed:") && (
-                            <span className="text-zinc-500">{log.note}</span>
+                            <span className="text-zinc-500 dark:text-zinc-400">{log.note}</span>
                           )}
                           {!log.event_type.includes("ciba") && !log.note && "—"}
                           {log.modified_params && (

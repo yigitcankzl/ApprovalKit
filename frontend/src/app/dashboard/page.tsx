@@ -25,9 +25,9 @@ interface LiveEvent {
 }
 
 const EVENT_COLORS: Record<string, string> = {
-  requested: "bg-blue-500",
-  approved:  "bg-green-500",
-  rejected:  "bg-red-500",
+  requested: "bg-blue-50 dark:bg-blue-950/300",
+  approved:  "bg-green-50 dark:bg-green-950/300",
+  rejected:  "bg-red-50 dark:bg-red-950/300",
   blocked:   "bg-orange-500",
   timeout:   "bg-yellow-500",
   ciba_sent: "bg-purple-500",
@@ -122,7 +122,7 @@ export default function DashboardPage() {
   const cibaPercent = Math.round((stats.ciba_usage / stats.ciba_limit) * 100);
 
   const statCards = [
-    { title: "Total Actions (7d)", value: stats.total_actions_week, icon: Activity,       color: "text-zinc-600" },
+    { title: "Total Actions (7d)", value: stats.total_actions_week, icon: Activity,       color: "text-zinc-600 dark:text-zinc-400" },
     { title: "Approved",           value: stats.approved,           icon: CheckCircle2,   color: "text-green-600" },
     { title: "Rejected",           value: stats.rejected,           icon: XCircle,        color: "text-red-600" },
     { title: "Blocked",            value: stats.blocked,            icon: ShieldOff,      color: "text-orange-600" },
@@ -146,8 +146,8 @@ export default function DashboardPage() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-zinc-500">{stat.title}</p>
-                  <p className="text-3xl font-bold text-zinc-900 mt-1">{stat.value}</p>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400">{stat.title}</p>
+                  <p className="text-3xl font-bold text-zinc-900 dark:text-zinc-100 mt-1">{stat.value}</p>
                 </div>
                 <stat.icon className={`h-8 w-8 ${stat.color}`} />
               </div>
@@ -163,11 +163,11 @@ export default function DashboardPage() {
           <CardContent>
             <div className="space-y-3">
               <div className="flex justify-between text-sm">
-                <span className="text-zinc-500">{stats.ciba_usage} / {stats.ciba_limit} requests/hour</span>
+                <span className="text-zinc-500 dark:text-zinc-400">{stats.ciba_usage} / {stats.ciba_limit} requests/hour</span>
                 <Badge variant={cibaPercent >= 80 ? "danger" : cibaPercent >= 50 ? "warning" : "success"}>{cibaPercent}%</Badge>
               </div>
-              <div className="w-full bg-zinc-100 rounded-full h-3">
-                <div className={`h-3 rounded-full transition-all ${cibaPercent >= 80 ? "bg-red-500" : cibaPercent >= 50 ? "bg-yellow-500" : "bg-green-500"}`}
+              <div className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-full h-3">
+                <div className={`h-3 rounded-full transition-all ${cibaPercent >= 80 ? "bg-red-50 dark:bg-red-950/300" : cibaPercent >= 50 ? "bg-yellow-500" : "bg-green-50 dark:bg-green-950/300"}`}
                   style={{ width: `${Math.min(cibaPercent, 100)}%` }} />
               </div>
               <p className="text-xs text-zinc-400">Auth0 allows 500 CIBA requests/hour per tenant. Warning at 80%.</p>
@@ -182,8 +182,8 @@ export default function DashboardPage() {
               <SecurityRow label="HMAC Request Signing" ok={security?.hmac.ok ?? true} detail={security?.hmac.detail} />
               <SecurityRow label="Pydantic Validation" ok={true} detail="Always enforced" />
               <SecurityRow label="FGA Access Control" ok={security?.fga.ok ?? false} detail={security?.fga.detail} />
-              <div className="flex items-start justify-between py-2 border-b border-zinc-100">
-                <span className="text-sm text-zinc-600">Scope Creep Detection</span>
+              <div className="flex items-start justify-between py-2 border-b border-zinc-100 dark:border-zinc-800">
+                <span className="text-sm text-zinc-600 dark:text-zinc-400">Scope Creep Detection</span>
                 <Badge variant={stats.scope_creep_alerts > 0 ? "warning" : "success"}>
                   {stats.scope_creep_alerts > 0 ? `${stats.scope_creep_alerts} alerts` : "Clear"}
                 </Badge>
@@ -218,11 +218,11 @@ export default function DashboardPage() {
                 events.map((ev, i) => (
                   <div key={i} className="flex items-center gap-2 text-xs">
                     <span className={`w-2 h-2 rounded-full flex-shrink-0 ${EVENT_COLORS[ev.type] ?? "bg-zinc-400"}`} />
-                    <span className="text-zinc-500 font-mono">{ev.connection}:{ev.action}</span>
+                    <span className="text-zinc-500 dark:text-zinc-400 font-mono">{ev.connection}:{ev.action}</span>
                     <Badge variant={ev.type === "approved" ? "success" : ev.type === "rejected" ? "danger" : "default"} className="text-xs">
                       {ev.type}
                     </Badge>
-                    <span className="text-zinc-300 ml-auto">{new Date(ev.timestamp).toLocaleTimeString()}</span>
+                    <span className="text-zinc-300 dark:text-zinc-600 ml-auto">{new Date(ev.timestamp).toLocaleTimeString()}</span>
                   </div>
                 ))
               )}
@@ -237,9 +237,9 @@ export default function DashboardPage() {
 
 function SecurityRow({ label, ok, detail, isLast = false }: { label: string; ok: boolean; detail?: string; isLast?: boolean }) {
   return (
-    <div className={`flex items-start justify-between py-2 ${isLast ? "" : "border-b border-zinc-100"}`}>
+    <div className={`flex items-start justify-between py-2 ${isLast ? "" : "border-b border-zinc-100 dark:border-zinc-800"}`}>
       <div>
-        <span className="text-sm text-zinc-600">{label}</span>
+        <span className="text-sm text-zinc-600 dark:text-zinc-400">{label}</span>
         {detail && <p className="text-xs text-zinc-400 mt-0.5">{detail}</p>}
       </div>
       <Badge variant={ok ? "success" : "danger"} className="ml-4 flex-shrink-0">{ok ? "Active" : "Inactive"}</Badge>

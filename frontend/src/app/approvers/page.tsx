@@ -157,8 +157,8 @@ function ApproversContent() {
       <div className="mb-8 flex items-center justify-between">
 
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900">Approvers</h1>
-          <p className="text-zinc-500 mt-1">Manage who can approve agent actions</p>
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Approvers</h1>
+          <p className="text-zinc-500 dark:text-zinc-400 mt-1">Manage who can approve agent actions</p>
         </div>
         <Button onClick={openCreate}>
           <Plus className="h-4 w-4 mr-2" /> Add Approver
@@ -166,13 +166,13 @@ function ApproversContent() {
       </div>
 
       {linkedName && (
-        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700 flex justify-between items-center">
+        <div className="mb-4 p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg text-sm text-green-700 dark:text-green-400 flex justify-between items-center">
           <span className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4" /><strong>{linkedName}</strong> linked to Auth0 account — Guardian push enabled.</span>
           <button onClick={() => setLinkedName(null)}><X className="h-4 w-4" /></button>
         </div>
       )}
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex justify-between">
+        <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg text-sm text-red-700 dark:text-red-400 flex justify-between">
           {error}
           <button onClick={() => setError(null)}><X className="h-4 w-4" /></button>
         </div>
@@ -180,26 +180,26 @@ function ApproversContent() {
 
       {/* Create / Edit Form */}
       {formMode && (
-        <Card className="mb-6 border-zinc-300">
+        <Card className="mb-6 border-zinc-300 dark:border-zinc-600">
           <CardHeader>
             <CardTitle>{formMode === "create" ? "Add Approver" : "Edit Approver"}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium text-zinc-700">Name</label>
+                <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Name</label>
                 <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Alice Smith" className="mt-1" />
               </div>
               <div>
-                <label className="text-sm font-medium text-zinc-700">Email</label>
+                <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Email</label>
                 <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="alice@company.com" className="mt-1" />
               </div>
               <div>
-                <label className="text-sm font-medium text-zinc-700">Blackout Start</label>
+                <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Blackout Start</label>
                 <Input type="time" value={form.blackout_start} onChange={(e) => setForm({ ...form, blackout_start: e.target.value })} className="mt-1" />
               </div>
               <div>
-                <label className="text-sm font-medium text-zinc-700">Blackout End</label>
+                <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Blackout End</label>
                 <Input type="time" value={form.blackout_end} onChange={(e) => setForm({ ...form, blackout_end: e.target.value })} className="mt-1" />
               </div>
             </div>
@@ -222,8 +222,8 @@ function ApproversContent() {
       ) : approvers.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
-            <UserCheck className="h-12 w-12 text-zinc-300 mx-auto mb-4" />
-            <p className="text-zinc-500">No approvers yet.</p>
+            <UserCheck className="h-12 w-12 text-zinc-300 dark:text-zinc-600 mx-auto mb-4" />
+            <p className="text-zinc-500 dark:text-zinc-400">No approvers yet.</p>
             <Button className="mt-4" onClick={openCreate}>
               <Plus className="h-4 w-4 mr-2" /> Add First Approver
             </Button>
@@ -232,28 +232,28 @@ function ApproversContent() {
       ) : (
         <div className="space-y-3">
           {approvers.map((a) => (
-            <Card key={a.id} className="hover:border-zinc-300 transition-colors">
+            <Card key={a.id} className="hover:border-zinc-300 dark:border-zinc-600 transition-colors">
               <CardContent className="py-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-zinc-100 flex items-center justify-center font-bold text-zinc-700 text-sm">
+                    <div className="w-10 h-10 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center font-bold text-zinc-700 dark:text-zinc-300 dark:text-zinc-600 text-sm">
                       {a.name.charAt(0).toUpperCase()}
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-zinc-900">{a.name}</span>
+                        <span className="font-medium text-zinc-900 dark:text-zinc-100">{a.name}</span>
                         {a.delegate_to && (
                           <Badge variant="warning">Delegating → {approverName(a.delegate_to)}</Badge>
                         )}
                       </div>
                       <div className="flex items-center gap-3 mt-0.5">
-                        <span className="text-sm text-zinc-500">{a.email}</span>
+                        <span className="text-sm text-zinc-500 dark:text-zinc-400">{a.email}</span>
                         {a.auth0_user_id ? (
-                          <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 px-1.5 py-0.5 rounded">
+                          <span className="inline-flex items-center gap-1 text-xs text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 px-1.5 py-0.5 rounded">
                             <CheckCircle2 className="h-3 w-3" /> Guardian linked
                           </span>
                         ) : (
-                          <span className="text-xs text-zinc-400 bg-zinc-50 border border-zinc-200 px-1.5 py-0.5 rounded">Not linked</span>
+                          <span className="text-xs text-zinc-400 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 px-1.5 py-0.5 rounded">Not linked</span>
                         )}
                       </div>
                       {(a.blackout_start || a.notify_channel?.length > 0) && (
@@ -286,7 +286,7 @@ function ApproversContent() {
                     <Button variant="ghost" size="sm" onClick={() => openEdit(a)}>
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => handleDelete(a.id)}>
+                    <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 dark:text-red-400 hover:bg-red-50 dark:bg-red-950/30" onClick={() => handleDelete(a.id)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
@@ -294,10 +294,10 @@ function ApproversContent() {
 
                 {/* Delegation Panel */}
                 {expandedId === a.id && (
-                  <div className="mt-4 pt-4 border-t border-zinc-100">
+                  <div className="mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
                     {a.delegate_to ? (
                       <div className="flex items-center justify-between">
-                        <div className="text-sm text-zinc-600">
+                        <div className="text-sm text-zinc-600 dark:text-zinc-400">
                           Currently delegating to <strong>{approverName(a.delegate_to)}</strong>
                           {a.delegate_from && (
                             <span className="ml-2 text-zinc-400">
@@ -322,14 +322,14 @@ function ApproversContent() {
                       </div>
                     ) : (
                       <div className="space-y-3">
-                        <p className="text-sm font-medium text-zinc-700">Set Delegation</p>
+                        <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Set Delegation</p>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                           <div>
-                            <label className="text-xs text-zinc-500">Delegate To</label>
+                            <label className="text-xs text-zinc-500 dark:text-zinc-400">Delegate To</label>
                             <select
                               value={delegatingId === a.id ? delegateTo : ""}
                               onChange={(e) => { setDelegatingId(a.id); setDelegateTo(e.target.value); }}
-                              className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm"
+                              className="mt-1 w-full rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-3 py-2 text-sm"
                             >
                               <option value="">Select approver…</option>
                               {approvers.filter((x) => x.id !== a.id).map((x) => (
@@ -338,11 +338,11 @@ function ApproversContent() {
                             </select>
                           </div>
                           <div>
-                            <label className="text-xs text-zinc-500">From</label>
+                            <label className="text-xs text-zinc-500 dark:text-zinc-400">From</label>
                             <Input type="datetime-local" className="mt-1" value={delegatingId === a.id ? delegateFrom : ""} onChange={(e) => { setDelegatingId(a.id); setDelegateFrom(e.target.value); }} />
                           </div>
                           <div>
-                            <label className="text-xs text-zinc-500">Until</label>
+                            <label className="text-xs text-zinc-500 dark:text-zinc-400">Until</label>
                             <Input type="datetime-local" className="mt-1" value={delegatingId === a.id ? delegateUntil : ""} onChange={(e) => { setDelegatingId(a.id); setDelegateUntil(e.target.value); }} />
                           </div>
                         </div>

@@ -508,7 +508,7 @@ function FlowDiagram({ steps }: { steps: FlowStep[] }) {
             <div className="font-semibold whitespace-nowrap">{step.label}</div>
             {step.sub && <div className="opacity-75 mt-0.5 whitespace-nowrap">{step.sub}</div>}
           </div>
-          {i < steps.length - 1 && <ArrowRight className="h-3 w-3 text-zinc-300 shrink-0" />}
+          {i < steps.length - 1 && <ArrowRight className="h-3 w-3 text-zinc-300 dark:text-zinc-600 shrink-0" />}
         </div>
       ))}
     </div>
@@ -541,13 +541,13 @@ function SeedBanner() {
 
   if (state.status === "done") {
     return (
-      <div className="mb-6 flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3">
+      <div className="mb-6 flex items-start gap-3 rounded-xl border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/30 px-4 py-3">
         <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-green-800">
+          <p className="text-sm font-semibold text-green-800 dark:text-green-300">
             Demo data seeded — {state.created} created, {state.skipped} skipped
           </p>
-          <p className="text-xs text-green-700 mt-0.5">
+          <p className="text-xs text-green-700 dark:text-green-400 mt-0.5">
             Connections, approvers and rules are now in your database. Hit Check Rule on any scenario below.
           </p>
           {state.items && state.items.length > 0 && (
@@ -558,7 +558,7 @@ function SeedBanner() {
           {showLog && state.items && (
             <ul className="mt-2 space-y-0.5 max-h-40 overflow-y-auto">
               {state.items.map((item, i) => (
-                <li key={i} className="text-xs text-green-700 font-mono">+ {item}</li>
+                <li key={i} className="text-xs text-green-700 dark:text-green-400 font-mono">+ {item}</li>
               ))}
             </ul>
           )}
@@ -569,11 +569,11 @@ function SeedBanner() {
 
   if (state.status === "error") {
     return (
-      <div className="mb-6 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+      <div className="mb-6 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 dark:bg-red-950/30 px-4 py-3">
         <XCircle className="h-5 w-5 text-red-500 mt-0.5 shrink-0" />
         <div className="flex-1">
           <p className="text-sm font-semibold text-red-800">Seed failed</p>
-          <p className="text-xs text-red-700 mt-0.5">{state.error}</p>
+          <p className="text-xs text-red-700 dark:text-red-400 mt-0.5">{state.error}</p>
           <button className="mt-2 text-xs text-red-600 underline" onClick={() => setState({ status: "idle" })}>
             Try again
           </button>
@@ -583,10 +583,10 @@ function SeedBanner() {
   }
 
   return (
-    <div className="mb-6 flex items-center gap-4 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+    <div className="mb-6 flex items-center gap-4 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50 px-4 py-3">
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-zinc-800">No rules configured yet?</p>
-        <p className="text-xs text-zinc-500 mt-0.5">
+        <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">No rules configured yet?</p>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
           Seed all demo connections, approvers, and rules into your database in one click.
           Check Rule will then show real rule matches instead of &quot;no rule found&quot;.
         </p>
@@ -681,22 +681,22 @@ function ScenarioCard({ scenario }: { scenario: Scenario }) {
   };
 
   return (
-    <div className="border border-zinc-200 rounded-xl overflow-hidden">
-      <button className="w-full text-left p-4 hover:bg-zinc-50 transition-colors" onClick={() => setExpanded((v) => !v)}>
+    <div className="border border-zinc-200 dark:border-zinc-700 rounded-xl overflow-hidden">
+      <button className="w-full text-left p-4 hover:bg-zinc-50 dark:hover:bg-zinc-800 dark:bg-zinc-800/50 transition-colors" onClick={() => setExpanded((v) => !v)}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Badge variant={scenario.badge} className="text-xs font-mono w-20 justify-center shrink-0">
               {scenario.badgeLabel}
             </Badge>
-            <span className="text-sm font-medium text-zinc-800">{scenario.title}</span>
+            <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">{scenario.title}</span>
           </div>
           <ChevronRight className={`h-4 w-4 text-zinc-400 transition-transform ${expanded ? "rotate-90" : ""}`} />
         </div>
-        <p className="text-xs text-zinc-500 mt-1 ml-[92px]">{scenario.description}</p>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 ml-[92px]">{scenario.description}</p>
       </button>
 
       {expanded && (
-        <div className="px-4 pb-4 border-t border-zinc-100 bg-zinc-50/50 space-y-4">
+        <div className="px-4 pb-4 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50/50 space-y-4">
           {/* Flow diagram */}
           <div>
             <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mt-3 mb-1">Approval Flow</p>
@@ -742,16 +742,16 @@ function ScenarioCard({ scenario }: { scenario: Scenario }) {
             {liveSteps.length > 0 && (
               <div className="flex items-center gap-1.5 flex-wrap">
                 <LiveStep done={liveSteps.includes("submitting")} active={liveStatus === "submitting"} label="Submitted" />
-                <ArrowRight className="h-3 w-3 text-zinc-300" />
+                <ArrowRight className="h-3 w-3 text-zinc-300 dark:text-zinc-600" />
                 {liveStatus === "no_setup" ? (
                   <LiveStep done={true} error={true} label="No rules configured — click Setup Demo first" />
                 ) : (
                 <LiveStep done={liveSteps.includes("rule_matched") || liveSteps.includes("auto_approved")} active={liveStatus === "rule_matched"} label={liveStatus === "auto_approved" ? "Auto-approved" : "Rule matched"} />
                 )}
                 {liveStatus !== "auto_approved" && liveStatus !== "no_setup" && <>
-                  <ArrowRight className="h-3 w-3 text-zinc-300" />
+                  <ArrowRight className="h-3 w-3 text-zinc-300 dark:text-zinc-600" />
                   <LiveStep done={liveSteps.includes("ciba_sent")} active={liveStatus === "ciba_sent"} label="Guardian push sent" />
-                  <ArrowRight className="h-3 w-3 text-zinc-300" />
+                  <ArrowRight className="h-3 w-3 text-zinc-300 dark:text-zinc-600" />
                   <LiveStep
                     done={liveSteps.includes("approved") || liveSteps.includes("rejected") || liveSteps.includes("timeout")}
                     active={liveStatus === "ciba_sent"}
@@ -769,10 +769,10 @@ function ScenarioCard({ scenario }: { scenario: Scenario }) {
 
             {result && result.status !== "running" && (
               <div className={`flex-1 rounded-lg px-3 py-2 text-xs ${
-                result.status === "matched"  ? "bg-blue-50 border border-blue-200 text-blue-800" :
-                result.status === "no_match" ? "bg-green-50 border border-green-200 text-green-800" :
+                result.status === "matched"  ? "bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-blue-800" :
+                result.status === "no_match" ? "bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 text-green-800 dark:text-green-300" :
                 result.status === "no_rule"  ? "bg-amber-50 border border-amber-200 text-amber-800" :
-                "bg-red-50 border border-red-200 text-red-800"
+                "bg-red-50 dark:bg-red-950/30 border border-red-200 text-red-800"
               }`}>
                 {result.status === "matched" && (
                   <>
@@ -825,7 +825,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
 };
 function AgentIcon({ icon }: { icon: string }) {
   const Icon = ICON_MAP[icon] ?? Bot;
-  return <Icon className="h-5 w-5 text-zinc-700" />;
+  return <Icon className="h-5 w-5 text-zinc-700 dark:text-zinc-300 dark:text-zinc-600" />;
 }
 
 // ── My Agent scenario card (live test inline) ─────────────────────────────────
@@ -898,21 +898,21 @@ function MyScenarioCard({ scenario }: { scenario: MyAgentScenario }) {
   const isDone = ["approved", "rejected", "auto_approved", "timeout", "error"].includes(live.status);
 
   return (
-    <div className="border border-zinc-200 rounded-xl overflow-hidden">
-      <button className="w-full text-left p-4 hover:bg-zinc-50 transition-colors" onClick={() => setExpanded((v) => !v)}>
+    <div className="border border-zinc-200 dark:border-zinc-700 rounded-xl overflow-hidden">
+      <button className="w-full text-left p-4 hover:bg-zinc-50 dark:hover:bg-zinc-800 dark:bg-zinc-800/50 transition-colors" onClick={() => setExpanded((v) => !v)}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <code className="text-xs bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded font-mono">
+            <code className="text-xs bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 dark:text-zinc-600 px-2 py-0.5 rounded font-mono">
               {scenario.connection} / {scenario.action}
             </code>
-            <span className="text-sm font-medium text-zinc-800">{scenario.title}</span>
+            <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">{scenario.title}</span>
           </div>
           <ChevronRight className={`h-4 w-4 text-zinc-400 transition-transform ${expanded ? "rotate-90" : ""}`} />
         </div>
       </button>
 
       {expanded && (
-        <div className="px-4 pb-4 border-t border-zinc-100 bg-zinc-50/50 space-y-3">
+        <div className="px-4 pb-4 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50/50 space-y-3">
           <pre className="mt-3 bg-zinc-900 text-zinc-100 text-xs rounded-lg p-3 overflow-x-auto">
             {JSON.stringify(scenario.params, null, 2)}
           </pre>
@@ -926,11 +926,11 @@ function MyScenarioCard({ scenario }: { scenario: MyAgentScenario }) {
 
             {live.status !== "idle" && (
               <div className={`flex-1 rounded-lg px-3 py-2 text-xs ${
-                live.status === "approved" || live.status === "auto_approved" ? "bg-green-50 border border-green-200 text-green-800" :
-                live.status === "rejected" ? "bg-red-50 border border-red-200 text-red-800" :
-                isPending ? "bg-blue-50 border border-blue-200 text-blue-800" :
-                live.status === "error" ? "bg-red-50 border border-red-200 text-red-800" :
-                "bg-zinc-50 border border-zinc-200 text-zinc-700"
+                live.status === "approved" || live.status === "auto_approved" ? "bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 text-green-800 dark:text-green-300" :
+                live.status === "rejected" ? "bg-red-50 dark:bg-red-950/30 border border-red-200 text-red-800" :
+                isPending ? "bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-blue-800" :
+                live.status === "error" ? "bg-red-50 dark:bg-red-950/30 border border-red-200 text-red-800" :
+                "bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 dark:text-zinc-600"
               }`}>
                 {isPending && (
                   <div className="flex items-center gap-1.5">
@@ -952,14 +952,14 @@ function MyScenarioCard({ scenario }: { scenario: MyAgentScenario }) {
               <Button size="sm" onClick={() => handleDecide("approve")} disabled={deciding} className="flex-1 bg-green-600 hover:bg-green-700 text-white">
                 {deciding ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5 mr-1" />} Approve
               </Button>
-              <Button size="sm" variant="outline" onClick={() => handleDecide("reject")} disabled={deciding} className="flex-1 border-red-200 text-red-600 hover:bg-red-50">
+              <Button size="sm" variant="outline" onClick={() => handleDecide("reject")} disabled={deciding} className="flex-1 border-red-200 text-red-600 hover:bg-red-50 dark:bg-red-950/30">
                 {deciding ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <XCircle className="h-3.5 w-3.5 mr-1" />} Reject
               </Button>
             </div>
           )}
 
           {isDone && (
-            <button className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-600" onClick={() => setLive({ status: "idle" })}>
+            <button className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-600 dark:text-zinc-400" onClick={() => setLive({ status: "idle" })}>
               <RefreshCw className="h-3 w-3" /> Test again
             </button>
           )}
@@ -1019,10 +1019,10 @@ function MyAgentsTab() {
   if (agents.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
-        <div className="p-4 bg-zinc-100 rounded-2xl mb-4">
+        <div className="p-4 bg-zinc-100 dark:bg-zinc-800 rounded-2xl mb-4">
           <Bot className="h-10 w-10 text-zinc-400" />
         </div>
-        <h3 className="text-base font-semibold text-zinc-700 mb-1">No agents yet</h3>
+        <h3 className="text-base font-semibold text-zinc-700 dark:text-zinc-300 dark:text-zinc-600 mb-1">No agents yet</h3>
         <p className="text-sm text-zinc-400 mb-4 max-w-xs">
           Go to Connect Agent, configure your connection and action, then save it as an agent.
         </p>
@@ -1048,7 +1048,7 @@ function MyAgentsTab() {
               key={a.id}
               onClick={() => setActiveId(a.id)}
               className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium text-left transition-colors ${
-                activeId === a.id ? "bg-zinc-900 text-white" : "text-zinc-600 hover:bg-zinc-100"
+                activeId === a.id ? "bg-zinc-900 text-white" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:bg-zinc-800"
               }`}
             >
               <AgentIcon icon={a.icon} />
@@ -1057,7 +1057,7 @@ function MyAgentsTab() {
           ))}
           <a
             href="/connect"
-            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition-colors"
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium text-zinc-400 hover:bg-zinc-100 dark:bg-zinc-800 hover:text-zinc-600 dark:text-zinc-400 transition-colors"
           >
             <Plus className="h-4 w-4 shrink-0" /> Add agent
           </a>
@@ -1070,12 +1070,12 @@ function MyAgentsTab() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-zinc-100 rounded-lg">
+                <div className="p-2 bg-zinc-100 dark:bg-zinc-800 rounded-lg">
                   <AgentIcon icon={active.icon} />
                 </div>
                 <div>
                   <CardTitle>{active.name}</CardTitle>
-                  <p className="text-sm text-zinc-500 mt-0.5">{active.description || "No description"}</p>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">{active.description || "No description"}</p>
                 </div>
               </div>
               <Button
@@ -1083,7 +1083,7 @@ function MyAgentsTab() {
                 variant="outline"
                 onClick={() => handleDelete(active.id)}
                 disabled={deleting === active.id}
-                className="border-red-200 text-red-600 hover:bg-red-50"
+                className="border-red-200 text-red-600 hover:bg-red-50 dark:bg-red-950/30"
               >
                 {deleting === active.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
               </Button>
@@ -1092,9 +1092,9 @@ function MyAgentsTab() {
         </Card>
 
         {active.scenarios.length === 0 ? (
-          <div className="border border-dashed border-zinc-200 rounded-xl p-8 text-center text-zinc-400">
+          <div className="border border-dashed border-zinc-200 dark:border-zinc-700 rounded-xl p-8 text-center text-zinc-400">
             <p className="text-sm">No scenarios yet.</p>
-            <a href="/connect" className="text-xs text-zinc-500 underline mt-1 inline-block">
+            <a href="/connect" className="text-xs text-zinc-500 dark:text-zinc-400 underline mt-1 inline-block">
               Add a scenario from the Connect Agent page
             </a>
           </div>
@@ -1152,19 +1152,19 @@ export default function AgentsPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-zinc-900">Agents</h1>
-        <p className="text-zinc-500 mt-1">
+        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Agents</h1>
+        <p className="text-zinc-500 dark:text-zinc-400 mt-1">
           Seven real-world agents with interactive approval flow diagrams.
           Expand any scenario to see the chain, then hit Check Rule to test against your rules.
         </p>
       </div>
 
       {/* Tab switcher */}
-      <div className="flex gap-1 mb-6 border-b border-zinc-200">
+      <div className="flex gap-1 mb-6 border-b border-zinc-200 dark:border-zinc-700">
         <button
           onClick={() => setTab("demo")}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
-            tab === "demo" ? "border-zinc-900 text-zinc-900" : "border-transparent text-zinc-500 hover:text-zinc-700"
+            tab === "demo" ? "border-zinc-900 text-zinc-900 dark:text-zinc-100" : "border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:text-zinc-300 dark:text-zinc-600"
           }`}
         >
           Demo Agents
@@ -1172,7 +1172,7 @@ export default function AgentsPage() {
         <button
           onClick={() => setTab("my")}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
-            tab === "my" ? "border-zinc-900 text-zinc-900" : "border-transparent text-zinc-500 hover:text-zinc-700"
+            tab === "my" ? "border-zinc-900 text-zinc-900 dark:text-zinc-100" : "border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:text-zinc-300 dark:text-zinc-600"
           }`}
         >
           My Agents
@@ -1190,7 +1190,7 @@ export default function AgentsPage() {
                 key={a.id}
                 onClick={() => setActiveId(a.id)}
                 className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium text-left transition-colors ${
-                  activeId === a.id ? "bg-zinc-900 text-white" : "text-zinc-600 hover:bg-zinc-100"
+                  activeId === a.id ? "bg-zinc-900 text-white" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:bg-zinc-800"
                 }`}
               >
                 <a.icon className="h-4 w-4 shrink-0" />
@@ -1206,12 +1206,12 @@ export default function AgentsPage() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-zinc-100 rounded-lg">
-                    <agent.icon className="h-5 w-5 text-zinc-700" />
+                  <div className="p-2 bg-zinc-100 dark:bg-zinc-800 rounded-lg">
+                    <agent.icon className="h-5 w-5 text-zinc-700 dark:text-zinc-300 dark:text-zinc-600" />
                   </div>
                   <div>
                     <CardTitle>{agent.title}</CardTitle>
-                    <p className="text-sm text-zinc-500 mt-0.5">{agent.description}</p>
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">{agent.description}</p>
                   </div>
                 </div>
                 {setupDone[agent.id] ? (
@@ -1233,14 +1233,14 @@ export default function AgentsPage() {
             </CardHeader>
             {/* Setup Details */}
             {agent.setupInfo && (
-              <CardContent className="border-t border-zinc-100 pt-4">
+              <CardContent className="border-t border-zinc-100 dark:border-zinc-800 pt-4">
                 <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wide mb-3">Setup Demo will create:</p>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div>
                     <p className="text-xs font-medium text-blue-600 mb-1.5">Connections</p>
                     {agent.setupInfo.filter(s => s.type === "connection").map(s => (
-                      <div key={s.name} className="text-xs text-zinc-600 mb-1">
-                        <code className="bg-zinc-100 px-1 rounded">{s.name}</code>
+                      <div key={s.name} className="text-xs text-zinc-600 dark:text-zinc-400 mb-1">
+                        <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded">{s.name}</code>
                         <span className="text-zinc-400 ml-1">{s.detail}</span>
                       </div>
                     ))}
@@ -1248,7 +1248,7 @@ export default function AgentsPage() {
                   <div>
                     <p className="text-xs font-medium text-amber-600 mb-1.5">Approvers</p>
                     {agent.setupInfo.filter(s => s.type === "approver").map(s => (
-                      <div key={s.name} className="text-xs text-zinc-600 mb-1">
+                      <div key={s.name} className="text-xs text-zinc-600 dark:text-zinc-400 mb-1">
                         <span className="font-medium">{s.name}</span>
                         <span className="text-zinc-400 ml-1">— {s.detail}</span>
                       </div>
@@ -1257,7 +1257,7 @@ export default function AgentsPage() {
                   <div>
                     <p className="text-xs font-medium text-green-600 mb-1.5">Rules</p>
                     {agent.setupInfo.filter(s => s.type === "rule").map(s => (
-                      <div key={s.name} className="text-xs text-zinc-600 mb-1">
+                      <div key={s.name} className="text-xs text-zinc-600 dark:text-zinc-400 mb-1">
                         <span className="font-medium">{s.name}</span>
                         <span className="text-zinc-400 ml-1">— {s.detail}</span>
                       </div>
@@ -1282,10 +1282,10 @@ export default function AgentsPage() {
 function LiveStep({ done, active, label, error }: { done: boolean; active?: boolean; label: string; error?: boolean }) {
   return (
     <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${
-      error ? "bg-red-100 text-red-700" :
-      done ? "bg-green-100 text-green-700" :
-      active ? "bg-blue-100 text-blue-700" :
-      "bg-zinc-100 text-zinc-400"
+      error ? "bg-red-100 text-red-700 dark:text-red-400" :
+      done ? "bg-green-100 text-green-700 dark:text-green-400" :
+      active ? "bg-blue-100 text-blue-700 dark:text-blue-400" :
+      "bg-zinc-100 dark:bg-zinc-800 text-zinc-400"
     }`}>
       {active && <Loader2 className="h-3 w-3 animate-spin" />}
       {error && <XCircle className="h-3 w-3" />}

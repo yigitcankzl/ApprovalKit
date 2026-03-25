@@ -76,7 +76,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         {collapsed ? (
           <button
             onClick={onToggle}
-            className="flex items-center justify-center w-full h-full text-zinc-500 hover:bg-zinc-50 dark:bg-zinc-800/50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:text-zinc-100 transition-colors"
+            className="flex items-center justify-center w-full h-full text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:bg-zinc-800/50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:text-zinc-100 transition-colors"
           >
             <Menu className="h-5 w-5" aria-hidden="true" />
             <span className="sr-only">Expand sidebar</span>
@@ -154,7 +154,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               )}
               {!collapsed && (
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-zinc-700 truncate">{user.name}</p>
+                  <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600 truncate">{user.name}</p>
                   <p className="text-xs text-zinc-400 truncate">{user.email}</p>
                 </div>
               )}
@@ -163,7 +163,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               href="/auth/logout"
               title={collapsed ? "Logout" : undefined}
               className={cn(
-                "flex items-center text-xs text-zinc-500 hover:text-zinc-700 transition-colors",
+                "flex items-center text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:text-zinc-300 dark:text-zinc-600 transition-colors",
                 collapsed ? "mt-2 justify-center" : "mt-2 gap-1.5"
               )}
             >
@@ -176,7 +176,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             href="/auth/login"
             title={collapsed ? "Login" : undefined}
             className={cn(
-              "flex items-center justify-center rounded-lg bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-sm font-medium py-2 hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors",
+              "flex items-center justify-center rounded-lg bg-zinc-900 dark:bg-zinc-100 dark:bg-zinc-800 text-white dark:text-zinc-900 dark:text-zinc-100 text-sm font-medium py-2 hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors",
               collapsed ? "w-full" : "gap-2 w-full"
             )}
           >

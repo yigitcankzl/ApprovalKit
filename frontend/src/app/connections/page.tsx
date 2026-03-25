@@ -124,14 +124,14 @@ function ConnectionsContent() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-zinc-900">Connections</h1>
-        <p className="text-zinc-500 mt-1">
+        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Connections</h1>
+        <p className="text-zinc-500 dark:text-zinc-400 mt-1">
           Connect services via Auth0 Token Vault — no API keys stored, ever.
         </p>
       </div>
 
       {successSlug && (
-        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700 flex justify-between items-center">
+        <div className="mb-4 p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg text-sm text-green-700 dark:text-green-400 flex justify-between items-center">
           <span className="flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4" />
             <strong>{successSlug}</strong> connected successfully via Auth0 Token Vault.
@@ -141,7 +141,7 @@ function ConnectionsContent() {
       )}
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex justify-between items-center">
+        <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg text-sm text-red-700 dark:text-red-400 flex justify-between items-center">
           <span className="flex items-center gap-2"><AlertCircle className="h-4 w-4" />{error}</span>
           <button onClick={() => setError(null)}><X className="h-4 w-4" /></button>
         </div>
@@ -154,8 +154,8 @@ function ConnectionsContent() {
       ) : connections.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
-            <Link2 className="h-12 w-12 text-zinc-300 mx-auto mb-4" />
-            <p className="text-zinc-500 mb-4">No connections yet.</p>
+            <Link2 className="h-12 w-12 text-zinc-300 dark:text-zinc-600 mx-auto mb-4" />
+            <p className="text-zinc-500 dark:text-zinc-400 mb-4">No connections yet.</p>
             <Button onClick={() => router.push("/onboarding")}>Set Up Connections</Button>
           </CardContent>
         </Card>
@@ -170,25 +170,25 @@ function ConnectionsContent() {
             const isExpanded = expandedId === conn.id;
 
             return (
-              <div key={conn.id} className="border border-zinc-200 rounded-xl overflow-hidden hover:border-zinc-300 transition-colors">
+              <div key={conn.id} className="border border-zinc-200 dark:border-zinc-700 rounded-xl overflow-hidden hover:border-zinc-300 transition-colors">
                 {/* Header — click to expand */}
                 <div className="p-4 flex items-center justify-between">
                   <button className="flex items-center gap-4 flex-1 text-left" onClick={() => setExpandedId(isExpanded ? null : conn.id)}>
                     <ChevronRight className={`h-4 w-4 text-zinc-400 transition-transform ${isExpanded ? "rotate-90" : ""}`} />
-                    <div className="w-10 h-10 rounded-lg bg-zinc-100 flex items-center justify-center text-sm font-bold text-zinc-700 uppercase">
+                    <div className="w-10 h-10 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-sm font-bold text-zinc-700 dark:text-zinc-300 dark:text-zinc-600 uppercase">
                       {conn.service.slice(0, 2)}
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-zinc-900">{conn.name}</span>
-                        <code className="text-xs text-zinc-400 bg-zinc-50 px-1.5 py-0.5 rounded">{conn.slug}</code>
+                        <span className="font-medium text-zinc-900 dark:text-zinc-100">{conn.name}</span>
+                        <code className="text-xs text-zinc-400 bg-zinc-50 dark:bg-zinc-800/50 px-1.5 py-0.5 rounded">{conn.slug}</code>
                       </div>
-                      <div className="text-sm text-zinc-500 mt-0.5">
+                      <div className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
                         {conn.actions.join(", ")}
                       </div>
                       {conn.connected_user_name && (
                         <div className="text-xs text-zinc-400 mt-0.5">
-                          Connected as: <span className="font-medium text-zinc-600">{conn.connected_user_name}</span>
+                          Connected as: <span className="font-medium text-zinc-600 dark:text-zinc-400">{conn.connected_user_name}</span>
                         </div>
                       )}
                     </div>
@@ -203,7 +203,7 @@ function ConnectionsContent() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          className="text-red-500 hover:text-red-700 dark:text-red-400 hover:bg-red-50 dark:bg-red-950/30"
                           onClick={() => handleDisconnect(conn)}
                         >
                           <Unlink className="h-4 w-4 mr-1" /> Disconnect
@@ -224,7 +224,7 @@ function ConnectionsContent() {
                     ) : (
                       <div className="flex items-center gap-2">
                         <Badge variant="default">Setup required</Badge>
-                        <button onClick={() => setInfoPopup(conn.id)} className="text-zinc-400 hover:text-zinc-600">
+                        <button onClick={() => setInfoPopup(conn.id)} className="text-zinc-400 hover:text-zinc-600 dark:text-zinc-400">
                           <Info className="h-4 w-4" />
                         </button>
                       </div>
@@ -232,7 +232,7 @@ function ConnectionsContent() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="text-zinc-400 hover:text-red-600 hover:bg-red-50"
+                      className="text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:bg-red-950/30"
                       onClick={() => handleDelete(conn)}
                     >
                       <Trash2 className="h-4 w-4" />
@@ -242,13 +242,13 @@ function ConnectionsContent() {
 
                 {/* Expanded details */}
                 {isExpanded && (
-                  <div className="px-4 pb-4 border-t border-zinc-100 bg-zinc-50/50 space-y-4 pt-3">
+                  <div className="px-4 pb-4 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50/50 space-y-4 pt-3">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
                         <p className="text-xs text-zinc-400 uppercase tracking-wide mb-1">OAuth Scopes</p>
                         <div className="flex gap-1 flex-wrap">
                           {(consentSvc?.oauth_scopes || "openid profile email").split(" ").map((scope: string) => (
-                            <span key={scope} className="text-xs bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded font-mono">{scope}</span>
+                            <span key={scope} className="text-xs bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 px-2 py-0.5 rounded font-mono">{scope}</span>
                           ))}
                         </div>
                       </div>
@@ -262,7 +262,7 @@ function ConnectionsContent() {
                       </div>
                       <div>
                         <p className="text-xs text-zinc-400 uppercase tracking-wide mb-1">Status</p>
-                        <p className="text-sm text-zinc-600">
+                        <p className="text-sm text-zinc-600 dark:text-zinc-400">
                           {conn.connected_via === "auth0" ? "Connected via Token Vault" : configured ? "Auth0 connection ready" : "Auth0 social connection not configured"}
                         </p>
                       </div>
@@ -274,9 +274,9 @@ function ConnectionsContent() {
                         <p className="text-xs text-zinc-400 uppercase tracking-wide mb-2">Approval Rules</p>
                         <div className="space-y-1">
                           {consentSvc.rules.map((r: any) => (
-                            <div key={r.id} className="flex items-center gap-3 text-xs py-1 px-2 bg-white rounded border border-zinc-200">
-                              <span className="font-medium text-zinc-700 flex-1">{r.name}</span>
-                              <code className="bg-zinc-100 px-1.5 py-0.5 rounded">{r.action}</code>
+                            <div key={r.id} className="flex items-center gap-3 text-xs py-1 px-2 bg-white dark:bg-zinc-900 rounded border border-zinc-200 dark:border-zinc-700">
+                              <span className="font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600 flex-1">{r.name}</span>
+                              <code className="bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">{r.action}</code>
                               <Badge variant="info" className="text-xs">{r.model}</Badge>
                               {r.step_up_model && <Badge variant="warning" className="text-xs">Step-up</Badge>}
                               <span className="text-zinc-400">{r.approver_count} approver{r.approver_count > 1 ? "s" : ""}</span>
@@ -292,8 +292,8 @@ function ConnectionsContent() {
                         <p className="text-xs text-zinc-400 uppercase tracking-wide mb-2">Recent Agent Access</p>
                         <div className="space-y-1">
                           {consentSvc.recent_access.slice(0, 5).map((j: any) => (
-                            <div key={j.job_id} className="flex items-center gap-3 text-xs py-1 px-2 bg-white rounded border border-zinc-200">
-                              <code className="text-zinc-500 font-mono">{j.agent_user_id}</code>
+                            <div key={j.job_id} className="flex items-center gap-3 text-xs py-1 px-2 bg-white dark:bg-zinc-900 rounded border border-zinc-200 dark:border-zinc-700">
+                              <code className="text-zinc-500 dark:text-zinc-400 font-mono">{j.agent_user_id}</code>
                               <code className="bg-zinc-800 text-zinc-100 px-1.5 py-0.5 rounded">{j.action}</code>
                               <Badge variant={j.state === "approved" ? "success" : j.state === "rejected" ? "danger" : "default"} className="text-xs">{j.state}</Badge>
                               <span className="text-zinc-400 ml-auto">{new Date(j.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
@@ -310,8 +310,8 @@ function ConnectionsContent() {
         </div>
       )}
 
-      <div className="mt-8 p-5 bg-zinc-50 rounded-lg border border-zinc-200">
-        <p className="text-xs font-semibold text-zinc-700 mb-3 uppercase tracking-wide">How Auth0 Token Vault works</p>
+      <div className="mt-8 p-5 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-zinc-200 dark:border-zinc-700">
+        <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 dark:text-zinc-600 mb-3 uppercase tracking-wide">How Auth0 Token Vault works</p>
         <div className="flex items-center gap-2 flex-wrap text-xs">
           {[
             { label: "AI Agent", sub: null, highlight: false },
@@ -321,8 +321,8 @@ function ConnectionsContent() {
             { label: "Action executed", sub: null, highlight: false },
           ].map((step, i, arr) => (
             <div key={step.label} className="flex items-center gap-2">
-              <div className={`flex items-center gap-1.5 rounded-lg px-3 py-2 border ${step.highlight ? "bg-blue-50 border-blue-200" : "bg-white border-zinc-200"}`}>
-                <span className={`font-medium ${step.highlight ? "text-blue-700" : "text-zinc-700"}`}>{step.label}</span>
+              <div className={`flex items-center gap-1.5 rounded-lg px-3 py-2 border ${step.highlight ? "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800" : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700"}`}>
+                <span className={`font-medium ${step.highlight ? "text-blue-700 dark:text-blue-400" : "text-zinc-700 dark:text-zinc-300 dark:text-zinc-600"}`}>{step.label}</span>
                 {step.sub && <span className={`${step.highlight ? "text-blue-400" : "text-zinc-400"}`}>({step.sub})</span>}
               </div>
               {i < arr.length - 1 && <span className="text-zinc-400">→</span>}
@@ -339,15 +339,15 @@ function ConnectionsContent() {
         const label = conn ? (SERVICE_LABEL[conn.service.toLowerCase()] || conn.service) : "";
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setInfoPopup(null)}>
-            <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
+            <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-xl p-6 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-zinc-900">Configure {label}</h3>
-                <button onClick={() => setInfoPopup(null)} className="text-zinc-400 hover:text-zinc-600"><X className="h-4 w-4" /></button>
+                <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">Configure {label}</h3>
+                <button onClick={() => setInfoPopup(null)} className="text-zinc-400 hover:text-zinc-600 dark:text-zinc-400"><X className="h-4 w-4" /></button>
               </div>
-              <p className="text-sm text-zinc-600 mb-4">
+              <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
                 <strong>{label}</strong> requires a Social Connection in your Auth0 tenant. Once configured, the OAuth connect button will appear here.
               </p>
-              <ol className="text-sm text-zinc-600 space-y-2 mb-5">
+              <ol className="text-sm text-zinc-600 dark:text-zinc-400 space-y-2 mb-5">
                 <li className="flex gap-2"><span className="font-bold text-zinc-400">1.</span> Open Auth0 Dashboard</li>
                 <li className="flex gap-2"><span className="font-bold text-zinc-400">2.</span> Go to <em>Authentication → Social</em></li>
                 <li className="flex gap-2"><span className="font-bold text-zinc-400">3.</span> Add <strong>{label}</strong> connection</li>

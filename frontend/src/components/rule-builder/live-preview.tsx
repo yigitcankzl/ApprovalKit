@@ -64,10 +64,10 @@ export function LivePreview(props: LivePreviewProps) {
         <CardTitle className="text-base">Live Preview</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-3 text-sm text-zinc-600">
+        <div className="space-y-3 text-sm text-zinc-600 dark:text-zinc-400">
           <p>
             <strong>When</strong>{" "}
-            <code className="bg-zinc-100 px-1.5 py-0.5 rounded text-xs">
+            <code className="bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-xs">
               {connection || "service"}:{action || "action"}
             </code>{" "}
             arrives
@@ -78,7 +78,7 @@ export function LivePreview(props: LivePreviewProps) {
                 {conditions.map((c, i) => (
                   <span key={i}>
                     {i > 0 && " AND "}
-                    <code className="bg-zinc-100 px-1.5 py-0.5 rounded text-xs">
+                    <code className="bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-xs">
                       {conditionToText(c)}
                     </code>
                   </span>
@@ -88,7 +88,7 @@ export function LivePreview(props: LivePreviewProps) {
             :
           </p>
 
-          <div className="pl-4 border-l-2 border-zinc-200 space-y-2">
+          <div className="pl-4 border-l-2 border-zinc-200 dark:border-zinc-700 space-y-2">
             <p>{modelDescriptions[model](approverCount, kValue)}</p>
             <p>
               Wait <strong>{timeoutSeconds}s</strong> for response.
@@ -113,7 +113,7 @@ export function LivePreview(props: LivePreviewProps) {
           </div>
 
           {contextTemplate && (
-            <div className="mt-3 p-2 bg-zinc-50 rounded text-xs">
+            <div className="mt-3 p-2 bg-zinc-50 dark:bg-zinc-800/50 rounded text-xs">
               <strong>Binding message:</strong> {contextTemplate}
             </div>
           )}

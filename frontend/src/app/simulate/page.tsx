@@ -57,8 +57,8 @@ export default function SimulatePage() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-zinc-900">Simulation Mode</h1>
-        <p className="text-zinc-500 mt-1">
+        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Simulation Mode</h1>
+        <p className="text-zinc-500 dark:text-zinc-400 mt-1">
           Test which rule matches without sending real CIBA notifications
         </p>
       </div>
@@ -71,7 +71,7 @@ export default function SimulatePage() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium text-zinc-700">Connection</label>
+                <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Connection</label>
                 <Input
                   value={connection}
                   onChange={(e) => setConnection(e.target.value)}
@@ -80,7 +80,7 @@ export default function SimulatePage() {
                 />
               </div>
               <div>
-                <label className="text-sm font-medium text-zinc-700">Action</label>
+                <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Action</label>
                 <Input
                   value={action}
                   onChange={(e) => setAction(e.target.value)}
@@ -90,12 +90,12 @@ export default function SimulatePage() {
               </div>
             </div>
             <div>
-              <label className="text-sm font-medium text-zinc-700">Params (JSON)</label>
+              <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Params (JSON)</label>
               <textarea
                 value={paramsText}
                 onChange={(e) => setParamsText(e.target.value)}
                 rows={6}
-                className="mt-1 flex w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-mono focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+                className="mt-1 flex w-full rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-3 py-2 text-sm font-mono focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
               />
             </div>
             <Button onClick={handleSimulate} disabled={running} className="w-full">
@@ -125,13 +125,13 @@ export default function SimulatePage() {
                 <Badge variant="success" className="text-base px-4 py-1">
                   Auto-Approve
                 </Badge>
-                <p className="text-zinc-500 mt-3">
+                <p className="text-zinc-500 dark:text-zinc-400 mt-3">
                   {result.message || "No matching rule — action would proceed immediately"}
                 </p>
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="p-3 bg-blue-50 rounded-lg">
+                <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg">
                   <p className="text-sm font-medium text-blue-800">
                     Matched: {result.rule_name}
                   </p>
@@ -150,14 +150,14 @@ export default function SimulatePage() {
 
                 {result.approvers && result.approvers.length > 0 && (
                   <div>
-                    <p className="text-sm font-medium text-zinc-700 mb-2">
+                    <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600 mb-2">
                       CIBA Recipients:
                     </p>
                     <div className="space-y-2">
                       {result.approvers.map((a) => (
                         <div
                           key={a.id}
-                          className="flex items-center justify-between p-2 bg-zinc-50 rounded"
+                          className="flex items-center justify-between p-2 bg-zinc-50 dark:bg-zinc-800/50 rounded"
                         >
                           <span className="text-sm">{a.name}</span>
                           <Badge variant="info">
@@ -170,14 +170,14 @@ export default function SimulatePage() {
                 )}
 
                 {result.binding_message && (
-                  <div className="p-3 bg-zinc-50 rounded-lg">
-                    <p className="text-xs font-medium text-zinc-500">Binding Message (phone):</p>
+                  <div className="p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
+                    <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Binding Message (phone):</p>
                     <p className="text-sm mt-1">{result.binding_message}</p>
                   </div>
                 )}
 
-                <div className="p-3 bg-zinc-50 rounded-lg">
-                  <p className="text-xs font-medium text-zinc-500">On Timeout:</p>
+                <div className="p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
+                  <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">On Timeout:</p>
                   <p className="text-sm mt-1 capitalize">
                     {result.on_timeout}
                     {result.escalation && ` → ${result.escalation}`}

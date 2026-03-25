@@ -93,7 +93,7 @@ export default function RuleDetailPage() {
   return (
     <div>
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+        <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg text-sm text-red-700 dark:text-red-400">
           {error}
         </div>
       )}
@@ -104,12 +104,12 @@ export default function RuleDetailPage() {
           </Button>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-zinc-900">{rule.name}</h1>
+              <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{rule.name}</h1>
               <Badge variant={rule.is_active ? "success" : "default"}>
                 {rule.is_active ? "Active" : "Inactive"}
               </Badge>
             </div>
-            <p className="text-zinc-500 mt-1">
+            <p className="text-zinc-500 dark:text-zinc-400 mt-1">
               {rule.connection}:{rule.action} — {modelLabels[rule.model]}
             </p>
           </div>
@@ -128,7 +128,7 @@ export default function RuleDetailPage() {
           <Button
             variant="outline"
             size="sm"
-            className={confirmDelete ? "border-red-500 text-red-600 hover:bg-red-50" : ""}
+            className={confirmDelete ? "border-red-500 text-red-600 hover:bg-red-50 dark:bg-red-950/30" : ""}
             onClick={handleDelete}
             disabled={deleting}
           >
@@ -161,34 +161,34 @@ export default function RuleDetailPage() {
             <CardContent>
               <dl className="space-y-3 text-sm">
                 <div className="flex justify-between">
-                  <dt className="text-zinc-500">Model</dt>
+                  <dt className="text-zinc-500 dark:text-zinc-400">Model</dt>
                   <dd className="font-medium">{modelLabels[rule.model]}</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-zinc-500">Timeout</dt>
+                  <dt className="text-zinc-500 dark:text-zinc-400">Timeout</dt>
                   <dd className="font-medium">{rule.timeout_seconds}s</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-zinc-500">On Timeout</dt>
+                  <dt className="text-zinc-500 dark:text-zinc-400">On Timeout</dt>
                   <dd className="font-medium capitalize">{rule.on_timeout}</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-zinc-500">Partial Approval</dt>
+                  <dt className="text-zinc-500 dark:text-zinc-400">Partial Approval</dt>
                   <dd className="font-medium">{rule.partial_approval ? "Enabled" : "Disabled"}</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-zinc-500">Priority</dt>
+                  <dt className="text-zinc-500 dark:text-zinc-400">Priority</dt>
                   <dd className="font-medium">{rule.priority}</dd>
                 </div>
                 {rule.cooldown_max && (
                   <div className="flex justify-between">
-                    <dt className="text-zinc-500">Cooldown</dt>
+                    <dt className="text-zinc-500 dark:text-zinc-400">Cooldown</dt>
                     <dd className="font-medium">{rule.cooldown_max}/hour</dd>
                   </div>
                 )}
                 {rule.blackout_start && (
                   <div className="flex justify-between">
-                    <dt className="text-zinc-500">Blackout</dt>
+                    <dt className="text-zinc-500 dark:text-zinc-400">Blackout</dt>
                     <dd className="font-medium">{rule.blackout_start} - {rule.blackout_end}</dd>
                   </div>
                 )}
@@ -202,13 +202,13 @@ export default function RuleDetailPage() {
             </CardHeader>
             <CardContent>
               {rule.conditions.length === 0 ? (
-                <p className="text-sm text-zinc-500">No conditions — matches all requests</p>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">No conditions — matches all requests</p>
               ) : (
                 <div className="space-y-2">
                   {rule.conditions.map((c, i) => (
                     <div key={i} className="flex items-center gap-2 text-sm">
                       {i > 0 && <Badge variant="default">AND</Badge>}
-                      <code className="bg-zinc-100 px-2 py-1 rounded text-xs">
+                      <code className="bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded text-xs">
                         {c.field} {c.operator} {String(c.value)}
                       </code>
                     </div>
@@ -216,8 +216,8 @@ export default function RuleDetailPage() {
                 </div>
               )}
               {rule.context_template && (
-                <div className="mt-4 p-3 bg-zinc-50 rounded-lg">
-                  <p className="text-xs font-medium text-zinc-500">Binding Message Template</p>
+                <div className="mt-4 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
+                  <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Binding Message Template</p>
                   <p className="text-sm mt-1">{rule.context_template}</p>
                 </div>
               )}

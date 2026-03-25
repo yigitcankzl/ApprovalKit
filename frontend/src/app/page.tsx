@@ -43,10 +43,10 @@ const steps = [
 ];
 
 function Arrow() {
-  return <span className="text-zinc-300 text-lg font-light select-none">→</span>;
+  return <span className="text-zinc-300 dark:text-zinc-600 text-lg font-light select-none">→</span>;
 }
 function ArrowLeft() {
-  return <span className="text-zinc-300 text-lg font-light select-none">←</span>;
+  return <span className="text-zinc-300 dark:text-zinc-600 text-lg font-light select-none">←</span>;
 }
 
 export default function WelcomePage() {
@@ -55,18 +55,18 @@ export default function WelcomePage() {
 
       {/* Hero */}
       <section className="pt-16 pb-20 text-center max-w-3xl mx-auto px-4">
-        <div className="inline-flex items-center gap-2 bg-zinc-100 text-zinc-600 text-xs font-medium px-3 py-1.5 rounded-full mb-6">
+        <div className="inline-flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-xs font-medium px-3 py-1.5 rounded-full mb-6">
           <Shield className="h-3.5 w-3.5" />
           Auth0 Token Vault · CIBA · FGA
         </div>
 
-        <h1 className="text-5xl font-bold text-zinc-900 leading-tight tracking-tight mb-6">
+        <h1 className="text-5xl font-bold text-zinc-900 dark:text-zinc-100 leading-tight tracking-tight mb-6">
           Human approval middleware
           <br />
           <span className="text-zinc-400">for AI agents</span>
         </h1>
 
-        <p className="text-lg text-zinc-500 mb-10 leading-relaxed">
+        <p className="text-lg text-zinc-500 dark:text-zinc-400 mb-10 leading-relaxed">
           One decorator. Any agent. Any action.
           <br />
           Your agent asks — a human approves — the platform executes.
@@ -84,7 +84,7 @@ export default function WelcomePage() {
           </Link>
           <Link
             href="/docs"
-            className="inline-flex items-center gap-2 border border-zinc-200 text-zinc-700 px-6 py-3 rounded-lg text-sm font-medium hover:bg-zinc-50 transition-colors"
+            className="inline-flex items-center gap-2 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 dark:text-zinc-600 px-6 py-3 rounded-lg text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800 dark:bg-zinc-800/50 transition-colors"
           >
             <FileText className="h-4 w-4" />
             Read the Docs
@@ -99,9 +99,9 @@ export default function WelcomePage() {
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
           {steps.map((s) => (
-            <div key={s.n} className="bg-white border border-zinc-200 rounded-xl p-5">
+            <div key={s.n} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl p-5">
               <span className="text-3xl font-bold text-zinc-100">{s.n}</span>
-              <p className="text-sm font-semibold text-zinc-800 mt-2 mb-3">{s.title}</p>
+              <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mt-2 mb-3">{s.title}</p>
               <code className="text-xs bg-zinc-950 text-green-400 px-3 py-1.5 rounded block font-mono">
                 {s.code}
               </code>
@@ -110,18 +110,18 @@ export default function WelcomePage() {
         </div>
 
         {/* Architecture diagram */}
-        <div className="bg-white border border-zinc-200 rounded-2xl p-8">
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-2xl p-8">
           <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest text-center mb-8">Architecture</p>
           <div className="flex flex-col gap-4">
             {/* Row 1 */}
             <div className="flex items-center justify-center gap-2 flex-wrap">
-              <div className="flex items-center gap-1.5 border border-zinc-200 rounded-lg px-4 py-2.5 bg-zinc-50">
-                <span className="text-sm font-medium text-zinc-700">AI Agent</span>
+              <div className="flex items-center gap-1.5 border border-zinc-200 dark:border-zinc-700 rounded-lg px-4 py-2.5 bg-zinc-50 dark:bg-zinc-800/50">
+                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">AI Agent</span>
                 <span className="text-xs text-zinc-400">(Claude, GPT-4)</span>
               </div>
               <Arrow />
-              <div className="flex items-center gap-1.5 border border-zinc-200 rounded-lg px-4 py-2.5 bg-zinc-50">
-                <span className="text-sm font-medium text-zinc-700">ApprovalKit SDK</span>
+              <div className="flex items-center gap-1.5 border border-zinc-200 dark:border-zinc-700 rounded-lg px-4 py-2.5 bg-zinc-50 dark:bg-zinc-800/50">
+                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">ApprovalKit SDK</span>
               </div>
               <Arrow />
               <div className="flex items-center gap-1.5 border border-zinc-900 rounded-lg px-4 py-2.5 bg-zinc-900">
@@ -129,8 +129,8 @@ export default function WelcomePage() {
                 <span className="text-xs text-zinc-400">(Guardian)</span>
               </div>
               <Arrow />
-              <div className="flex items-center gap-1.5 border border-zinc-200 rounded-lg px-4 py-2.5 bg-zinc-50">
-                <span className="text-sm font-medium text-zinc-700">Human approves</span>
+              <div className="flex items-center gap-1.5 border border-zinc-200 dark:border-zinc-700 rounded-lg px-4 py-2.5 bg-zinc-50 dark:bg-zinc-800/50">
+                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Human approves</span>
               </div>
             </div>
             {/* Connector */}
@@ -143,12 +143,12 @@ export default function WelcomePage() {
             </div>
             {/* Row 2 */}
             <div className="flex items-center justify-end gap-2 flex-wrap">
-              <div className="flex items-center gap-1.5 border border-zinc-200 rounded-lg px-4 py-2.5 bg-zinc-50">
-                <span className="text-sm font-medium text-zinc-700">GitHub / Stripe API</span>
+              <div className="flex items-center gap-1.5 border border-zinc-200 dark:border-zinc-700 rounded-lg px-4 py-2.5 bg-zinc-50 dark:bg-zinc-800/50">
+                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">GitHub / Stripe API</span>
               </div>
               <ArrowLeft />
-              <div className="flex items-center gap-1.5 border-2 border-blue-400 rounded-lg px-4 py-2.5 bg-blue-50">
-                <span className="text-sm font-medium text-blue-700">Auth0 Token Vault</span>
+              <div className="flex items-center gap-1.5 border-2 border-blue-400 rounded-lg px-4 py-2.5 bg-blue-50 dark:bg-blue-950/30">
+                <span className="text-sm font-medium text-blue-700 dark:text-blue-400">Auth0 Token Vault</span>
                 <span className="text-xs text-blue-400">retrieves token</span>
               </div>
             </div>
@@ -161,12 +161,12 @@ export default function WelcomePage() {
 
       {/* Code snippet */}
       <section className="max-w-2xl mx-auto px-4 mb-20">
-        <div className="rounded-xl overflow-hidden border border-zinc-200 shadow-sm">
+        <div className="rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-700 shadow-sm">
           <div className="bg-zinc-900 px-4 py-2 flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full bg-red-500/70" />
+            <div className="h-3 w-3 rounded-full bg-red-50 dark:bg-red-950/300/70" />
             <div className="h-3 w-3 rounded-full bg-yellow-500/70" />
-            <div className="h-3 w-3 rounded-full bg-green-500/70" />
-            <span className="ml-2 text-xs text-zinc-500">shopping_bot.py</span>
+            <div className="h-3 w-3 rounded-full bg-green-50 dark:bg-green-950/300/70" />
+            <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">shopping_bot.py</span>
           </div>
           <pre className="bg-zinc-950 text-zinc-100 text-sm font-mono px-6 py-5 overflow-x-auto leading-relaxed">{`from approvalkit import ApprovalKit, ApprovalDenied
 
@@ -196,10 +196,10 @@ charge_customer(349, "alice@example.com")
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {features.map((f) => (
-            <div key={f.title} className="bg-white border border-zinc-200 rounded-xl p-5 hover:border-zinc-300 transition-colors">
-              <f.icon className="h-5 w-5 text-zinc-700 mb-3" />
-              <p className="text-sm font-semibold text-zinc-800 mb-1">{f.title}</p>
-              <p className="text-xs text-zinc-500 leading-relaxed">{f.desc}</p>
+            <div key={f.title} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl p-5 hover:border-zinc-300 transition-colors">
+              <f.icon className="h-5 w-5 text-zinc-700 dark:text-zinc-300 dark:text-zinc-600 mb-3" />
+              <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-1">{f.title}</p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">{f.desc}</p>
             </div>
           ))}
         </div>
@@ -215,14 +215,14 @@ charge_customer(349, "alice@example.com")
           <div className="flex items-center justify-center gap-3 flex-wrap">
             <Link
               href="/auth/login?returnTo=/dashboard"
-              className="inline-flex items-center gap-2 bg-white text-zinc-900 px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-zinc-100 transition-colors"
+              className="inline-flex items-center gap-2 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-zinc-100 dark:bg-zinc-800 transition-colors"
             >
               Get Started
               <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
               href="/docs"
-              className="inline-flex items-center gap-2 border border-zinc-700 text-zinc-300 px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors"
+              className="inline-flex items-center gap-2 border border-zinc-700 text-zinc-300 dark:text-zinc-600 px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors"
             >
               <FileText className="h-4 w-4" />
               Documentation
