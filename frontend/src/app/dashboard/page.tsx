@@ -34,6 +34,7 @@ const EVENT_COLORS: Record<string, string> = {
   blocked:   "bg-orange-500",
   timeout:   "bg-yellow-500",
   ciba_sent: "bg-purple-500",
+  step_up_triggered: "bg-yellow-500",
 };
 
 export default function DashboardPage() {

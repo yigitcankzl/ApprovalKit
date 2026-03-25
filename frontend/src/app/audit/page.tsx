@@ -15,6 +15,7 @@ const eventBadge: Record<string, "success" | "danger" | "warning" | "info" | "de
   timeout: "warning",
   escalated: "warning",
   scope_creep: "danger",
+  step_up: "warning",
   requested: "info",
   ciba_sent: "info",
   partial_approved: "success",
@@ -58,6 +59,7 @@ export default function AuditPage() {
           <option value="scope_creep">Scope Creep</option>
           <option value="pre_approved">Pre-approved</option>
           <option value="partial_approved">Partial</option>
+          <option value="step_up">Step-up</option>
         </Select>
       </div>
 

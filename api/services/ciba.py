@@ -10,8 +10,8 @@ settings = get_settings()
 _CIBA_MSG_ALLOWED = re.compile(r"[^A-Za-z0-9 +\-_.,:#]")
 
 
-def _sanitize_binding_message(msg: str, max_len: int = 256) -> str:
-    """Strip characters not allowed by Auth0 CIBA binding_message."""
+def _sanitize_binding_message(msg: str, max_len: int = 64) -> str:
+    """Strip characters not allowed by Auth0 CIBA binding_message (max 64 chars per spec)."""
     sanitized = _CIBA_MSG_ALLOWED.sub("", msg)
     return sanitized[:max_len]
 
