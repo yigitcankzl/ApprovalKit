@@ -109,4 +109,12 @@ export const api = {
   deleteMyAgent: (id: string) => fetchAPI(`/api/v1/agents/${id}`, { method: "DELETE" }),
   addScenarioToAgent: (agentId: string, data: { title: string; connection: string; action: string; params: Record<string, unknown> }) =>
     fetchAPI(`/api/v1/agents/${agentId}/scenarios`, { method: "POST", body: JSON.stringify(data) }),
+  updateScenario: (agentId: string, scenarioId: string, data: { title: string; connection: string; action: string; params: Record<string, unknown> }) =>
+    fetchAPI(`/api/v1/agents/${agentId}/scenarios/${scenarioId}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteScenario: (agentId: string, scenarioId: string) =>
+    fetchAPI(`/api/v1/agents/${agentId}/scenarios/${scenarioId}`, { method: "DELETE" }),
+  regenerateAgentKey: (agentId: string) =>
+    fetchAPI(`/api/v1/agents/${agentId}/regenerate-key`, { method: "POST" }),
+  revokeAgent: (agentId: string) =>
+    fetchAPI(`/api/v1/agents/${agentId}/revoke`, { method: "POST" }),
 };

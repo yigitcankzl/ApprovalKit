@@ -144,6 +144,42 @@ async def add_scenario(agent_id: str, body: ScenarioIn, db: AsyncSession = Depen
     return {"id": str(scenario.id), "title": scenario.title}
 
 
+@router.put("/{agent_id}/scenarios/{scenario_id}")
+async def update_scenario(agent_id: str, scenario_id: str, body: ScenarioIn, db: AsyncSession = Depends(get_db)):
+    """Update an existing scenario on an agent."""
+    result = await db.execute(
+        select(AgentScenario).where(
+            AgentScenario.id == uuid.UUID(scenario_id),
+            AgentScenario.agent_id == uuid.UUID(agent_id),
+        )
+    )
+    scenario = result.scalar_one_or_none()
+    if not scenario:
+        raise HTTPException(status_code=404, detail="Scenario not found")
+    scenario.title = body.title
+    scenario.connection = body.connection
+    scenario.action = body.action
+    scenario.params = body.params
+    await db.commit()
+    return {"id": str(scenario.id), "title": scenario.title}
+
+
+@router.delete("/{agent_id}/scenarios/{scenario_id}", status_code=204)
+async def delete_scenario(agent_id: str, scenario_id: str, db: AsyncSession = Depends(get_db)):
+    """Delete a scenario from an agent."""
+    result = await db.execute(
+        select(AgentScenario).where(
+            AgentScenario.id == uuid.UUID(scenario_id),
+            AgentScenario.agent_id == uuid.UUID(agent_id),
+        )
+    )
+    scenario = result.scalar_one_or_none()
+    if not scenario:
+        raise HTTPException(status_code=404, detail="Scenario not found")
+    await db.delete(scenario)
+    await db.commit()
+
+
 @router.delete("/{agent_id}", status_code=204)
 async def delete_agent(agent_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
