@@ -49,6 +49,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
   return (
     <aside
+      role="navigation"
+      aria-label="Main navigation"
       className={cn(
         "fixed left-0 top-0 z-40 h-screen border-r border-zinc-200 bg-white transition-all duration-200",
         collapsed ? "w-16" : "w-64"
@@ -61,7 +63,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             onClick={onToggle}
             className="flex items-center justify-center w-full h-full text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 transition-colors"
           >
-            <Menu className="h-5 w-5" />
+            <Menu className="h-5 w-5" aria-hidden="true" />
+            <span className="sr-only">Expand sidebar</span>
           </button>
         ) : (
           <>
@@ -76,7 +79,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               onClick={onToggle}
               className="flex items-center justify-center h-full px-4 text-zinc-400 hover:bg-zinc-50 hover:text-zinc-900 transition-colors"
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+              <span className="sr-only">Collapse sidebar</span>
             </button>
           </>
         )}
@@ -116,7 +120,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           <div className={cn("rounded-lg bg-zinc-50", collapsed ? "p-2 flex flex-col items-center" : "p-3")}>
             <div className={cn("flex items-center", collapsed ? "justify-center" : "gap-2")}>
               {user.picture && (
-                <img src={user.picture} alt="" className="h-7 w-7 rounded-full shrink-0" />
+                <img src={user.picture} alt={`${user.name || "User"} avatar`} className="h-7 w-7 rounded-full shrink-0" />
               )}
               {!collapsed && (
                 <div className="flex-1 min-w-0">
