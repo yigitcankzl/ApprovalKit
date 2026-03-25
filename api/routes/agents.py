@@ -7,6 +7,7 @@ POST /api/v1/agents        — create agent + optional scenarios
 DELETE /api/v1/agents/{id} — delete agent and its scenarios
 POST /api/v1/agents/{id}/scenarios — add a scenario to an existing agent
 """
+import secrets
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -34,6 +35,7 @@ class AgentIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     description: str | None = None
     icon: str = "bot"
+    allowed_connections: list[str] | None = None
     scenarios: list[ScenarioIn] = Field(default_factory=list)
 
 
@@ -49,12 +51,16 @@ async def _get_workspace(db: AsyncSession) -> Workspace:
     return ws
 
 
-def _agent_to_dict(agent: RegisteredAgent) -> dict:
-    return {
+def _agent_to_dict(agent: RegisteredAgent, include_key: bool = False) -> dict:
+    d = {
         "id": str(agent.id),
         "name": agent.name,
         "description": agent.description,
         "icon": agent.icon,
+        "is_active": agent.is_active if agent.is_active is not None else True,
+        "allowed_connections": agent.allowed_connections,
+        "has_api_key": bool(agent.api_key),
+        "api_key_preview": f"{agent.api_key[:8]}...{agent.api_key[-4:]}" if agent.api_key else None,
         "created_at": agent.created_at.isoformat(),
         "scenarios": [
             {
@@ -67,6 +73,9 @@ def _agent_to_dict(agent: RegisteredAgent) -> dict:
             for s in (agent.scenarios or [])
         ],
     }
+    if include_key and agent.api_key:
+        d["api_key"] = agent.api_key
+    return d
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -86,11 +95,15 @@ async def list_agents(db: AsyncSession = Depends(get_db)):
 @router.post("", status_code=201)
 async def create_agent(body: AgentIn, db: AsyncSession = Depends(get_db)):
     ws = await _get_workspace(db)
+    agent_api_key = f"ak_{secrets.token_urlsafe(32)}"
     agent = RegisteredAgent(
         workspace_id=ws.id,
         name=body.name,
         description=body.description,
         icon=body.icon,
+        api_key=agent_api_key,
+        allowed_connections=body.allowed_connections,
+        is_active=True,
     )
     db.add(agent)
     await db.flush()
@@ -107,7 +120,7 @@ async def create_agent(body: AgentIn, db: AsyncSession = Depends(get_db)):
 
     await db.commit()
     await db.refresh(agent)
-    return _agent_to_dict(agent)
+    return _agent_to_dict(agent, include_key=True)
 
 
 @router.post("/{agent_id}/scenarios", status_code=201)
@@ -141,3 +154,32 @@ async def delete_agent(agent_id: str, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Agent not found")
     await db.delete(agent)
     await db.commit()
+
+
+@router.post("/{agent_id}/regenerate-key")
+async def regenerate_api_key(agent_id: str, db: AsyncSession = Depends(get_db)):
+    """Generate a new API key for this agent. Old key stops working immediately."""
+    result = await db.execute(
+        select(RegisteredAgent).where(RegisteredAgent.id == uuid.UUID(agent_id))
+    )
+    agent = result.scalar_one_or_none()
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    agent.api_key = f"ak_{secrets.token_urlsafe(32)}"
+    await db.commit()
+    return {"api_key": agent.api_key}
+
+
+@router.post("/{agent_id}/revoke")
+async def revoke_agent(agent_id: str, db: AsyncSession = Depends(get_db)):
+    """Disable this agent's API key. Agent can no longer make requests."""
+    result = await db.execute(
+        select(RegisteredAgent).where(RegisteredAgent.id == uuid.UUID(agent_id))
+    )
+    agent = result.scalar_one_or_none()
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    agent.is_active = False
+    agent.api_key = None
+    await db.commit()
+    return {"status": "revoked", "agent": agent.name}

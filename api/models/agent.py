@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, DateTime, Text, ForeignKey
+from sqlalchemy import String, Boolean, DateTime, Text, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -16,6 +16,9 @@ class RegisteredAgent(Base):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     icon: Mapped[str] = mapped_column(String(50), nullable=False, default="bot")
+    api_key: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
+    allowed_connections: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    is_active: Mapped[bool | None] = mapped_column(nullable=True, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
     scenarios: Mapped[list["AgentScenario"]] = relationship(
