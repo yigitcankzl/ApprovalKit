@@ -1,36 +1,42 @@
 # ApprovalKit — Demo Agents
 
-Two fully working demo agents that show ApprovalKit in action.
+Six demo agents covering every use case from the gallery.
+Each agent maps directly to a real-world scenario with realistic
+approval rules.
 
 ## Setup
 
 ```bash
-# 1. Install the SDK
+# 1. Install SDK
 pip install ../sdk
 
 # 2. Set credentials (from scripts/setup.py output)
 export APPROVALKIT_URL=http://localhost:8000
-export APPROVALKIT_API_KEY=<your-api-key>
-export APPROVALKIT_HMAC_SECRET=<your-hmac-secret>
+export APPROVALKIT_API_KEY=<key>
+export APPROVALKIT_HMAC_SECRET=<secret>
 
-# 3. Create all connections, approvers, and rules in one shot
+# 3. Create all rules in one shot
 python demos/setup_rules.py
+
+# 4. Run any demo
+python demos/ecommerce_agent.py
+python demos/hr_agent.py
+python demos/devops_agent.py
+python demos/opensource_agent.py
+python demos/research_agent.py
+python demos/fintech_agent.py
+python demos/comms_agent.py
 ```
 
 ---
 
 ## Agent 1 — E-Commerce (`ecommerce_agent.py`)
 
-Simulates a shopping agent that charges customers, issues refunds,
-and posts to Slack.
-
-```bash
-python demos/ecommerce_agent.py
-```
+Stripe payments with tiered approvals + partial refund approval.
 
 | Scenario | Action | Rule |
 |----------|--------|------|
-| Small order $49 | `stripe-prod:charge` | No rule — auto-approved |
+| Small order $49 | `stripe-prod:charge` | Auto-approved |
 | Medium order $349 | `stripe-prod:charge` | `any_one` → sales_manager |
 | Large order $5,000 | `stripe-prod:charge` | `all_of_n` → sales_manager + CFO |
 | Refund $340 | `stripe-prod:refund` | `specific` → cs_manager (partial approval) |
@@ -40,16 +46,11 @@ python demos/ecommerce_agent.py
 
 ## Agent 2 — HR (`hr_agent.py`)
 
-Simulates an HR assistant that sends emails, manages Slack channels,
-and handles GitHub org membership during onboarding/offboarding.
-
-```bash
-python demos/hr_agent.py
-```
+Email, Slack, and GitHub org management across onboarding/offboarding.
 
 | Scenario | Action | Rule |
 |----------|--------|------|
-| Interview invite | `gmail-prod:send_email` | No rule — auto-approved |
+| Interview invite | `gmail-prod:send_email` | Auto-approved |
 | Offer letter | `gmail-prod:send_email` | `specific` → hr_manager |
 | Termination letter | `gmail-prod:send_email` | `all_of_n` → hr_manager + CEO |
 | Slack #hr | `slack-prod:send_message` | `specific` → hr_manager |
@@ -59,14 +60,72 @@ python demos/hr_agent.py
 
 ---
 
-## Files
+## Agent 3 — DevOps (`devops_agent.py`)
 
-```
-demos/
-├── setup_rules.py      # Creates all connections, approvers, rules via API
-├── ecommerce_agent.py  # E-commerce demo agent
-├── hr_agent.py         # HR demo agent
-└── README.md
-```
+GitHub deployments with environment-based rules and blackout windows.
 
-After running either demo, check the audit log at `http://localhost:3000/audit`.
+| Scenario | Action | Rule |
+|----------|--------|------|
+| Deploy to staging | `github-main:deploy` | Auto-approved |
+| Deploy to production | `github-main:deploy` | `any_one` → maintainer |
+| Production rollback | `github-main:rollback` | `specific` → lead only |
+
+---
+
+## Agent 4 — Open Source (`opensource_agent.py`)
+
+Multi-maintainer governance: k-of-n voting, npm publishing, treasury.
+
+| Scenario | Action | Rule |
+|----------|--------|------|
+| Small PR (42 lines) | `github-main:merge_pr` | Auto-merged |
+| Large PR (380 lines) | `github-main:merge_pr` | `k_of_n` k=2/3 → maintainers |
+| npm patch publish | `npm-registry:publish` | `specific` → lead_maintainer |
+| npm major publish | `npm-registry:publish` | `k_of_n` k=2/3 → maintainers |
+| Treasury payout $80 | `stripe-prod:payout` | `specific` → treasurer |
+| Treasury payout $500 | `stripe-prod:payout` | `all_of_n` → treasurer + lead |
+
+---
+
+## Agent 5 — Research Lab (`research_agent.py`)
+
+AWS compute provisioning, paper submission, and grant spending controls.
+
+| Scenario | Action | Rule |
+|----------|--------|------|
+| Compute $12 | `aws-lab:provision_compute` | Auto-approved |
+| Compute $65 | `aws-lab:provision_compute` | `any_one` → PI |
+| Compute $420 | `aws-lab:provision_compute` | `all_of_n` → PI + Finance |
+| Paper submission | `arxiv:submit_paper` | `all_of_n` → all co-authors |
+| Grant spend $1,200 | `stripe-prod:charge` | `all_of_n` → PI + Finance |
+
+---
+
+## Agent 6 — Financial Services (`fintech_agent.py`)
+
+Payment processing with a full compliance chain.
+
+| Scenario | Action | Rule |
+|----------|--------|------|
+| Payout $4,500 | `stripe-prod:payout` | `any_one` → manager |
+| Payout $85,000 | `stripe-prod:payout` | `sequential` → manager → compliance → CFO |
+| New vendor payment | `stripe-prod:vendor_payment` | `all_of_n` → procurement + legal |
+| Wire transfer $250k | `stripe-prod:wire_transfer` | `sequential` → ops → finance → CFO |
+
+---
+
+## Agent 7 — Communications (`comms_agent.py`)
+
+Email campaigns, Slack announcements, and press releases.
+
+| Scenario | Action | Rule |
+|----------|--------|------|
+| Internal email (8) | `gmail-prod:send_email` | Auto-approved |
+| Client newsletter (45) | `gmail-prod:send_email` | `any_one` → manager |
+| Mass email (12,500) | `gmail-prod:send_email` | `sequential` → marketing_lead → legal |
+| Slack #announcements | `slack-prod:send_message` | `specific` → CEO |
+| Press release | `gmail-prod:press_release` | `sequential` → PR Manager → Legal → CEO |
+
+---
+
+After any demo, check the audit log: `http://localhost:3000/audit`
