@@ -110,6 +110,18 @@ function RuleCard({ rule, approverMap }: { rule: Rule; approverMap: Record<strin
     else if (c.operator === "gt") sampleParams[c.field] = (c.value as number) + 1;
     else if (!sampleParams[c.field]) sampleParams[c.field] = c.value;
   }
+  // Add common fields based on action type
+  if (rule.action.includes("charge") || rule.action.includes("refund") || rule.action.includes("payout")) {
+    if (!sampleParams.customer) sampleParams.customer = "demo@example.com";
+    if (!sampleParams.description) sampleParams.description = "Test transaction";
+  }
+  if (rule.action.includes("deploy") || rule.action.includes("rollback")) {
+    if (!sampleParams.ref) sampleParams.ref = "main";
+    if (!sampleParams.environment) sampleParams.environment = "production";
+  }
+  if (rule.action.includes("email") || rule.action.includes("message")) {
+    if (!sampleParams.recipient) sampleParams.recipient = "team@example.com";
+  }
   if (Object.keys(sampleParams).length === 0) sampleParams["test"] = true;
 
   const handleCheck = async () => {
@@ -197,10 +209,10 @@ function RuleCard({ rule, approverMap }: { rule: Rule; approverMap: Record<strin
             </div>
           )}
 
-          {/* Sample Params */}
+          {/* Request Params */}
           <div>
-            <p className="text-xs text-zinc-400 uppercase tracking-wide mb-1">Sample Params</p>
-            <pre className="bg-zinc-900 text-zinc-100 text-xs rounded-lg p-3 overflow-x-auto">{JSON.stringify(sampleParams, null, 2)}</pre>
+            <p className="text-xs text-zinc-400 uppercase tracking-wide mb-1">Request Params</p>
+            <pre className="bg-zinc-900 text-zinc-100 text-xs rounded-lg p-3 overflow-x-auto">{JSON.stringify({ connection: rule.connection, action: rule.action, params: sampleParams }, null, 2)}</pre>
           </div>
 
           {/* Buttons */}
