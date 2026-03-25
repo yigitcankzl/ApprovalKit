@@ -21,6 +21,7 @@ import httpx
 from loguru import logger
 
 from api.config import get_settings
+from api.services.circuit_breaker import auth0_breaker
 
 settings = get_settings()
 
@@ -248,6 +249,9 @@ class TokenVaultService:
         Token Vault Token Exchange (RFC 8693).
         Exchanges an Auth0 refresh_token for a fresh external-provider access_token.
         """
+        if not auth0_breaker.allow_request():
+            logger.warning(f"Token Exchange skipped for {connection_name} — Auth0 circuit breaker OPEN")
+            return None
         try:
             async with httpx.AsyncClient(timeout=15) as c:
                 r = await c.post(
@@ -263,6 +267,7 @@ class TokenVaultService:
                     },
                 )
                 if r.status_code == 200:
+                    auth0_breaker.record_success()
                     data = r.json()
                     token = data.get("access_token")
                     logger.info(f"Token Vault: exchanged refresh token for {connection_name} access token (via Token Exchange)")
@@ -274,9 +279,12 @@ class TokenVaultService:
                     logger.warning(f"Token Vault Token Exchange: 403 Forbidden for {connection_name} — insufficient scope or Token Exchange not enabled.")
                     return None
                 else:
+                    if r.status_code >= 500:
+                        auth0_breaker.record_failure()
                     logger.warning(f"Token Vault Token Exchange failed ({r.status_code}): {r.text}")
                     return None
         except Exception as e:
+            auth0_breaker.record_failure()
             logger.warning(f"Token Vault Token Exchange error for {connection_name}: {e}")
             return None
 

@@ -4,6 +4,7 @@ import httpx
 from loguru import logger
 
 from api.config import get_settings
+from api.services.circuit_breaker import auth0_breaker
 
 settings = get_settings()
 
@@ -28,6 +29,9 @@ class CIBAService:
         if not domain:
             raise RuntimeError("AUTH0_DOMAIN is not configured — cannot send CIBA push notification")
 
+        if not auth0_breaker.allow_request():
+            raise RuntimeError(f"CIBA skipped — Auth0 circuit breaker OPEN (will retry in {auth0_breaker.reset_timeout}s)")
+
         if "openid" not in scope.split():
             scope = f"openid {scope}"
 
@@ -44,8 +48,11 @@ class CIBAService:
                 },
             )
             if response.status_code != 200:
+                if response.status_code >= 500:
+                    auth0_breaker.record_failure()
                 logger.error(f"CIBA bc-authorize failed {response.status_code}: {response.text}")
-            response.raise_for_status()
+                response.raise_for_status()
+            auth0_breaker.record_success()
             return response.json()
 
     async def poll_ciba_token(
