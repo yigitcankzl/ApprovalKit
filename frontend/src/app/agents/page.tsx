@@ -47,10 +47,6 @@ interface Agent {
   setupInfo: SetupItem[];
 }
 
-const ICON_MAP: Record<string, React.ElementType> = {
-  ShoppingCart, Server, Package, FlaskConical, CreditCard, Mail, Users, Bot,
-};
-
 // ── Agent definitions (extracted for independent maintenance) ──────────────────
 
 const AGENTS: Agent[] = [
