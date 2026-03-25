@@ -465,7 +465,7 @@ function SeedBanner() {
             Demo data seeded — {state.created} created, {state.skipped} skipped
           </p>
           <p className="text-xs text-green-700 mt-0.5">
-            Connections, approvers and rules are now in your database. Hit Simulate on any scenario below.
+            Connections, approvers and rules are now in your database. Hit Check Rule on any scenario below.
           </p>
           {state.items && state.items.length > 0 && (
             <button className="text-xs text-green-600 underline mt-1" onClick={() => setShowLog((v) => !v)}>
@@ -505,7 +505,7 @@ function SeedBanner() {
         <p className="text-sm font-semibold text-zinc-800">No rules configured yet?</p>
         <p className="text-xs text-zinc-500 mt-0.5">
           Seed all demo connections, approvers, and rules into your database in one click.
-          Simulate will then show real rule matches instead of &quot;no rule found&quot;.
+          Check Rule will then show real rule matches instead of &quot;no rule found&quot;.
         </p>
       </div>
       <Button onClick={handleSeed} disabled={state.status === "loading"} size="sm" className="shrink-0">
@@ -534,7 +534,7 @@ function ScenarioCard({ scenario }: { scenario: Scenario }) {
   const [liveStatus, setLiveStatus] = useState<string | null>(null);
   const [liveSteps, setLiveSteps] = useState<string[]>([]);
 
-  const handleSimulate = async () => {
+  const handleCheckRule = async () => {
     setResult({ status: "running" });
     setLiveStatus(null);
     try {
@@ -646,15 +646,15 @@ function ScenarioCard({ scenario }: { scenario: Scenario }) {
 
           {/* Actions */}
           <div className="flex items-start gap-3 flex-wrap">
-            <Button size="sm" variant="outline" onClick={handleSimulate} disabled={result?.status === "running"} className="shrink-0">
+            <Button size="sm" variant="outline" onClick={handleCheckRule} disabled={result?.status === "running"} className="shrink-0">
               {result?.status === "running"
                 ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Running…</>
-                : <><FlaskConical className="h-3.5 w-3.5 mr-1.5" />Simulate</>}
+                : <><FlaskConical className="h-3.5 w-3.5 mr-1.5" />Check Rule</>}
             </Button>
             <Button size="sm" onClick={handleSendReal} disabled={sending || liveStatus === "ciba_sent"} className="shrink-0">
               {sending
                 ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Sending…</>
-                : <><Send className="h-3.5 w-3.5 mr-1.5" />Send Real Request</>}
+                : <><Send className="h-3.5 w-3.5 mr-1.5" />Run Live</>}
             </Button>
             {liveSteps.length > 0 && (
               <div className="flex items-center gap-1.5 flex-wrap">
@@ -772,7 +772,7 @@ export default function AgentsPage() {
         <h1 className="text-2xl font-bold text-zinc-900">Agent Demos</h1>
         <p className="text-zinc-500 mt-1">
           Seven real-world agents with interactive approval flow diagrams.
-          Expand any scenario to see the chain, then hit Simulate to test against your rules.
+          Expand any scenario to see the chain, then hit Check Rule to test against your rules.
         </p>
       </div>
 
