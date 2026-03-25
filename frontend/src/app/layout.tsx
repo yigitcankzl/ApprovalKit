@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { ConditionalLayout } from "@/components/layout/conditional-layout";
+import { Auth0Provider } from "@auth0/nextjs-auth0/client";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -30,7 +31,9 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-zinc-50`}
       >
-        <ConditionalLayout>{children}</ConditionalLayout>
+        <Auth0Provider>
+          <ConditionalLayout>{children}</ConditionalLayout>
+        </Auth0Provider>
       </body>
     </html>
   );

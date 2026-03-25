@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useUser } from "@auth0/nextjs-auth0/client";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -15,6 +16,8 @@ import {
   FileText,
   Link2,
   KeyRound,
+  LogIn,
+  LogOut,
 } from "lucide-react";
 
 const navigation = [
@@ -32,6 +35,7 @@ const navigation = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { user, isLoading } = useUser();
 
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r border-zinc-200 bg-white">
@@ -60,10 +64,36 @@ export function Sidebar() {
         })}
       </nav>
       <div className="absolute bottom-0 w-full border-t border-zinc-200 p-4">
-        <div className="rounded-lg bg-zinc-50 p-3">
-          <p className="text-xs font-medium text-zinc-500">Auth0 Integration</p>
-          <p className="mt-1 text-xs text-zinc-400">Token Vault + CIBA + FGA</p>
-        </div>
+        {isLoading ? (
+          <div className="rounded-lg bg-zinc-50 p-3">
+            <div className="h-4 w-24 bg-zinc-200 rounded animate-pulse" />
+          </div>
+        ) : user ? (
+          <div className="rounded-lg bg-zinc-50 p-3">
+            <div className="flex items-center gap-2">
+              {user.picture && (
+                <img src={user.picture} alt="" className="h-7 w-7 rounded-full" />
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-zinc-700 truncate">{user.name}</p>
+                <p className="text-xs text-zinc-400 truncate">{user.email}</p>
+              </div>
+            </div>
+            <a
+              href="/auth/logout"
+              className="mt-2 flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-700 transition-colors"
+            >
+              <LogOut className="h-3 w-3" /> Logout
+            </a>
+          </div>
+        ) : (
+          <a
+            href="/auth/login"
+            className="flex items-center justify-center gap-2 w-full rounded-lg bg-zinc-900 text-white text-sm font-medium py-2 hover:bg-zinc-800 transition-colors"
+          >
+            <LogIn className="h-4 w-4" /> Login with Auth0
+          </a>
+        )}
       </div>
     </aside>
   );
