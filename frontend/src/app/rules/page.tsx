@@ -224,7 +224,10 @@ function RuleCard({ rule, approverMap }: { rule: Rule; approverMap: Record<strin
               {sending ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Sending...</> : <><Send className="h-3.5 w-3.5 mr-1.5" />Run Live</>}
             </Button>
             <Link href={`/rules/${rule.id}`} className="text-xs text-zinc-500 hover:text-zinc-700 ml-auto">
-              Edit rule →
+              View details →
+            </Link>
+            <Link href={`/rules/${rule.id}/edit`} className="text-xs text-zinc-500 hover:text-zinc-700">
+              Edit →
             </Link>
           </div>
 
