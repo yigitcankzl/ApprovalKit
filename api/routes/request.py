@@ -52,10 +52,12 @@ async def submit_approval_request(
         data = json.loads(cached)
         return ApprovalResponse(**data)
 
-    # Scope creep detection
-    is_new_action = await check_scope_creep(
-        workspace.id, request.user_id, request.connection, request.action, db
+    # Scope creep detection (action + amount anomaly)
+    scope_creep = await check_scope_creep(
+        workspace.id, request.user_id, request.connection, request.action, db,
+        params=request.params,
     )
+    is_new_action = scope_creep["is_new_action"]
 
     # Find matching rule
     rule = await find_matching_rule(
@@ -138,6 +140,14 @@ async def submit_approval_request(
             note=f"First time agent requests {request.connection}:{request.action}",
         )
         db.add(scope_audit)
+    if scope_creep.get("amount_anomaly"):
+        anomaly_audit = AuditLog(
+            job_id=job.id,
+            workspace_id=workspace.id,
+            event_type=AuditEventType.SCOPE_CREEP,
+            note=f"Amount anomaly: {scope_creep['anomaly_detail']}",
+        )
+        db.add(anomaly_audit)
 
     audit = AuditLog(
         job_id=job.id,

@@ -98,17 +98,59 @@ async def check_pre_approval(rule: Rule, params: dict, redis_client: aioredis.Re
 
 
 async def check_scope_creep(
-    workspace_id, agent_user_id: str, connection: str, action: str, db: AsyncSession
-) -> bool:
+    workspace_id, agent_user_id: str, connection: str, action: str, db: AsyncSession,
+    params: dict | None = None,
+) -> dict:
+    """
+    Returns {"is_new_action": bool, "amount_anomaly": bool, "anomaly_detail": str | None}.
+    - is_new_action: True if agent has never requested this (connection, action) before
+    - amount_anomaly: True if current amount is >3x the historical average
+    """
     result = await db.execute(
         select(ApprovalJob).where(
             ApprovalJob.workspace_id == workspace_id,
             ApprovalJob.agent_user_id == agent_user_id,
             ApprovalJob.connection == connection,
             ApprovalJob.action == action,
-        ).limit(1)
+        ).order_by(ApprovalJob.created_at.desc()).limit(20)
     )
-    return result.scalar_one_or_none() is None
+    past_jobs = result.scalars().all()
+
+    is_new = len(past_jobs) == 0
+    amount_anomaly = False
+    anomaly_detail = None
+
+    # Check amount anomaly if params contain a numeric amount
+    if params and past_jobs:
+        current_amount = None
+        for key in ("amount", "amount_usd", "total"):
+            raw = params.get(key)
+            if raw is not None:
+                try:
+                    current_amount = float(raw)
+                except (TypeError, ValueError):
+                    pass
+                break
+
+        if current_amount is not None and current_amount > 0:
+            past_amounts = []
+            for job in past_jobs:
+                if job.params:
+                    for key in ("amount", "amount_usd", "total"):
+                        raw = job.params.get(key)
+                        if raw is not None:
+                            try:
+                                past_amounts.append(float(raw))
+                            except (TypeError, ValueError):
+                                pass
+                            break
+            if past_amounts:
+                avg = sum(past_amounts) / len(past_amounts)
+                if avg > 0 and current_amount > avg * 3:
+                    amount_anomaly = True
+                    anomaly_detail = f"Amount ${current_amount:.0f} is {current_amount/avg:.1f}x the historical avg ${avg:.0f}"
+
+    return {"is_new_action": is_new, "amount_anomaly": amount_anomaly, "anomaly_detail": anomaly_detail}
 
 
 async def find_matching_rule(
