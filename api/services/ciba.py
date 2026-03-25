@@ -17,29 +17,28 @@ def _sanitize_binding_message(msg: str, max_len: int = 64) -> str:
 
 
 class CIBAService:
-    def __init__(self):
-        self.domain = settings.AUTH0_DOMAIN
-        self.client_id = settings.AUTH0_CLIENT_ID
-        self.client_secret = settings.AUTH0_CLIENT_SECRET
-
     async def initiate_ciba_request(
-        self, user_id: str, binding_message: str, scope: str = "openid"
+        self, user_id: str, binding_message: str, scope: str = "openid",
+        *, domain: str = "", client_id: str = "", client_secret: str = "",
     ) -> dict:
-        if not self.domain:
+        domain = domain or settings.AUTH0_DOMAIN
+        client_id = client_id or settings.AUTH0_CLIENT_ID
+        client_secret = client_secret or settings.AUTH0_CLIENT_SECRET
+
+        if not domain:
             raise RuntimeError("AUTH0_DOMAIN is not configured — cannot send CIBA push notification")
 
-        # Auth0 CIBA requires openid scope in every request
         if "openid" not in scope.split():
             scope = f"openid {scope}"
 
-        url = f"https://{self.domain}/bc-authorize"
+        url = f"https://{domain}/bc-authorize"
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 url,
                 data={
-                    "client_id": self.client_id,
-                    "client_secret": self.client_secret,
-                    "login_hint": f'{{"format":"iss_sub","iss":"https://{self.domain}/","sub":"{user_id}"}}',
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "login_hint": f'{{"format":"iss_sub","iss":"https://{domain}/","sub":"{user_id}"}}',
                     "binding_message": _sanitize_binding_message(binding_message),
                     "scope": scope,
                 },
@@ -49,8 +48,15 @@ class CIBAService:
             response.raise_for_status()
             return response.json()
 
-    async def poll_ciba_token(self, auth_req_id: str, timeout: int = 300) -> dict:
-        url = f"https://{self.domain}/oauth/token"
+    async def poll_ciba_token(
+        self, auth_req_id: str, timeout: int = 300,
+        *, domain: str = "", client_id: str = "", client_secret: str = "",
+    ) -> dict:
+        domain = domain or settings.AUTH0_DOMAIN
+        client_id = client_id or settings.AUTH0_CLIENT_ID
+        client_secret = client_secret or settings.AUTH0_CLIENT_SECRET
+
+        url = f"https://{domain}/oauth/token"
         interval = settings.CIBA_POLL_INTERVAL
         elapsed = 0
 
@@ -60,8 +66,8 @@ class CIBAService:
                     url,
                     data={
                         "grant_type": "urn:openid:params:grant-type:ciba",
-                        "client_id": self.client_id,
-                        "client_secret": self.client_secret,
+                        "client_id": client_id,
+                        "client_secret": client_secret,
                         "auth_req_id": auth_req_id,
                     },
                 )
@@ -70,7 +76,6 @@ class CIBAService:
                     data = response.json()
                     return {"status": "approved", "access_token": data.get("access_token")}
 
-                # 429 rate limit — back off and retry
                 if response.status_code == 429:
                     interval = min(interval * 2, settings.CIBA_MAX_POLL_INTERVAL)
                     await asyncio.sleep(interval)
