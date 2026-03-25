@@ -8,6 +8,7 @@ If user_sub is present but no workspace matches → 404 (new user, needs setup).
 If no sub header → fallback to first workspace (SDK/API calls without auth).
 """
 from fastapi import Depends, HTTPException, Request
+from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,6 +23,7 @@ async def get_current_workspace(request: Request, db: AsyncSession = Depends(get
     - No header → fallback to first active workspace (backwards compat for SDK/API)
     """
     user_sub = request.headers.get("X-User-Sub", "").strip()
+    logger.debug(f"Workspace resolve: sub={user_sub!r} path={request.url.path}")
 
     if user_sub:
         # Logged-in user: find THEIR workspace only
