@@ -264,7 +264,7 @@ export default function ConnectPage() {
 
 kit = ApprovalKit(
     base_url="${baseUrl}",
-    api_key="${creds?.api_key ?? "<YOUR_API_KEY>"}",
+    api_key="<save agent below to get your ak_* key>",
     hmac_secret="${creds?.hmac_secret ?? "<YOUR_HMAC_SECRET>"}",
 )`;
 
