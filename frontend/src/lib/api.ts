@@ -94,4 +94,10 @@ export const api = {
     return fetchAPI(`/api/v1/demo/seed${qs ? `?${qs}` : ""}`, { method: "POST" });
   },
   clearDemoData: () => fetchAPI("/api/v1/demo/seed", { method: "DELETE" }),
+
+  // Credentials & live test (no HMAC required)
+  getCredentials: () => fetchAPI("/api/v1/workspace/credentials"),
+  sendTestRequest: (data: { connection: string; action: string; params: Record<string, unknown> }) =>
+    fetchAPI("/api/v1/test-request", { method: "POST", body: JSON.stringify(data) }),
+  getTestStatus: (jobId: string) => fetchAPI(`/api/v1/test-status/${jobId}`),
 };

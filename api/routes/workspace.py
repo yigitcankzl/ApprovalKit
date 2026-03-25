@@ -161,6 +161,23 @@ async def setup_workspace(body: WorkspaceSetupRequest, db: AsyncSession = Depend
     }
 
 
+@router.get("/credentials")
+async def get_workspace_credentials(db: AsyncSession = Depends(get_db)):
+    """Return api_key and hmac_secret for the active workspace (dashboard use only)."""
+    result = await db.execute(
+        select(Workspace).where(Workspace.is_active.is_(True)).limit(1)
+    )
+    workspace = result.scalar_one_or_none()
+    if not workspace:
+        raise HTTPException(status_code=404, detail="No workspace configured yet")
+    return {
+        "workspace_id": str(workspace.id),
+        "name": workspace.name,
+        "api_key": workspace.api_key,
+        "hmac_secret": workspace.hmac_secret,
+    }
+
+
 @router.get("")
 async def get_workspace(db: AsyncSession = Depends(get_db)):
     """Return current workspace info without sensitive fields."""

@@ -69,7 +69,7 @@ async def _execute_stripe(action: str, params: dict, creds: dict) -> dict:
 
     async with httpx.AsyncClient(base_url="https://api.stripe.com", timeout=30) as c:
         if action == "charge":
-            amount_cents = int(float(params.get("amount", 0)) * 100)
+            amount_cents = int(float(params.get("amount") or params.get("amount_usd", 0)) * 100)
             currency    = params.get("currency", "usd")
             description = params.get("description", f"Charge for {params.get('customer', 'unknown')}")
 
@@ -105,7 +105,7 @@ async def _execute_stripe(action: str, params: dict, creds: dict) -> dict:
             return {"success": True, "action": "refund", "id": data.get("id"), "status": data.get("status")}
 
         elif action == "payout":
-            amount_cents = int(float(params.get("amount", 0)) * 100)
+            amount_cents = int(float(params.get("amount") or params.get("amount_usd", 0)) * 100)
             currency     = params.get("currency", "usd")
             r = await c.post("/v1/payouts", headers=headers, data={
                 "amount":   str(amount_cents),
