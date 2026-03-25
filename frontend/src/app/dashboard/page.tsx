@@ -59,6 +59,7 @@ export default function DashboardPage() {
       .then(([s, sec]) => { setStats(s); setSecurity(sec); });
 
   useEffect(() => {
+    if (authLoading || !user) return; // wait for auth before fetching
     const ctrl = { active: true };
     Promise.all([
       loadStats(),
@@ -108,8 +109,14 @@ export default function DashboardPage() {
       if (reconnectTimer) clearTimeout(reconnectTimer);
       clearInterval(refreshInterval);
     };
-  }, []);
+  }, [authLoading, user]);
 
+  // Show nothing while auth is resolving (prevents flash of dashboard before login redirect)
+  if (authLoading || !user) return (
+    <div className="flex items-center justify-center h-64">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-900 dark:border-zinc-100" />
+    </div>
+  );
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
