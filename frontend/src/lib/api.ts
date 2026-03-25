@@ -57,7 +57,10 @@ export const api = {
   getConnections: () => fetchAPI("/api/v1/connections"),
   createConnection: (data: { name: string; service: string; slug: string; actions: string[] }) =>
     fetchAPI("/api/v1/connections", { method: "POST", body: JSON.stringify(data) }),
-  getConnectUrl: (id: string) => fetchAPI(`/api/v1/connections/${id}/connect-url`),
+  getConnectUrl: (id: string, userToken?: string | null) =>
+    fetchAPI(`/api/v1/connections/${id}/connect-url`, {
+      headers: userToken ? { "X-User-Token": userToken } : {},
+    }),
   disconnectAuth: (id: string) => fetchAPI(`/api/v1/connections/${id}/auth`, { method: "DELETE" }),
 
   // Jobs

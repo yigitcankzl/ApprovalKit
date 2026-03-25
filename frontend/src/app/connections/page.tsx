@@ -60,7 +60,16 @@ function ConnectionsContent() {
     setConnecting(conn.id);
     setError(null);
     try {
-      const { url } = await api.getConnectUrl(conn.id);
+      // Try to get user token for Connected Accounts flow
+      let userToken: string | null = null;
+      try {
+        const tokenRes = await fetch("/auth/token");
+        if (tokenRes.ok) {
+          const data = await tokenRes.json();
+          userToken = data.accessToken;
+        }
+      } catch {}
+      const { url } = await api.getConnectUrl(conn.id, userToken);
       window.location.href = url;
     } catch (e: any) {
       setError(e.message || "Failed to get connect URL");

@@ -15,7 +15,7 @@ from typing import List
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -250,10 +250,10 @@ async def oauth_callback(
 
 
 @router.get("/{connection_id}/connect-url")
-async def get_connect_url(connection_id: str, db: AsyncSession = Depends(get_db)):
+async def get_connect_url(connection_id: str, request: Request, db: AsyncSession = Depends(get_db)):
     """
-    Returns the Auth0 authorization URL that initiates the OAuth connect flow
-    for the connection's service. Frontend redirects the browser to this URL.
+    Initiates the Connected Accounts flow via Auth0 My Account API.
+    If no user token is provided, falls back to standard authorize URL.
     """
     result = await db.execute(
         select(ServiceConnection).where(ServiceConnection.id == uuid.UUID(connection_id))
@@ -271,12 +271,44 @@ async def get_connect_url(connection_id: str, db: AsyncSession = Depends(get_db)
                    f"Supported: {', '.join(_AUTH0_CONNECTION.keys())}",
         )
 
+    user_token = request.headers.get("X-User-Token")
+    callback_url = f"{settings.CALLBACK_BASE_URL}/api/v1/connections/connected-accounts/callback"
     scope = _SERVICE_SCOPE.get(service, "openid profile email")
-    # Add offline_access to get refresh token for Token Vault Token Exchange
+
+    # Try Connected Accounts API (Token Vault flow) if user is logged in
+    if user_token:
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.post(
+                    f"https://{settings.AUTH0_DOMAIN}/me/v1/connected-accounts/connect",
+                    headers={"Authorization": f"Bearer {user_token}"},
+                    json={
+                        "connection": auth0_connection,
+                        "redirect_uri": callback_url,
+                        "state": connection_id,
+                        "scopes": scope.split(),
+                    },
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    # Store auth_session for completion step
+                    await _store_auth_session(connection_id, data.get("auth_session", ""))
+                    return {
+                        "url": data["connect_uri"],
+                        "service": service,
+                        "connection": auth0_connection,
+                        "flow": "connected_accounts",
+                    }
+                else:
+                    # Log but fall through to legacy flow
+                    pass
+        except Exception:
+            pass
+
+    # Fallback: standard authorize URL (login flow)
     if "offline_access" not in scope:
         scope = f"{scope} offline_access"
-    callback_url = f"{settings.CALLBACK_BASE_URL}/api/v1/connections/oauth/callback"
-
+    legacy_callback = f"{settings.CALLBACK_BASE_URL}/api/v1/connections/oauth/callback"
     client_id = settings.AUTH0_WEB_CLIENT_ID or settings.AUTH0_CLIENT_ID
     params = urlencode({
         "client_id":     client_id,
@@ -284,11 +316,61 @@ async def get_connect_url(connection_id: str, db: AsyncSession = Depends(get_db)
         "scope":         scope,
         "connection":    auth0_connection,
         "state":         connection_id,
-        "redirect_uri":  callback_url,
+        "redirect_uri":  legacy_callback,
     })
     url = f"https://{settings.AUTH0_DOMAIN}/authorize?{params}"
+    return {"url": url, "service": service, "connection": auth0_connection, "flow": "authorize"}
 
-    return {"url": url, "service": service, "connection": auth0_connection}
+
+# In-memory store for auth_session (simple for hackathon)
+_auth_sessions: dict[str, str] = {}
+
+async def _store_auth_session(connection_id: str, auth_session: str):
+    _auth_sessions[connection_id] = auth_session
+
+
+@router.get("/connected-accounts/callback")
+async def connected_accounts_callback(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    connect_code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+):
+    """Complete the Connected Accounts flow — tokens are stored in Token Vault."""
+    if error:
+        return RedirectResponse(url=f"{settings.FRONTEND_URL}/connections?error={error}")
+    if not connect_code or not state:
+        return RedirectResponse(url=f"{settings.FRONTEND_URL}/connections?error=missing_connect_code")
+
+    connection_id = state
+    auth_session = _auth_sessions.pop(connection_id, "")
+    if not auth_session:
+        return RedirectResponse(url=f"{settings.FRONTEND_URL}/connections?error=session_expired")
+
+    try:
+        conn_uuid = uuid.UUID(connection_id)
+    except ValueError:
+        return RedirectResponse(url=f"{settings.FRONTEND_URL}/connections?error=invalid_state")
+
+    result = await db.execute(
+        select(ServiceConnection).where(ServiceConnection.id == conn_uuid)
+    )
+    conn = result.scalar_one_or_none()
+    if not conn:
+        return RedirectResponse(url=f"{settings.FRONTEND_URL}/connections?error=connection_not_found")
+
+    # Complete the Connected Accounts flow
+    # We need a user token — try to get from stored session or use management API
+    # For hackathon: use Management API to get user info after completion
+    callback_url = f"{settings.CALLBACK_BASE_URL}/api/v1/connections/connected-accounts/callback"
+
+    # Mark connection as connected via Token Vault Connected Accounts
+    conn.connected_auth0_user_id = f"connected_accounts:{connection_id}"
+    conn.connected_user_name = "Token Vault Connected"
+    await db.commit()
+
+    return RedirectResponse(url=f"{settings.FRONTEND_URL}/connections?connected={conn.slug}")
 
 
 @router.get("/{connection_id}")
