@@ -436,3 +436,38 @@ def process_approval_job(self, job_id: str):
     except Exception as e:
         logger.error(f"Error processing job {job_id}: {e}")
         self.retry(exc=e)
+
+
+async def _cleanup_zombie_jobs():
+    """Mark stale pending/ciba_sent jobs as TIMEOUT if they've exceeded their expiry."""
+    session = await _get_db_session()
+    try:
+        async with session.begin():
+            now = datetime.utcnow()
+            result = await session.execute(
+                select(ApprovalJob).where(
+                    ApprovalJob.state.in_([JobState.PENDING, JobState.CIBA_SENT]),
+                    ApprovalJob.expires_at < now,
+                )
+            )
+            stale_jobs = result.scalars().all()
+            for job in stale_jobs:
+                job.state = JobState.TIMEOUT
+                job.completed_at = now
+                session.add(AuditLog(
+                    job_id=job.id,
+                    workspace_id=job.workspace_id,
+                    event_type=AuditEventType.TIMEOUT,
+                    note="Zombie job cleanup — expired without resolution",
+                ))
+                logger.info(f"Zombie cleanup: job {job.id} marked TIMEOUT")
+            if stale_jobs:
+                logger.info(f"Zombie cleanup: {len(stale_jobs)} stale jobs cleaned up")
+    finally:
+        await session.close()
+
+
+@celery_app.task
+def cleanup_zombie_jobs():
+    """Periodic task to clean up stale jobs. Schedule via Celery Beat."""
+    run_async(_cleanup_zombie_jobs())

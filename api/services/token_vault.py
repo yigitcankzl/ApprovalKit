@@ -69,7 +69,11 @@ async def _execute_stripe(action: str, params: dict, creds: dict) -> dict:
 
     async with httpx.AsyncClient(base_url="https://api.stripe.com", timeout=30) as c:
         if action == "charge":
-            amount_cents = int(float(params.get("amount") or params.get("amount_usd", 0)) * 100)
+            raw_amount = params.get("amount") or params.get("amount_usd") or 0
+            try:
+                amount_cents = int(float(raw_amount) * 100)
+            except (TypeError, ValueError):
+                raise ValueError(f"Invalid amount value: {raw_amount!r} — must be numeric")
             currency    = params.get("currency", "usd")
             description = params.get("description", f"Charge for {params.get('customer', 'unknown')}")
 
@@ -105,7 +109,11 @@ async def _execute_stripe(action: str, params: dict, creds: dict) -> dict:
             return {"success": True, "action": "refund", "id": data.get("id"), "status": data.get("status")}
 
         elif action == "payout":
-            amount_cents = int(float(params.get("amount") or params.get("amount_usd", 0)) * 100)
+            raw_amount = params.get("amount") or params.get("amount_usd") or 0
+            try:
+                amount_cents = int(float(raw_amount) * 100)
+            except (TypeError, ValueError):
+                raise ValueError(f"Invalid amount value: {raw_amount!r} — must be numeric")
             currency     = params.get("currency", "usd")
             r = await c.post("/v1/payouts", headers=headers, data={
                 "amount":   str(amount_cents),

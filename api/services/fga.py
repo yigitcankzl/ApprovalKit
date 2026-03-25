@@ -159,7 +159,10 @@ class FGAClient:
                             },
                         },
                     )
-                    return r2.json().get("allowed", False) if r2.status_code == 200 else False
+                    if r2.status_code == 200:
+                        return r2.json().get("allowed", False)
+                    logger.warning(f"FGA retry after 401 also failed ({r2.status_code}) — denying access (fail-closed)")
+                    return False
                 logger.warning(f"FGA check returned {r.status_code}: {r.text[:200]}")
                 return False
         except Exception as e:
