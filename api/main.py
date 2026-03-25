@@ -51,7 +51,7 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-MAX_BODY_SIZE = 1 * 1024 * 1024  # 1 MB
+from api.constants import MAX_BODY_SIZE_BYTES as MAX_BODY_SIZE
 
 
 class LimitRequestBodyMiddleware(BaseHTTPMiddleware):

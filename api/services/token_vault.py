@@ -259,6 +259,12 @@ class TokenVaultService:
                     token = data.get("access_token")
                     logger.info(f"Token Vault: exchanged refresh token for {connection_name} access token (via Token Exchange)")
                     return token
+                elif r.status_code == 401:
+                    logger.warning(f"Token Vault Token Exchange: 401 Unauthorized for {connection_name} — refresh token may be expired. User should reconnect via /connections.")
+                    return None
+                elif r.status_code == 403:
+                    logger.warning(f"Token Vault Token Exchange: 403 Forbidden for {connection_name} — insufficient scope or Token Exchange not enabled.")
+                    return None
                 else:
                     logger.warning(f"Token Vault Token Exchange failed ({r.status_code}): {r.text}")
                     return None

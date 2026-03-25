@@ -13,6 +13,7 @@ from api.middleware.auth import verify_hmac_signature
 from api.models.workspace import Workspace
 from api.models.approval_job import ApprovalJob, AuditLog, AuditEventType, JobState
 from api.models.connection import ServiceConnection
+from api.constants import REDIS_KEY_IDEMPOTENCY
 from api.schemas.request import ApprovalRequest, ApprovalResponse, JobStatusResponse
 from api.services.rule_engine import (
     find_matching_rule,
@@ -46,7 +47,7 @@ async def submit_approval_request(
     redis_client: aioredis.Redis = Depends(get_redis),
 ):
     # Check idempotency
-    cached = await redis_client.get(f"idem:{request.idempotency_key}")
+    cached = await redis_client.get(REDIS_KEY_IDEMPOTENCY.format(key=request.idempotency_key))
     if cached:
         data = json.loads(cached)
         return ApprovalResponse(**data)
@@ -167,7 +168,7 @@ async def submit_approval_request(
         "status": "pending",
         "message": "Approval requested — CIBA notification sent",
     }
-    await redis_client.setex(f"idem:{request.idempotency_key}", 86400, json.dumps(response_data))
+    await redis_client.setex(REDIS_KEY_IDEMPOTENCY.format(key=request.idempotency_key), 86400, json.dumps(response_data))
 
     response.status_code = 202
     return ApprovalResponse(**response_data)

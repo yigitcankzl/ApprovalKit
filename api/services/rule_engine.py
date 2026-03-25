@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.models.rule import Rule
 from api.models.approval_job import ApprovalJob, AuditLog, AuditEventType, JobState
+from api.constants import REDIS_KEY_COOLDOWN, COOLDOWN_WINDOW_SECONDS
 
 OPERATORS = {
     "eq": operator.eq,
@@ -66,7 +67,7 @@ def is_in_blackout(rule: Rule) -> bool:
 async def check_cooldown(rule: Rule, redis_client: aioredis.Redis) -> bool:
     if not rule.cooldown_max:
         return True
-    key = f"cooldown:{rule.id}"
+    key = REDIS_KEY_COOLDOWN.format(rule_id=rule.id)
     count = await redis_client.get(key)
     if count and int(count) >= rule.cooldown_max:
         return False
@@ -76,10 +77,10 @@ async def check_cooldown(rule: Rule, redis_client: aioredis.Redis) -> bool:
 async def increment_cooldown(rule: Rule, redis_client: aioredis.Redis):
     if not rule.cooldown_max:
         return
-    key = f"cooldown:{rule.id}"
+    key = REDIS_KEY_COOLDOWN.format(rule_id=rule.id)
     pipe = redis_client.pipeline()
     pipe.incr(key)
-    pipe.expire(key, 3600)
+    pipe.expire(key, COOLDOWN_WINDOW_SECONDS)
     await pipe.execute()
 
 

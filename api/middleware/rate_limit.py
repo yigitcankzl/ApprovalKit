@@ -4,6 +4,7 @@ from fastapi import HTTPException, Request
 import redis.asyncio as aioredis
 
 from api.config import get_settings
+from api.constants import REDIS_KEY_RATE_LIMIT, REDIS_KEY_CIBA_QUOTA, CIBA_QUOTA_WINDOW_SECONDS
 
 settings = get_settings()
 
@@ -23,7 +24,7 @@ class RateLimiter:
         now = time.time()
         window_start = now - window_seconds
 
-        redis_key = f"rl:{key}"
+        redis_key = REDIS_KEY_RATE_LIMIT.format(key=key)
         pipe.zremrangebyscore(redis_key, 0, window_start)
         pipe.zadd(redis_key, {str(now): now})
         pipe.zcard(redis_key)
@@ -37,7 +38,7 @@ class RateLimiter:
         r = await self.get_redis()
         now = time.time()
         window_start = now - 3600
-        count = await r.zcount("ciba:quota", window_start, now)
+        count = await r.zcount(REDIS_KEY_CIBA_QUOTA, window_start, now)
         return {
             "current": count,
             "limit": settings.CIBA_QUOTA_LIMIT,
@@ -48,8 +49,8 @@ class RateLimiter:
     async def record_ciba_request(self):
         r = await self.get_redis()
         now = time.time()
-        await r.zadd("ciba:quota", {str(now): now})
-        await r.expire("ciba:quota", 3600)
+        await r.zadd(REDIS_KEY_CIBA_QUOTA, {str(now): now})
+        await r.expire(REDIS_KEY_CIBA_QUOTA, CIBA_QUOTA_WINDOW_SECONDS)
 
     async def close(self):
         if self._redis:
