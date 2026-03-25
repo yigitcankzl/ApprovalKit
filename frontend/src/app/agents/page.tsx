@@ -659,12 +659,17 @@ function ScenarioCard({ scenario }: { scenario: Scenario }) {
                   <ArrowRight className="h-3 w-3 text-zinc-300" />
                   <LiveStep done={liveSteps.includes("ciba_sent")} active={liveStatus === "ciba_sent"} label="Guardian push sent" />
                   <ArrowRight className="h-3 w-3 text-zinc-300" />
-                  <LiveStep done={liveSteps.includes("approved") || liveSteps.includes("rejected")} active={liveStatus === "ciba_sent"} label={
-                    liveStatus === "approved" ? "Approved" :
-                    liveStatus === "rejected" ? "Rejected" :
-                    liveStatus === "timeout" ? "Timed out" :
-                    "Waiting..."
-                  } />
+                  <LiveStep
+                    done={liveSteps.includes("approved") || liveSteps.includes("rejected") || liveSteps.includes("timeout")}
+                    active={liveStatus === "ciba_sent"}
+                    error={liveStatus === "rejected" || liveStatus === "timeout"}
+                    label={
+                      liveStatus === "approved" ? "Approved" :
+                      liveStatus === "rejected" ? "Rejected" :
+                      liveStatus === "timeout" ? "Timed out" :
+                      "Waiting..."
+                    }
+                  />
                 </>}
               </div>
             )}
@@ -824,15 +829,17 @@ export default function AgentsPage() {
   );
 }
 
-function LiveStep({ done, active, label }: { done: boolean; active?: boolean; label: string }) {
+function LiveStep({ done, active, label, error }: { done: boolean; active?: boolean; label: string; error?: boolean }) {
   return (
     <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${
+      error ? "bg-red-100 text-red-700" :
       done ? "bg-green-100 text-green-700" :
       active ? "bg-blue-100 text-blue-700" :
       "bg-zinc-100 text-zinc-400"
     }`}>
       {active && <Loader2 className="h-3 w-3 animate-spin" />}
-      {done && <CheckCircle2 className="h-3 w-3" />}
+      {error && <XCircle className="h-3 w-3" />}
+      {done && !error && <CheckCircle2 className="h-3 w-3" />}
       {label}
     </span>
   );
