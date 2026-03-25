@@ -22,8 +22,8 @@ import {
   Bot,
   Plug,
   Plane,
-  PanelLeftClose,
-  PanelLeftOpen,
+  ChevronLeft,
+  Menu,
 } from "lucide-react";
 
 const navigation = [
@@ -56,25 +56,31 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     >
       {/* Header */}
       <div className="flex h-16 items-center border-b border-zinc-200">
-        <Link
-          href="/"
-          className={cn(
-            "flex items-center gap-2 hover:bg-zinc-50 transition-colors h-full",
-            collapsed ? "justify-center w-full px-0" : "px-6 flex-1"
-          )}
-        >
-          <Shield className="h-6 w-6 shrink-0 text-zinc-900" />
-          {!collapsed && <span className="text-lg font-bold text-zinc-900">ApprovalKit</span>}
-        </Link>
+        {collapsed ? (
+          <button
+            onClick={onToggle}
+            className="flex items-center justify-center w-full h-full text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 transition-colors"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+        ) : (
+          <>
+            <Link
+              href="/"
+              className="flex items-center gap-2 px-6 hover:bg-zinc-50 transition-colors h-full flex-1"
+            >
+              <Shield className="h-6 w-6 shrink-0 text-zinc-900" />
+              <span className="text-lg font-bold text-zinc-900">ApprovalKit</span>
+            </Link>
+            <button
+              onClick={onToggle}
+              className="flex items-center justify-center h-full px-4 text-zinc-400 hover:bg-zinc-50 hover:text-zinc-900 transition-colors"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+          </>
+        )}
       </div>
-
-      {/* Toggle button */}
-      <button
-        onClick={onToggle}
-        className="absolute -right-3.5 top-[4.5rem] z-50 flex h-7 w-7 items-center justify-center rounded-full border border-zinc-300 bg-white text-zinc-400 shadow hover:bg-zinc-100 hover:text-zinc-900 hover:border-zinc-400 transition-all"
-      >
-        {collapsed ? <PanelLeftOpen className="h-3.5 w-3.5" /> : <PanelLeftClose className="h-3.5 w-3.5" />}
-      </button>
 
       {/* Navigation */}
       <nav className={cn("space-y-1 py-4", collapsed ? "px-2" : "px-3")}>
