@@ -68,7 +68,7 @@ export default function RulesPage() {
 
       {/* Permissions Summary */}
       {consent && (
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           <div className="bg-white rounded-xl border border-zinc-200 p-4 flex items-center justify-between">
             <div>
               <p className="text-xs text-zinc-500">Connected Services</p>

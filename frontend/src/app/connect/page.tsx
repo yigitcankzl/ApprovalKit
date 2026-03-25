@@ -409,7 +409,7 @@ def ${agentName.replace(/[^a-z0-9_]/gi, "_")}_${action || "charge"}(amount_usd: 
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-zinc-500 block mb-1">Connection</label>
               <select
@@ -601,7 +601,7 @@ kit = ApprovalKit(
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-zinc-500 block mb-1">Agent name *</label>
                   <input
