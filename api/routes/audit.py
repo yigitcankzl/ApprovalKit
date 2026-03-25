@@ -17,6 +17,8 @@ from api.schemas.audit import AuditLogResponse, DashboardStats
 from api.services.fga import fga_client
 from api.middleware.fga import require_audit_read
 from api.middleware.rate_limit import rate_limiter
+from api.middleware.workspace import get_current_workspace
+from api.models.workspace import Workspace
 
 router = APIRouter(prefix="/api/v1", tags=["audit"])
 settings = get_settings()
@@ -66,17 +68,15 @@ _LIVE_EVENT_TYPES = (
 
 @router.get("/recent-activity")
 async def get_recent_activity(
+    workspace: Workspace = Depends(get_current_workspace),
     db: AsyncSession = Depends(get_db),
     limit: int = Query(default=20, le=50),
 ):
-    """
-    Last N audit events shaped like SSE payloads so the dashboard can hydrate
-    Live Activity after a full page refresh.
-    """
     result = await db.execute(
         select(AuditLog)
         .join(ApprovalJob, AuditLog.job_id == ApprovalJob.id)
         .where(AuditLog.event_type.in_(_LIVE_EVENT_TYPES))
+        .where(ApprovalJob.workspace_id == workspace.id)
         .order_by(AuditLog.created_at.desc())
         .limit(limit)
     )
@@ -99,6 +99,7 @@ async def get_recent_activity(
 
 @router.get("/audit")
 async def get_audit_log(
+    workspace: Workspace = Depends(get_current_workspace),
     db: AsyncSession = Depends(get_db),
     limit: int = Query(default=50, le=200),
     offset: int = Query(default=0, ge=0),
@@ -109,6 +110,7 @@ async def get_audit_log(
     query = (
         select(AuditLog)
         .join(ApprovalJob, AuditLog.job_id == ApprovalJob.id)
+        .where(ApprovalJob.workspace_id == workspace.id)
         .order_by(AuditLog.created_at.desc())
     )
 
@@ -140,12 +142,15 @@ async def get_audit_log(
 
 
 @router.get("/dashboard", response_model=DashboardStats)
-async def get_dashboard(db: AsyncSession = Depends(get_db)):
+async def get_dashboard(workspace: Workspace = Depends(get_current_workspace), db: AsyncSession = Depends(get_db)):
     week_ago = datetime.utcnow() - timedelta(days=7)
 
     # Total actions this week
     total_result = await db.execute(
-        select(func.count(ApprovalJob.id)).where(ApprovalJob.created_at >= week_ago)
+        select(func.count(ApprovalJob.id)).where(
+            ApprovalJob.workspace_id == workspace.id,
+            ApprovalJob.created_at >= week_ago,
+        )
     )
     total = total_result.scalar() or 0
 
@@ -153,6 +158,7 @@ async def get_dashboard(db: AsyncSession = Depends(get_db)):
     async def count_state(state: JobState) -> int:
         result = await db.execute(
             select(func.count(ApprovalJob.id)).where(
+                ApprovalJob.workspace_id == workspace.id,
                 ApprovalJob.created_at >= week_ago,
                 ApprovalJob.state == state,
             )
@@ -167,7 +173,10 @@ async def get_dashboard(db: AsyncSession = Depends(get_db)):
     # Active pre-approvals
     pre_result = await db.execute(
         select(func.count()).select_from(
-            select(ApprovalJob.id).where(ApprovalJob.state == JobState.PRE_APPROVED).subquery()
+            select(ApprovalJob.id).where(
+                ApprovalJob.workspace_id == workspace.id,
+                ApprovalJob.state == JobState.PRE_APPROVED,
+            ).subquery()
         )
     )
     active_pre = pre_result.scalar() or 0
@@ -175,6 +184,7 @@ async def get_dashboard(db: AsyncSession = Depends(get_db)):
     # Active delegations
     del_result = await db.execute(
         select(func.count(Approver.id)).where(
+            Approver.workspace_id == workspace.id,
             Approver.delegate_to.is_not(None),
             Approver.delegate_until >= datetime.utcnow(),
         )
@@ -186,7 +196,10 @@ async def get_dashboard(db: AsyncSession = Depends(get_db)):
 
     # Scope creep alerts
     scope_result = await db.execute(
-        select(func.count(AuditLog.id)).where(
+        select(func.count(AuditLog.id))
+        .join(ApprovalJob, AuditLog.job_id == ApprovalJob.id)
+        .where(
+            ApprovalJob.workspace_id == workspace.id,
             AuditLog.event_type == AuditEventType.SCOPE_CREEP,
             AuditLog.created_at >= week_ago,
         )
@@ -196,6 +209,7 @@ async def get_dashboard(db: AsyncSession = Depends(get_db)):
     # Pending approvals count
     pending_result = await db.execute(
         select(func.count(ApprovalJob.id)).where(
+            ApprovalJob.workspace_id == workspace.id,
             ApprovalJob.state.in_([
                 JobState.PENDING, JobState.CIBA_SENT,
                 JobState.WAITING_APPROVAL, JobState.PARTIALLY_APPROVED,

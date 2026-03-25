@@ -188,10 +188,12 @@ async def create_connection(body: CreateConnectionRequest, workspace: Workspace 
 
 
 @router.get("")
-async def list_connections(db: AsyncSession = Depends(get_db)):
+async def list_connections(workspace: Workspace = Depends(get_current_workspace), db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(ServiceConnection).where(ServiceConnection.is_active.is_(True))
-        .order_by(ServiceConnection.name)
+        select(ServiceConnection).where(
+            ServiceConnection.workspace_id == workspace.id,
+            ServiceConnection.is_active.is_(True),
+        ).order_by(ServiceConnection.name)
     )
     conns = result.scalars().all()
     auth0_conns = await _get_auth0_configured_connections()

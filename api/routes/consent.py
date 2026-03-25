@@ -14,45 +14,46 @@ from api.database import get_db
 from api.models.connection import ServiceConnection
 from api.models.rule import Rule, ApprovalModel
 from api.models.approval_job import ApprovalJob
+from api.models.workspace import Workspace
 from api.routes.connections import _SERVICE_SCOPE
+from api.middleware.workspace import get_current_workspace
 
 router = APIRouter(prefix="/api/v1", tags=["consent"])
 
 
 @router.get("/consent")
-async def get_consent(db: AsyncSession = Depends(get_db)):
-    # All active connections
+async def get_consent(workspace: Workspace = Depends(get_current_workspace), db: AsyncSession = Depends(get_db)):
+    # All active connections for this workspace
     conns_result = await db.execute(
         select(ServiceConnection)
-        .where(ServiceConnection.is_active.is_(True))
+        .where(ServiceConnection.workspace_id == workspace.id, ServiceConnection.is_active.is_(True))
         .order_by(ServiceConnection.name)
     )
     connections = conns_result.scalars().all()
 
-    # All active rules
+    # All active rules for this workspace
     rules_result = await db.execute(
-        select(Rule).where(Rule.is_active.is_(True))
+        select(Rule).where(Rule.workspace_id == workspace.id, Rule.is_active.is_(True))
     )
     all_rules = rules_result.scalars().all()
     rules_by_conn = {}
     for r in all_rules:
         rules_by_conn.setdefault(r.connection, []).append(r)
 
-    # Count distinct agents
+    # Count distinct agents for this workspace
     agent_count_result = await db.execute(
         select(func.count(distinct(ApprovalJob.agent_user_id)))
+        .where(ApprovalJob.workspace_id == workspace.id)
     )
     total_agents = agent_count_result.scalar() or 0
 
     services = []
     for conn in connections:
-        # Rules for this connection
         conn_rules = rules_by_conn.get(conn.slug, [])
 
-        # Recent access for this connection
         jobs_result = await db.execute(
             select(ApprovalJob)
-            .where(ApprovalJob.connection == conn.slug)
+            .where(ApprovalJob.workspace_id == workspace.id, ApprovalJob.connection == conn.slug)
             .order_by(ApprovalJob.created_at.desc())
             .limit(10)
         )
