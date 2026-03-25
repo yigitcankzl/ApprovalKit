@@ -43,6 +43,11 @@ class Rule(Base):
     context_template: Mapped[str | None] = mapped_column(Text, nullable=True)
     partial_approval: Mapped[bool] = mapped_column(Boolean, default=False)
     quorum_window: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    step_up_model: Mapped[ApprovalModel | None] = mapped_column(
+        Enum(ApprovalModel, name="approval_model", values_callable=lambda x: [e.value for e in x], create_constraint=False),
+        nullable=True,
+    )
+    step_up_conditions: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     priority: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)

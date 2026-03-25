@@ -29,6 +29,8 @@ class RuleCreate(BaseModel):
     partial_approval: bool = False
     quorum_window: int | None = Field(default=None, ge=30, le=7200)
     priority: int = Field(default=0, ge=0, le=100)
+    step_up_model: ApprovalModel | None = None
+    step_up_conditions: list[ConditionSchema] = Field(default_factory=list)
 
 
 class RuleUpdate(BaseModel):
@@ -49,6 +51,8 @@ class RuleUpdate(BaseModel):
     quorum_window: int | None = None
     priority: int | None = None
     is_active: bool | None = None
+    step_up_model: ApprovalModel | None = None
+    step_up_conditions: list[ConditionSchema] | None = None
 
 
 class RuleResponse(BaseModel):
@@ -72,6 +76,8 @@ class RuleResponse(BaseModel):
     quorum_window: int | None
     priority: int
     is_active: bool
+    step_up_model: str | None = None
+    step_up_conditions: list[dict] = []
     created_at: str
     updated_at: str
 

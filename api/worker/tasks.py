@@ -14,7 +14,7 @@ from api.models.approval_job import ApprovalJob, AuditLog, AuditEventType, JobSt
 from api.models.rule import Rule, ApprovalModel
 from api.services.ciba import ciba_service
 from api.services.token_vault import token_vault_service
-from api.services.rule_engine import render_binding_message
+from api.services.rule_engine import render_binding_message, evaluate_conditions
 from api.middleware.rate_limit import rate_limiter
 
 
@@ -285,10 +285,27 @@ async def _process_job(job_id: str):
             )
             session.add(audit)
 
+        # Step-up authentication: escalate model if conditions met
+        effective_model = rule.model
+        if rule.step_up_conditions and rule.step_up_model:
+            if evaluate_conditions(rule.step_up_conditions, job.params):
+                effective_model = rule.step_up_model
+                logger.info(f"Step-up triggered for job {job.id}: {rule.model.value} -> {rule.step_up_model.value}")
+                async with session.begin():
+                    session.add(AuditLog(
+                        job_id=job.id,
+                        workspace_id=job.workspace_id,
+                        event_type=AuditEventType.STEP_UP,
+                        note=f"Step-up: {rule.model.value} -> {rule.step_up_model.value}",
+                    ))
+                await _publish("step_up_triggered", job,
+                    original_model=rule.model.value,
+                    effective_model=rule.step_up_model.value)
+
         # Process based on approval model
-        processor = MODEL_PROCESSORS.get(rule.model)
+        processor = MODEL_PROCESSORS.get(effective_model)
         if not processor:
-            logger.error(f"Unknown approval model: {rule.model}")
+            logger.error(f"Unknown approval model: {effective_model}")
             return
 
         approval_result = await processor(job, rule)

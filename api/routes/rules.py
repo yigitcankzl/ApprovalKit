@@ -69,6 +69,8 @@ def _rule_to_response(rule: Rule) -> dict:
         "quorum_window": rule.quorum_window,
         "priority": rule.priority,
         "is_active": rule.is_active,
+        "step_up_model": rule.step_up_model.value if rule.step_up_model and isinstance(rule.step_up_model, ApprovalModel) else None,
+        "step_up_conditions": rule.step_up_conditions or [],
         "created_at": rule.created_at.isoformat(),
         "updated_at": rule.updated_at.isoformat(),
     }
@@ -100,6 +102,8 @@ async def create_rule(
         partial_approval=data.partial_approval,
         quorum_window=data.quorum_window,
         priority=data.priority,
+        step_up_model=data.step_up_model,
+        step_up_conditions=[c.model_dump() for c in data.step_up_conditions] if data.step_up_conditions else None,
     )
     db.add(rule)
     await db.flush()
@@ -156,6 +160,8 @@ async def update_rule(
 
     if "conditions" in update_data and update_data["conditions"] is not None:
         update_data["conditions"] = [c.model_dump() if hasattr(c, "model_dump") else c for c in update_data["conditions"]]
+    if "step_up_conditions" in update_data and update_data["step_up_conditions"] is not None:
+        update_data["step_up_conditions"] = [c.model_dump() if hasattr(c, "model_dump") else c for c in update_data["step_up_conditions"]]
     if "blackout_start" in update_data:
         update_data["blackout_start"] = _parse_time(update_data["blackout_start"])
     if "blackout_end" in update_data:
@@ -226,11 +232,20 @@ async def simulate_rule(
         for ra in matched.rule_approvers
     ]
 
+    step_up_triggered = False
+    effective_model = matched.model
+    if matched.step_up_conditions and matched.step_up_model:
+        if evaluate_conditions(matched.step_up_conditions, params):
+            step_up_triggered = True
+            effective_model = matched.step_up_model
+
     return {
         "matched": True,
         "rule_id": str(matched.id),
         "rule_name": matched.name,
         "model": matched.model.value if isinstance(matched.model, ApprovalModel) else matched.model,
+        "effective_model": effective_model.value if isinstance(effective_model, ApprovalModel) else effective_model,
+        "step_up_triggered": step_up_triggered,
         "approvers": approvers,
         "timeout_seconds": matched.timeout_seconds,
         "on_timeout": matched.on_timeout.value if isinstance(matched.on_timeout, TimeoutAction) else matched.on_timeout,

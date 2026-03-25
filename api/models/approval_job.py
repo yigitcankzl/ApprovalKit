@@ -34,6 +34,7 @@ class AuditEventType(str, enum.Enum):
     PARTIAL_APPROVED = "partial_approved"
     SCOPE_CREEP = "scope_creep"
     REVOKED = "revoked"
+    STEP_UP = "step_up"
 
 
 class ApprovalJob(Base):
