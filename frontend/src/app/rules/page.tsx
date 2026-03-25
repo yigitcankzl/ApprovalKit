@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
 import type { Rule } from "@/types";
-import { Plus, GitBranch, ArrowRight, FlaskConical, Send, Loader2, CheckCircle2, XCircle, ChevronRight } from "lucide-react";
+import { Plus, GitBranch, ArrowRight, FlaskConical, Send, Loader2, CheckCircle2, XCircle, ChevronRight, Eye, Pencil, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 const modelLabels: Record<string, string> = {
   any_one: "Any One",
@@ -86,7 +87,7 @@ export default function RulesPage() {
       ) : (
         <div className="space-y-4">
           {rules.map((rule) => (
-            <RuleCard key={rule.id} rule={rule} approverMap={approverMap} />
+            <RuleCard key={rule.id} rule={rule} approverMap={approverMap} onDelete={() => { api.getRules().then(setRules); }} />
           ))}
         </div>
       )}
@@ -96,7 +97,8 @@ export default function RulesPage() {
 
 interface Approver { id: string; name: string; email: string; }
 
-function RuleCard({ rule, approverMap }: { rule: Rule; approverMap: Record<string, Approver> }) {
+function RuleCard({ rule, approverMap, onDelete }: { rule: Rule; approverMap: Record<string, Approver>; onDelete: () => void }) {
+  const router = useRouter();
   const [expanded, setExpanded] = useState(false);
   const [checkResult, setCheckResult] = useState<any>(null);
   const [checking, setChecking] = useState(false);
@@ -152,6 +154,11 @@ function RuleCard({ rule, approverMap }: { rule: Rule; approverMap: Record<strin
       }
     } catch { setLiveStatus("error"); }
     setSending(false);
+  };
+
+  const handleDelete = async () => {
+    if (!confirm(`Delete rule "${rule.name}"?`)) return;
+    try { await api.deleteRule(rule.id); onDelete(); } catch {}
   };
 
   return (
@@ -215,20 +222,25 @@ function RuleCard({ rule, approverMap }: { rule: Rule; approverMap: Record<strin
             <pre className="bg-zinc-900 text-zinc-100 text-xs rounded-lg p-3 overflow-x-auto">{JSON.stringify({ connection: rule.connection, action: rule.action, params: sampleParams }, null, 2)}</pre>
           </div>
 
-          {/* Buttons */}
-          <div className="flex items-center gap-3">
+          {/* Actions */}
+          <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" onClick={handleCheck} disabled={checking}>
               {checking ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Checking...</> : <><FlaskConical className="h-3.5 w-3.5 mr-1.5" />Check Rule</>}
             </Button>
             <Button size="sm" onClick={handleRunLive} disabled={sending || liveStatus === "ciba_sent"}>
               {sending ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Sending...</> : <><Send className="h-3.5 w-3.5 mr-1.5" />Run Live</>}
             </Button>
-            <Link href={`/rules/${rule.id}`} className="text-xs text-zinc-500 hover:text-zinc-700 ml-auto">
-              View details →
-            </Link>
-            <Link href={`/rules/${rule.id}/edit`} className="text-xs text-zinc-500 hover:text-zinc-700">
-              Edit →
-            </Link>
+            <div className="ml-auto flex items-center gap-1">
+              <Button size="sm" variant="ghost" onClick={() => router.push(`/rules/${rule.id}`)}>
+                <Eye className="h-3.5 w-3.5 mr-1.5" />View
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => router.push(`/rules/${rule.id}/edit`)}>
+                <Pencil className="h-3.5 w-3.5 mr-1.5" />Edit
+              </Button>
+              <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={handleDelete}>
+                <Trash2 className="h-3.5 w-3.5 mr-1.5" />Delete
+              </Button>
+            </div>
           </div>
 
           {/* Check Rule result */}
