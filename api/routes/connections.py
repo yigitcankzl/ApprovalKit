@@ -243,6 +243,7 @@ async def oauth_callback(
 
     conn.connected_auth0_user_id = sub
     conn.connected_user_name = name
+    conn.auth0_refresh_token = tokens.get("refresh_token")
     await db.commit()
 
     return RedirectResponse(url=f"{settings.FRONTEND_URL}/connections?connected={conn.slug}")
@@ -271,6 +272,9 @@ async def get_connect_url(connection_id: str, db: AsyncSession = Depends(get_db)
         )
 
     scope = _SERVICE_SCOPE.get(service, "openid profile email")
+    # Add offline_access to get refresh token for Token Vault Token Exchange
+    if "offline_access" not in scope:
+        scope = f"{scope} offline_access"
     callback_url = f"{settings.CALLBACK_BASE_URL}/api/v1/connections/oauth/callback"
 
     client_id = settings.AUTH0_WEB_CLIENT_ID or settings.AUTH0_CLIENT_ID

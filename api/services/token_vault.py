@@ -3,9 +3,12 @@ Token Vault Service
 ===================
 Executes downstream API calls after an approval is granted.
 
-Credentials are NEVER stored locally. All tokens come from Auth0 Token Vault —
-the connected_auth0_user_id on each ServiceConnection points to the Auth0 user
-whose OAuth token is retrieved via the Management API.
+Credentials are NEVER stored locally. All tokens come from Auth0 Token Vault
+via the Token Exchange endpoint (RFC 8693). The refresh_token obtained during
+OAuth connect is exchanged for a fresh external-provider access_token at
+execution time.
+
+Grant type: urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token
 
 Supported service handlers
 ---------------------------
@@ -210,13 +213,45 @@ _SERVICE_HANDLERS = {
 class TokenVaultService:
     def __init__(self):
         self.domain        = settings.AUTH0_DOMAIN
-        self.client_id     = settings.AUTH0_CLIENT_ID
-        self.client_secret = settings.AUTH0_CLIENT_SECRET
+        self.client_id     = settings.AUTH0_WEB_CLIENT_ID or settings.AUTH0_CLIENT_ID
+        self.client_secret = settings.AUTH0_WEB_CLIENT_SECRET or settings.AUTH0_CLIENT_SECRET
+        self.m2m_client_id     = settings.AUTH0_CLIENT_ID
+        self.m2m_client_secret = settings.AUTH0_CLIENT_SECRET
+
+    async def get_token_via_exchange(self, connection_name: str, refresh_token: str) -> str | None:
+        """
+        Token Vault Token Exchange (RFC 8693).
+        Exchanges an Auth0 refresh_token for a fresh external-provider access_token.
+        """
+        try:
+            async with httpx.AsyncClient(timeout=15) as c:
+                r = await c.post(
+                    f"https://{self.domain}/oauth/token",
+                    data={
+                        "grant_type": "urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token",
+                        "subject_token_type": "urn:ietf:params:oauth:token-type:refresh_token",
+                        "requested_token_type": "http://auth0.com/oauth/token-type/federated-connection-access-token",
+                        "subject_token": refresh_token,
+                        "client_id": self.client_id,
+                        "client_secret": self.client_secret,
+                        "connection": connection_name,
+                    },
+                )
+                if r.status_code == 200:
+                    data = r.json()
+                    token = data.get("access_token")
+                    logger.info(f"Token Vault: exchanged refresh token for {connection_name} access token (via Token Exchange)")
+                    return token
+                else:
+                    logger.warning(f"Token Vault Token Exchange failed ({r.status_code}): {r.text}")
+                    return None
+        except Exception as e:
+            logger.warning(f"Token Vault Token Exchange error for {connection_name}: {e}")
+            return None
 
     async def get_token_from_auth0(self, provider: str, auth0_user_id: str) -> str | None:
         """
-        Retrieve a stored OAuth token from Auth0 Token Vault.
-        Uses the Management API to read identities[].access_token for the given user.
+        Fallback: Retrieve token via Management API if Token Exchange is not available.
         """
         mgmt_token = await self.get_management_token()
         if not mgmt_token:
@@ -228,18 +263,16 @@ class TokenVaultService:
                     headers={"Authorization": f"Bearer {mgmt_token}"},
                 )
                 if r.status_code != 200:
-                    logger.warning(f"Token Vault: Management API returned {r.status_code} for {auth0_user_id}")
                     return None
                 user = r.json()
                 for identity in user.get("identities", []):
                     if identity.get("connection") == provider or identity.get("provider") == provider:
                         token = identity.get("access_token")
                         if token:
-                            logger.info(f"Token Vault: retrieved {provider} token for {auth0_user_id}")
+                            logger.info(f"Token Vault: retrieved {provider} token via Management API (fallback)")
                             return token
-                logger.warning(f"Token Vault: no {provider} token found for {auth0_user_id}")
         except Exception as e:
-            logger.warning(f"Token Vault: failed to get {provider} token for {auth0_user_id}: {e}")
+            logger.warning(f"Token Vault Management API fallback failed: {e}")
         return None
 
     async def execute_action(
@@ -278,19 +311,25 @@ class TokenVaultService:
 
             if conn_obj:
                 service = conn_obj.service.lower()
+                provider = _PROVIDER_MAP.get(service)
 
-                if conn_obj.connected_auth0_user_id:
-                    provider = _PROVIDER_MAP.get(service)
-                    if provider:
-                        token = await self.get_token_from_auth0(provider, conn_obj.connected_auth0_user_id)
-                        if token:
-                            creds = {"api_key": token, "token": token, "access_token": token}
-                    else:
-                        logger.warning(f"Token Vault: no provider mapping for service '{service}'")
-                else:
+                # Try Token Exchange first (preferred, RFC 8693)
+                if conn_obj.auth0_refresh_token and provider:
+                    token = await self.get_token_via_exchange(provider, conn_obj.auth0_refresh_token)
+                    if token:
+                        creds = {"api_key": token, "token": token, "access_token": token}
+                        logger.info(f"Token Vault: using Token Exchange for {connection}")
+
+                # Fallback to Management API if Token Exchange unavailable
+                if creds is None and conn_obj.connected_auth0_user_id and provider:
+                    token = await self.get_token_from_auth0(provider, conn_obj.connected_auth0_user_id)
+                    if token:
+                        creds = {"api_key": token, "token": token, "access_token": token}
+
+                if creds is None and conn_obj.connected_auth0_user_id:
                     logger.warning(
-                        f"Connection '{connection}' has no connected_auth0_user_id — "
-                        f"connect it via the /connections page first"
+                        f"Token Vault: no token for '{connection}' — "
+                        f"reconnect via /connections to get refresh token"
                     )
 
         if creds is None:
@@ -326,8 +365,8 @@ class TokenVaultService:
             response = await client.post(
                 f"https://{self.domain}/oauth/token",
                 json={
-                    "client_id":     self.client_id,
-                    "client_secret": self.client_secret,
+                    "client_id":     self.m2m_client_id,
+                    "client_secret": self.m2m_client_secret,
                     "audience":      settings.AUTH0_MGMT_API_AUDIENCE,
                     "grant_type":    "client_credentials",
                 },
