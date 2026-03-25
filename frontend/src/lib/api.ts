@@ -104,7 +104,7 @@ export const api = {
 
   // Registered agents (My Agents)
   getMyAgents: () => fetchAPI("/api/v1/agents"),
-  createMyAgent: (data: { name: string; description?: string; icon?: string; scenarios?: { title: string; connection: string; action: string; params: Record<string, unknown> }[] }) =>
+  createMyAgent: (data: { name: string; description?: string; icon?: string; allowed_connections?: string[]; scenarios?: { title: string; connection: string; action: string; params: Record<string, unknown> }[] }) =>
     fetchAPI("/api/v1/agents", { method: "POST", body: JSON.stringify(data) }),
   deleteMyAgent: (id: string) => fetchAPI(`/api/v1/agents/${id}`, { method: "DELETE" }),
   addScenarioToAgent: (agentId: string, data: { title: string; connection: string; action: string; params: Record<string, unknown> }) =>
