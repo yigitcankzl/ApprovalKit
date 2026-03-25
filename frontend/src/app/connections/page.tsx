@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
-import { CheckCircle2, Link2, Unlink, X, AlertCircle, Info, Trash2 } from "lucide-react";
+import { CheckCircle2, Link2, Unlink, X, AlertCircle, Info, Trash2, ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 interface Connection {
@@ -51,16 +51,21 @@ function ConnectionsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [connections, setConnections] = useState<Connection[]>([]);
+  const [consent, setConsent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState<string | null>(null);
   const [successSlug, setSuccessSlug] = useState<string | null>(null);
   const [infoPopup, setInfoPopup] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const load = () => {
     setLoading(true);
-    api.getConnections()
-      .then(setConnections)
+    Promise.all([
+      api.getConnections(),
+      api.getConsent().catch(() => null),
+    ])
+      .then(([c, con]) => { setConnections(c); setConsent(con); })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   };
@@ -161,77 +166,145 @@ function ConnectionsContent() {
             const configured = conn.is_auth0_configured;
             const isConnecting = connecting === conn.id;
 
+            const consentSvc = consent?.services?.find((s: any) => s.slug === conn.slug);
+            const isExpanded = expandedId === conn.id;
+
             return (
-              <Card key={conn.id} className="hover:border-zinc-300 transition-colors">
-                <CardContent className="py-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-lg bg-zinc-100 flex items-center justify-center text-sm font-bold text-zinc-700 uppercase">
-                        {conn.service.slice(0, 2)}
+              <div key={conn.id} className="border border-zinc-200 rounded-xl overflow-hidden hover:border-zinc-300 transition-colors">
+                {/* Header — click to expand */}
+                <div className="p-4 flex items-center justify-between">
+                  <button className="flex items-center gap-4 flex-1 text-left" onClick={() => setExpandedId(isExpanded ? null : conn.id)}>
+                    <ChevronRight className={`h-4 w-4 text-zinc-400 transition-transform ${isExpanded ? "rotate-90" : ""}`} />
+                    <div className="w-10 h-10 rounded-lg bg-zinc-100 flex items-center justify-center text-sm font-bold text-zinc-700 uppercase">
+                      {conn.service.slice(0, 2)}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-zinc-900">{conn.name}</span>
+                        <code className="text-xs text-zinc-400 bg-zinc-50 px-1.5 py-0.5 rounded">{conn.slug}</code>
+                      </div>
+                      <div className="text-sm text-zinc-500 mt-0.5">
+                        {conn.actions.join(", ")}
+                      </div>
+                      {conn.connected_user_name && (
+                        <div className="text-xs text-zinc-400 mt-0.5">
+                          Connected as: <span className="font-medium text-zinc-600">{conn.connected_user_name}</span>
+                        </div>
+                      )}
+                    </div>
+                  </button>
+
+                  <div className="flex items-center gap-3">
+                    {conn.connected_via === "auth0" ? (
+                      <>
+                        <Badge variant="success">
+                          <CheckCircle2 className="h-3 w-3 mr-1" /> Auth0 Token Vault
+                        </Badge>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => handleDisconnect(conn)}
+                        >
+                          <Unlink className="h-4 w-4 mr-1" /> Disconnect
+                        </Button>
+                      </>
+                    ) : configured ? (
+                      <>
+                        <Badge variant="warning">Not connected</Badge>
+                        <Button
+                          size="sm"
+                          disabled={isConnecting}
+                          onClick={() => handleConnect(conn)}
+                        >
+                          <Link2 className="h-4 w-4 mr-2" />
+                          {isConnecting ? "Redirecting…" : `Connect with ${label}`}
+                        </Button>
+                      </>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <Badge variant="default">Setup required</Badge>
+                        <button onClick={() => setInfoPopup(conn.id)} className="text-zinc-400 hover:text-zinc-600">
+                          <Info className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-zinc-400 hover:text-red-600 hover:bg-red-50"
+                      onClick={() => handleDelete(conn)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Expanded details */}
+                {isExpanded && (
+                  <div className="px-4 pb-4 border-t border-zinc-100 bg-zinc-50/50 space-y-4 pt-3">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <p className="text-xs text-zinc-400 uppercase tracking-wide mb-1">OAuth Scopes</p>
+                        <div className="flex gap-1 flex-wrap">
+                          {(consentSvc?.oauth_scopes || "openid profile email").split(" ").map((scope: string) => (
+                            <span key={scope} className="text-xs bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded font-mono">{scope}</span>
+                          ))}
+                        </div>
                       </div>
                       <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-zinc-900">{conn.name}</span>
-                          <code className="text-xs text-zinc-400 bg-zinc-50 px-1.5 py-0.5 rounded">{conn.slug}</code>
+                        <p className="text-xs text-zinc-400 uppercase tracking-wide mb-1">Actions</p>
+                        <div className="flex gap-1 flex-wrap">
+                          {conn.actions.map((a) => (
+                            <code key={a} className="text-xs bg-zinc-800 text-zinc-100 px-2 py-0.5 rounded">{a}</code>
+                          ))}
                         </div>
-                        <div className="text-sm text-zinc-500 mt-0.5">
-                          {conn.actions.join(", ")}
-                        </div>
-                        {conn.connected_user_name && (
-                          <div className="text-xs text-zinc-400 mt-0.5">
-                            Connected as: <span className="font-medium text-zinc-600">{conn.connected_user_name}</span>
-                          </div>
-                        )}
+                      </div>
+                      <div>
+                        <p className="text-xs text-zinc-400 uppercase tracking-wide mb-1">Status</p>
+                        <p className="text-sm text-zinc-600">
+                          {conn.connected_via === "auth0" ? "Connected via Token Vault" : configured ? "Auth0 connection ready" : "Auth0 social connection not configured"}
+                        </p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                      {conn.connected_via === "auth0" ? (
-                        <>
-                          <Badge variant="success">
-                            <CheckCircle2 className="h-3 w-3 mr-1" /> Auth0 Token Vault
-                          </Badge>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                            onClick={() => handleDisconnect(conn)}
-                          >
-                            <Unlink className="h-4 w-4 mr-1" /> Disconnect
-                          </Button>
-                        </>
-                      ) : configured ? (
-                        <>
-                          <Badge variant="warning">Not connected</Badge>
-                          <Button
-                            size="sm"
-                            disabled={isConnecting}
-                            onClick={() => handleConnect(conn)}
-                          >
-                            <Link2 className="h-4 w-4 mr-2" />
-                            {isConnecting ? "Redirecting…" : `Connect with ${label}`}
-                          </Button>
-                        </>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <Badge variant="default">Setup required</Badge>
-                          <button onClick={() => setInfoPopup(conn.id)} className="text-zinc-400 hover:text-zinc-600">
-                            <Info className="h-4 w-4" />
-                          </button>
+                    {/* Rules for this connection */}
+                    {consentSvc?.rules && consentSvc.rules.length > 0 && (
+                      <div>
+                        <p className="text-xs text-zinc-400 uppercase tracking-wide mb-2">Approval Rules</p>
+                        <div className="space-y-1">
+                          {consentSvc.rules.map((r: any) => (
+                            <div key={r.id} className="flex items-center gap-3 text-xs py-1 px-2 bg-white rounded border border-zinc-200">
+                              <span className="font-medium text-zinc-700 flex-1">{r.name}</span>
+                              <code className="bg-zinc-100 px-1.5 py-0.5 rounded">{r.action}</code>
+                              <Badge variant="info" className="text-xs">{r.model}</Badge>
+                              {r.step_up_model && <Badge variant="warning" className="text-xs">Step-up</Badge>}
+                              <span className="text-zinc-400">{r.approver_count} approver{r.approver_count > 1 ? "s" : ""}</span>
+                            </div>
+                          ))}
                         </div>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-zinc-400 hover:text-red-600 hover:bg-red-50"
-                        onClick={() => handleDelete(conn)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                      </div>
+                    )}
+
+                    {/* Recent access */}
+                    {consentSvc?.recent_access && consentSvc.recent_access.length > 0 && (
+                      <div>
+                        <p className="text-xs text-zinc-400 uppercase tracking-wide mb-2">Recent Agent Access</p>
+                        <div className="space-y-1">
+                          {consentSvc.recent_access.slice(0, 5).map((j: any) => (
+                            <div key={j.job_id} className="flex items-center gap-3 text-xs py-1 px-2 bg-white rounded border border-zinc-200">
+                              <code className="text-zinc-500 font-mono">{j.agent_user_id}</code>
+                              <code className="bg-zinc-800 text-zinc-100 px-1.5 py-0.5 rounded">{j.action}</code>
+                              <Badge variant={j.state === "approved" ? "success" : j.state === "rejected" ? "danger" : "default"} className="text-xs">{j.state}</Badge>
+                              <span className="text-zinc-400 ml-auto">{new Date(j.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </CardContent>
-              </Card>
+                )}
+              </div>
             );
           })}
         </div>
