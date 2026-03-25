@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useUser } from "@auth0/nextjs-auth0/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,6 +40,8 @@ const EVENT_COLORS: Record<string, string> = {
 };
 
 export default function DashboardPage() {
+  const router = useRouter();
+  const { user, isLoading: authLoading } = useUser();
   const [stats, setStats]       = useState<DashboardStats & { pending_count?: number } | null>(null);
   const [security, setSecurity] = useState<SecurityStatus | null>(null);
   const [events, setEvents]     = useState<LiveEvent[]>([]);
@@ -45,6 +49,13 @@ export default function DashboardPage() {
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState<string | null>(null);
   const eventsRef = useRef<HTMLDivElement>(null);
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push("/auth/login?returnTo=/dashboard");
+    }
+  }, [authLoading, user]);
 
   const loadStats = () =>
     Promise.all([api.getDashboard(), api.getSecurityStatus().catch(() => null)])

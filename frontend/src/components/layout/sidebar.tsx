@@ -18,19 +18,20 @@ import {
   KeyRound,
   LogIn,
   LogOut,
+  Settings,
 } from "lucide-react";
 
 const navigation = [
-  { name: "Onboarding", href: "/onboarding", icon: Rocket },
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Connections", href: "/connections", icon: Link2 },
   { name: "Rules", href: "/rules", icon: GitBranch },
   { name: "Approvers", href: "/approvers", icon: Users },
   { name: "Audit Log", href: "/audit", icon: ScrollText },
   { name: "Consent", href: "/consent", icon: KeyRound },
-  { name: "Use Cases", href: "/gallery", icon: BookOpen },
   { name: "Simulate", href: "/simulate", icon: FlaskConical },
+  { name: "Use Cases", href: "/gallery", icon: BookOpen },
   { name: "Docs", href: "/docs", icon: FileText },
+  { name: "Settings", href: "/settings", icon: Settings },
 ];
 
 export function Sidebar() {
