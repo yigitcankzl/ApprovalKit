@@ -559,6 +559,12 @@ function ScenarioCard({ scenario }: { scenario: Scenario }) {
     setLiveSteps(["submitting"]);
     try {
       const res = await api.sendTestRequest({ connection: scenario.connection, action: scenario.action, params: scenario.params });
+      if (res.status === "auto_approved" && scenario.badge !== "success") {
+        // No rule found but this scenario SHOULD have a rule — setup not done
+        setLiveStatus("no_setup");
+        setLiveSteps(["submitting", "no_setup"]);
+        return;
+      }
       if (res.status === "auto_approved") {
         setLiveStatus("auto_approved");
         setLiveSteps(["submitting", "rule_matched", "auto_approved"]);
@@ -654,8 +660,12 @@ function ScenarioCard({ scenario }: { scenario: Scenario }) {
               <div className="flex items-center gap-1.5 flex-wrap">
                 <LiveStep done={liveSteps.includes("submitting")} active={liveStatus === "submitting"} label="Submitted" />
                 <ArrowRight className="h-3 w-3 text-zinc-300" />
+                {liveStatus === "no_setup" ? (
+                  <LiveStep done={true} error={true} label="No rules configured — click Setup Demo first" />
+                ) : (
                 <LiveStep done={liveSteps.includes("rule_matched") || liveSteps.includes("auto_approved")} active={liveStatus === "rule_matched"} label={liveStatus === "auto_approved" ? "Auto-approved" : "Rule matched"} />
-                {liveStatus !== "auto_approved" && <>
+                )}
+                {liveStatus !== "auto_approved" && liveStatus !== "no_setup" && <>
                   <ArrowRight className="h-3 w-3 text-zinc-300" />
                   <LiveStep done={liveSteps.includes("ciba_sent")} active={liveStatus === "ciba_sent"} label="Guardian push sent" />
                   <ArrowRight className="h-3 w-3 text-zinc-300" />
