@@ -79,9 +79,18 @@ class ApprovalKit:
     # ------------------------------------------------------------------
 
     def _sign(self, body: str) -> tuple[str, str]:
+        """
+        HMAC-SHA256 request signing.
+        Uses agent-specific api_key as part of the signing material
+        when available, providing per-agent signature isolation.
+        """
         ts = str(int(time.time()))
+        # Include api_key in signing material for per-agent isolation
+        sign_key = self.hmac_secret
+        if self.api_key:
+            sign_key = f"{self.hmac_secret}:{self.api_key}"
         sig = hmac.new(
-            self.hmac_secret.encode(),
+            sign_key.encode(),
             f"{ts}.{body}".encode(),
             hashlib.sha256,
         ).hexdigest()
