@@ -29,6 +29,8 @@ export interface Rule {
   quorum_window: number | null;
   priority: number;
   is_active: boolean;
+  step_up_model: ApprovalModel | null;
+  step_up_conditions: Condition[];
   created_at: string;
   updated_at: string;
 }

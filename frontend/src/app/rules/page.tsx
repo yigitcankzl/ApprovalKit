@@ -111,6 +111,7 @@ export default function RulesPage() {
                         {modelLabels[rule.model]}
                         {rule.model === "k_of_n" && rule.k_value && ` (${rule.k_value}/${rule.approver_ids.length})`}
                       </Badge>
+                      {rule.step_up_model && <Badge variant="info">Step-up</Badge>}
                       {rule.on_timeout === "escalate" && <Badge variant="warning">Escalation</Badge>}
                       {rule.blackout_start && <Badge variant="danger">Blackout</Badge>}
                       <ArrowRight className="h-4 w-4 text-zinc-400" />
