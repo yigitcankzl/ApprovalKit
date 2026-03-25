@@ -113,7 +113,7 @@ export default function DashboardPage() {
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-900" />
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-900 dark:border-zinc-100" />
     </div>
   );
   if (error) return <div className="flex items-center justify-center h-64"><p className="text-red-500">{error}</p></div>;
@@ -135,8 +135,8 @@ export default function DashboardPage() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-zinc-900">Permission Dashboard</h1>
-        <p className="text-zinc-500 mt-1">Workspace overview — access controlled by FGA role</p>
+        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Permission Dashboard</h1>
+        <p className="text-zinc-500 dark:text-zinc-400 mt-1">Workspace overview — access controlled by FGA role</p>
       </div>
 
       {/* Stats grid */}

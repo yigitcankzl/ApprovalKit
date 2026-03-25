@@ -41,12 +41,17 @@ interface Agent {
   id: string;
   title: string;
   icon: React.ElementType;
+  iconName?: string;
   description: string;
   scenarios: Scenario[];
   setupInfo: SetupItem[];
 }
 
-// ── Agent definitions ─────────────────────────────────────────────────────────
+const ICON_MAP: Record<string, React.ElementType> = {
+  ShoppingCart, Server, Package, FlaskConical, CreditCard, Mail, Users, Bot,
+};
+
+// ── Agent definitions (extracted for independent maintenance) ──────────────────
 
 const AGENTS: Agent[] = [
   {
