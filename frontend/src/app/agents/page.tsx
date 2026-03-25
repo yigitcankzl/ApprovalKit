@@ -532,6 +532,7 @@ function ScenarioCard({ scenario }: { scenario: Scenario }) {
   const [expanded, setExpanded] = useState(false);
   const [sending, setSending] = useState(false);
   const [liveStatus, setLiveStatus] = useState<string | null>(null);
+  const [liveSteps, setLiveSteps] = useState<string[]>([]);
 
   const handleSimulate = async () => {
     setResult({ status: "running" });
@@ -554,22 +555,32 @@ function ScenarioCard({ scenario }: { scenario: Scenario }) {
 
   const handleSendReal = async () => {
     setSending(true);
-    setLiveStatus("sending");
+    setLiveStatus("submitting");
+    setLiveSteps(["submitting"]);
     try {
       const res = await api.sendTestRequest({ connection: scenario.connection, action: scenario.action, params: scenario.params });
       if (res.status === "auto_approved") {
         setLiveStatus("auto_approved");
+        setLiveSteps(["submitting", "rule_matched", "auto_approved"]);
       } else if (res.job_id) {
+        setLiveStatus("rule_matched");
+        setLiveSteps(["submitting", "rule_matched"]);
+        // Small delay to show rule matched step
+        await new Promise(r => setTimeout(r, 800));
         setLiveStatus("ciba_sent");
+        setLiveSteps(["submitting", "rule_matched", "ciba_sent"]);
         // Poll for result
         let attempts = 0;
         const poll = async () => {
           try {
             const s = await api.getJobStatus(res.job_id);
-            setLiveStatus(s.status);
-            if (["approved", "rejected", "timeout", "blocked"].includes(s.status)) return;
+            if (["approved", "rejected", "timeout", "blocked"].includes(s.status)) {
+              setLiveStatus(s.status);
+              setLiveSteps(prev => [...prev, s.status]);
+              return;
+            }
           } catch {}
-          if (++attempts < 60) setTimeout(poll, 3000);
+          if (++attempts < 60) setTimeout(poll, 2000);
         };
         poll();
       }
@@ -639,22 +650,23 @@ function ScenarioCard({ scenario }: { scenario: Scenario }) {
                 ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Sending…</>
                 : <><Send className="h-3.5 w-3.5 mr-1.5" />Send Real Request</>}
             </Button>
-            {liveStatus && (
-              <Badge variant={
-                liveStatus === "approved" ? "success" :
-                liveStatus === "rejected" ? "danger" :
-                liveStatus === "auto_approved" ? "success" :
-                liveStatus === "ciba_sent" ? "info" :
-                liveStatus === "timeout" ? "warning" : "default"
-              }>
-                {liveStatus === "ciba_sent" && <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Waiting for Guardian...</>}
-                {liveStatus === "approved" && <><CheckCircle2 className="h-3 w-3 mr-1" />Approved via Guardian</>}
-                {liveStatus === "rejected" && <><XCircle className="h-3 w-3 mr-1" />Rejected</>}
-                {liveStatus === "auto_approved" && <><CheckCircle2 className="h-3 w-3 mr-1" />Auto-approved</>}
-                {liveStatus === "timeout" && <>Timed out</>}
-                {liveStatus === "sending" && <>Sending...</>}
-                {liveStatus === "error" && <>Error</>}
-              </Badge>
+            {liveSteps.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <LiveStep done={liveSteps.includes("submitting")} active={liveStatus === "submitting"} label="Submitted" />
+                <ArrowRight className="h-3 w-3 text-zinc-300" />
+                <LiveStep done={liveSteps.includes("rule_matched") || liveSteps.includes("auto_approved")} active={liveStatus === "rule_matched"} label={liveStatus === "auto_approved" ? "Auto-approved" : "Rule matched"} />
+                {liveStatus !== "auto_approved" && <>
+                  <ArrowRight className="h-3 w-3 text-zinc-300" />
+                  <LiveStep done={liveSteps.includes("ciba_sent")} active={liveStatus === "ciba_sent"} label="Guardian push sent" />
+                  <ArrowRight className="h-3 w-3 text-zinc-300" />
+                  <LiveStep done={liveSteps.includes("approved") || liveSteps.includes("rejected")} active={liveStatus === "ciba_sent"} label={
+                    liveStatus === "approved" ? "Approved" :
+                    liveStatus === "rejected" ? "Rejected" :
+                    liveStatus === "timeout" ? "Timed out" :
+                    "Waiting..."
+                  } />
+                </>}
+              </div>
             )}
 
             {result && result.status !== "running" && (
@@ -809,5 +821,19 @@ export default function AgentsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function LiveStep({ done, active, label }: { done: boolean; active?: boolean; label: string }) {
+  return (
+    <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${
+      done ? "bg-green-100 text-green-700" :
+      active ? "bg-blue-100 text-blue-700" :
+      "bg-zinc-100 text-zinc-400"
+    }`}>
+      {active && <Loader2 className="h-3 w-3 animate-spin" />}
+      {done && <CheckCircle2 className="h-3 w-3" />}
+      {label}
+    </span>
   );
 }
