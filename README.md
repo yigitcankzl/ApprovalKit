@@ -2,270 +2,346 @@
 
 **Human Approval Middleware for AI Agents**
 
-Auth0 Token Vault + CIBA + FGA | Authorized to Act Hackathon 2026
+> One decorator. Any agent. Credentials never leave Auth0 Token Vault.
 
 ---
 
-## What is ApprovalKit?
+## The Problem
 
-ApprovalKit is a plug-and-play human approval middleware platform for AI agents. Any agent that can make an HTTP request can integrate with it. LLM-agnostic, framework-agnostic, language-agnostic.
+AI agents are increasingly autonomous — they can book flights, deploy code, charge credit cards, send emails. But **what happens when they make a mistake?** A wrong Stripe charge, an accidental production deploy, or an unauthorized email can't be undone.
 
-When an AI agent needs to take a high-stakes action (charging a credit card, deploying to production, publishing a package), a human must approve it first. ApprovalKit handles the entire approval workflow using three Auth0 capabilities:
+Today, most agents hold raw API keys in memory. If the agent is compromised, or if it hallucinates, there's no safety net. No human reviews the action. No audit trail exists.
 
-- **Token Vault** — Secure credential storage. Tokens never reach the agent.
-- **CIBA** — Human-in-the-loop push notification approval via Auth0 Guardian.
-- **FGA** — Fine-grained authorization for the platform itself.
+## The Solution
+
+ApprovalKit is a **plug-and-play middleware** that sits between AI agents and the services they control. When an agent wants to take a high-stakes action, ApprovalKit:
+
+1. **Evaluates the request** against configurable rules
+2. **Sends a push notification** to the right human (via Auth0 CIBA + Guardian)
+3. **Waits for approval** on the human's phone
+4. **Executes the action** through Auth0 Token Vault — the agent never sees the credentials
 
 ```
-AI Agent → POST /api/v1/request → FastAPI → Rule Engine → Celery Worker
-                                                              ↓
-                                                   Auth0 CIBA (Guardian push)
-                                                              ↓
-                                                     Human approves/rejects
-                                                              ↓
-                                                   Token Vault → Target Service
+AI Agent                          Human
+   |                                |
+   |  POST /api/v1/request          |
+   |──────────────> ApprovalKit     |
+   |                   |            |
+   |           Rule Engine          |
+   |           Step-up check        |
+   |                   |            |
+   |           Auth0 CIBA ─────────>| Guardian push
+   |                                | "Charge $349 for alice?"
+   |                                |
+   |                   |<───────────| Approve
+   |                   |            |
+   |           Token Vault          |
+   |           (RFC 8693)           |
+   |           Stripe charge ✓      |
+   |<──────────────────|            |
+   |  {status: approved}            |
 ```
 
-The token **never reaches the agent**. After approval, the platform executes the action directly via Token Vault.
+The agent adds **one decorator** to any function:
+
+```python
+from approvalkit import ApprovalKit
+
+kit = ApprovalKit(base_url="...", api_key="...", hmac_secret="...")
+
+@kit.requires_approval(connection="stripe-prod", action="charge")
+def charge_customer(amount: int, customer: str):
+    pass  # Body never runs — Token Vault executes server-side
+```
+
+---
+
+## Auth0 Integration
+
+ApprovalKit uses **three Auth0 capabilities**:
+
+### Token Vault (RFC 8693 Token Exchange)
+
+Credentials are stored in Auth0 Token Vault via the **Connected Accounts** flow. When an action is approved, ApprovalKit exchanges the user's refresh token for a fresh provider access token using the Token Exchange endpoint — the agent never sees the raw credential.
+
+```
+POST /oauth/token
+grant_type=urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token
+subject_token={auth0_refresh_token}
+connection={stripe|github|slack|...}
+```
+
+Supports 20+ providers: Stripe, GitHub, Google, Slack, Salesforce, Microsoft, Notion, Jira, Discord, Dropbox, Box, Figma, Shopify, HubSpot, Linear, and more.
+
+### CIBA (Client-Initiated Backchannel Authentication)
+
+Human-in-the-loop approval via Auth0 Guardian push notifications. The approver sees a binding message on their phone (e.g., "Charge $349 for alice@example.com") and taps Approve or Deny.
+
+### FGA (Fine-Grained Authorization)
+
+Role-based access control for the platform itself: admins see everything, approvers see only their own history, viewers see aggregated stats.
+
+---
+
+## Key Features
+
+### Step-up Authentication
+
+Low-value actions auto-approve or need one person. High-value actions automatically escalate:
+
+```
+$49 charge   → auto-approve (no rule match)
+$349 charge  → any_one (single manager approval)
+$5000 charge → step-up → all_of_n (manager + CFO both approve)
+```
+
+Step-up conditions are configurable per rule. The Celery worker evaluates conditions at runtime and escalates the approval model before dispatching.
+
+### 5 Approval Models
+
+| Model | How it works |
+|-------|-------------|
+| `any_one` | First approval from any listed approver |
+| `specific` | Only the designated person can approve |
+| `all_of_n` | Every approver must approve |
+| `k_of_n` | k out of n within a quorum time window |
+| `sequential` | Ordered chain — each step waits for the previous |
+
+### Consent & Permissions
+
+A centralized page shows what agents can access, which services are connected, OAuth scopes granted, and allows instant revocation.
+
+### Multi-tenant
+
+Each organization stores its own Auth0 and FGA credentials in the database (encrypted at rest with Fernet). No `.env` editing — everything configured through the dashboard.
+
+### Real-time Dashboard
+
+SSE live feed via Redis pub/sub shows approval events as they happen. Pending approvals panel, CIBA quota tracking, security status monitoring.
+
+---
+
+## Architecture
+
+```
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│   AI Agent   │───>│  ApprovalKit │───>│  Auth0 CIBA  │───>│    Human     │
+│  (any LLM)  │    │  FastAPI +   │    │  Guardian    │    │  (phone)     │
+│              │    │  Celery      │    │  Push        │    │              │
+└──────────────┘    └──────┬───────┘    └──────────────┘    └──────┬───────┘
+                           │                                       │
+                    Rule Engine                              Approve/Deny
+                    Step-up eval                                   │
+                           │            ┌──────────────┐           │
+                           └───────────>│ Auth0 Token  │<──────────┘
+                                        │ Vault (8693) │
+                                        └──────┬───────┘
+                                               │
+                                        ┌──────┴───────┐
+                                        │  Stripe /    │
+                                        │  GitHub /    │
+                                        │  Slack / ... │
+                                        └──────────────┘
+```
+
+### Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| API | Python 3.11, FastAPI, SQLAlchemy, Pydantic v2 |
+| Worker | Celery 5.4, Redis 7 |
+| Database | PostgreSQL 16 |
+| Frontend | Next.js 14, React 18, Tailwind CSS, TypeScript |
+| Auth | Auth0 Token Vault, CIBA, FGA, nextjs-auth0 v4 |
+| SDK | Python, pip-installable, sync + async |
+| Infrastructure | Docker Compose (6 services) |
 
 ---
 
 ## Quick Start
 
-### Prerequisites
-- Docker & Docker Compose
-- Auth0 tenant with Token Vault, CIBA, and FGA enabled
+```bash
+git clone <repo-url> && cd ApprovalKit
+docker compose up -d
 
-### Setup
+# Open dashboard — configure Auth0 credentials via UI
+open http://localhost:3000/settings
+
+# Or use .env for headless setup
+cp .env.example .env && cp frontend/.env.local.example frontend/.env.local
+```
+
+### Run the demo agent
 
 ```bash
-# Clone & configure
-git clone <repo-url> && cd ApprovalKit
-cp .env.example .env
-cp frontend/.env.local.example frontend/.env.local
-# Fill in Auth0 credentials in both files
-
-# Start
-docker compose up -d
-docker compose exec api alembic upgrade head
-
-# Generate API key + HMAC secret
-docker compose exec api python scripts/setup.py
-
-# Access
-# Welcome:  http://localhost:3000
-# API docs: http://localhost:8000/docs
+pip install requests
+APPROVALKIT_URL=http://localhost:8000 \
+APPROVALKIT_API_KEY=<from settings> \
+APPROVALKIT_HMAC_SECRET=<from settings> \
+python examples/shopping_bot.py
 ```
+
+The shopping bot charges $349 → Guardian push goes to your phone → approve → Token Vault executes the Stripe charge. The agent never sees the Stripe API key.
+
+---
+
+## TravelOps Agent (Companion Demo)
+
+A complete **corporate travel booking agent** that demonstrates ApprovalKit in a real-world scenario. Available as a separate project:
+
+```
+travelops/
+├── with-approvalkit/       # Safe: Token Vault, Guardian approval, audit trail
+├── without-approvalkit/    # Unsafe: Agent holds API keys, no approval
+├── backend/                # Standalone FastAPI dashboard
+└── frontend/               # Travel booking UI on port 3001
+```
+
+The side-by-side comparison shows why human-in-the-loop approval matters:
+
+| | Without ApprovalKit | With ApprovalKit |
+|---|---|---|
+| $3200 flight | Charged immediately | Manager + CFO both approve |
+| Credentials | Agent holds Stripe key | Agent never sees key |
+| Wrong amount | Money gone | Approver catches it |
+| Audit trail | None | Full log with timestamps |
+
+---
+
+## Security Model
+
+1. **Token Vault** — Credentials never stored locally, never reach the agent
+2. **Token Exchange (RFC 8693)** — Standard-compliant federated token retrieval
+3. **Connected Accounts** — Proper Token Vault flow via My Account API
+4. **HMAC-SHA256 Request Signing** — Every agent request signed with timestamp (5-min replay window)
+5. **CIBA Push Notifications** — Human approval via Guardian app (64-char binding message)
+6. **Step-up Authentication** — Automatic model escalation for high-value actions
+7. **Scope Creep Detection** — Alerts on first-time agent:action combinations
+8. **FGA Access Control** — Role-based visibility (admin, approver, viewer)
+9. **Credential Encryption at Rest** — Workspace secrets encrypted with Fernet (AES-128-CBC)
+10. **Multi-tenant Isolation** — Each org has its own Auth0 tenant and credentials
+
+---
+
+## Dashboard Pages
+
+| Page | Description |
+|------|-------------|
+| Dashboard | Real-time stats, SSE live feed, pending approvals, security status |
+| Connections | OAuth connect via Token Vault (20+ providers), auto-detection |
+| Rules | Approval rules with step-up, expandable cards with Check Rule / Run Live |
+| Approvers | CRUD + Guardian auto-linking + delegation |
+| Audit Log | Filterable event log with binding messages and Token Vault receipts |
+| Consent | Per-service permissions, scopes, recent access, revoke |
+| Agent Demos | 7 pre-built agent scenarios with interactive flow diagrams |
+| Settings | Auth0/FGA credentials via dashboard (no .env needed) |
+| Docs | Full SDK reference, API endpoints, approval models |
+
+---
+
+## API Reference
+
+36 endpoints across 7 domains. Full OpenAPI docs at `/docs`.
+
+**Core:** `POST /request`, `GET /status/:id`, `POST /test-request`
+**Rules:** CRUD + `POST /simulate`
+**Approvers:** CRUD + `GET /link-url` + delegation
+**Connections:** CRUD + Connected Accounts flow + OAuth callback
+**Monitoring:** SSE events, audit log, dashboard stats, security status, consent
+**Workspace:** Setup with encrypted credential storage
 
 ---
 
 ## Python SDK
 
-Install the SDK from the `sdk/` folder:
-
 ```bash
 pip install ./sdk
 ```
 
-Add one decorator to any function — everything else stays the same:
-
 ```python
 from approvalkit import ApprovalKit, ApprovalDenied
 
-kit = ApprovalKit(
-    base_url="http://localhost:8000",
-    api_key="...",
-    hmac_secret="...",
-)
+kit = ApprovalKit(base_url="...", api_key="...", hmac_secret="...")
 
+# Decorator — function body never runs, Token Vault executes
 @kit.requires_approval(connection="stripe-prod", action="charge")
-def charge_customer(amount: int, customer: str):
-    stripe.charge(amount=amount, customer=customer)
-    # this line only runs after a human approves
+def charge(amount, customer):
+    pass
 
-try:
-    charge_customer(349, "alice@example.com")
-except ApprovalDenied as e:
-    print(f"Blocked: {e.status}")  # rejected | timeout | blocked
-```
+# Inline gate
+result = kit.gate("github-main", "deploy", {"ref": "main", "env": "production"})
 
-Or use the inline gate without a decorator:
-
-```python
-kit.gate("stripe-prod", "charge", {"amount": 349, "customer": "alice@example.com"})
-# reaching here = approved
-stripe.charge(...)
-```
-
-See `examples/shopping_bot.py` for a full working demo.
-
----
-
-## Raw HTTP Integration
-
-Works with any language or framework:
-
-```python
-import hmac, hashlib, time, json, requests, uuid
-
-payload = {
-    "connection": "stripe-prod",
-    "action": "charge",
-    "params": {"amount": 340, "customer": "john@example.com"},
-    "user_id": "auth0|abc123",
-    "idempotency_key": str(uuid.uuid4()),
-}
-body = json.dumps(payload, separators=(',', ':'))
-ts   = str(int(time.time()))
-sig  = hmac.new(HMAC_SECRET.encode(), f'{ts}.{body}'.encode(), hashlib.sha256).hexdigest()
-
-r = requests.post(
-    "http://localhost:8000/api/v1/request",
-    json=payload,
-    headers={
-        "Authorization": f"Bearer {API_KEY}",
-        "X-Signature": f"hmac-sha256={ts}.{sig}",
-    },
-)
-# 202 → poll /api/v1/status/{job_id}
-# 200 → pre-approved, proceed immediately
-# 403 → blocked by rule
+# Async support
+@kit.async_requires_approval(connection="stripe-prod", action="charge")
+async def async_charge(amount, customer):
+    pass
 ```
 
 ---
 
-## Features
+## Key Insights
 
-### Approval Models
-| Model | Description |
-|-------|-------------|
-| `any_one` | First approval from any listed approver |
-| `specific` | Only the designated person can approve |
-| `all_of_n` | Every approver must approve |
-| `k_of_n` | k out of n approvers within quorum window |
-| `sequential` | Ordered chain (A → B → C) |
+1. **Agents should never hold credentials.** The middleware pattern eliminates the largest attack surface in agentic AI.
 
-### Security
-- HMAC-SHA256 request signing with 5-minute replay prevention
-- Credential key isolation (`HMAC_SECRET` ≠ `CREDENTIALS_KEY`)
-- Pydantic v2 validation with injection-safe action patterns
-- Scope creep detection (new action type flagging + audit alert)
-- FGA-enforced least privilege on all platform data
-- Fail-closed FGA — partial config denies access instead of allowing
+2. **Step-up authentication makes security proportional to risk.** A $5 charge and a $50,000 wire transfer shouldn't have the same approval flow.
 
-### Advanced
-- Escalation chains with configurable timeouts
-- Temporal delegation (forward approvals to backup approver)
-- Pre-approval (blanket approval with conditions and expiry)
-- Partial approval (approver modifies params before approving)
-- Blackout windows (hard block during specific hours)
-- Cooldown limits (max triggers per time window)
-- CIBA quota tracking (Auth0 500/hour limit with warnings)
-- Idempotency keys (prevents duplicate CIBA notifications)
-- Simulation mode (test rules without real notifications)
-- Sentry error tracking (optional, via `SENTRY_DSN`)
+3. **Connected Accounts flow is different from login flow.** Token Exchange requires tokens stored via `/me/v1/connected-accounts`, not `/authorize`. This distinction is critical and not obvious from documentation.
+
+4. **Management API is a valid fallback.** Not all providers support refresh tokens (GitHub doesn't). Graceful degradation ensures universal compatibility.
+
+5. **Credentials belong in the database, not .env files.** Multi-tenancy requires per-org credential storage with encryption at rest.
+
+6. **Real-time feedback changes behavior.** SSE live events give immediate visibility into agent actions — fundamentally different from after-the-fact audit logs.
 
 ---
 
-## API Endpoints
+## Blog Post: Building Token Vault Token Exchange for AI Agent Approval
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/v1/request` | Submit approval request |
-| GET | `/api/v1/status/:id` | Poll job status |
-| PATCH | `/api/v1/jobs/:id/params` | Approver modifies params (partial approval) |
-| POST | `/api/v1/rules` | Create rule |
-| GET | `/api/v1/rules` | List rules |
-| GET | `/api/v1/rules/:id` | Get rule |
-| PUT | `/api/v1/rules/:id` | Update rule |
-| DELETE | `/api/v1/rules/:id` | Delete rule |
-| POST | `/api/v1/rules/simulate` | Test rule without CIBA |
-| POST | `/api/v1/approvers` | Create approver |
-| GET | `/api/v1/approvers` | List approvers |
-| PUT | `/api/v1/approvers/:id` | Update approver |
-| DELETE | `/api/v1/approvers/:id` | Delete approver |
-| PUT | `/api/v1/approvers/:id/delegate` | Set delegation |
-| DELETE | `/api/v1/approvers/:id/delegate` | Remove delegation |
-| GET | `/api/v1/audit` | Audit log (FGA-filtered) |
-| GET | `/api/v1/dashboard` | Aggregated stats |
-| GET | `/api/v1/security-status` | Live security status |
-| GET | `/api/v1/ciba-quota` | CIBA usage (500/hour limit) |
-| POST | `/api/v1/connections` | Create service connection |
-| GET | `/api/v1/connections` | List connections |
+### The Discovery
 
----
+When we started building ApprovalKit, we assumed Token Vault was simple: store OAuth tokens, retrieve them when needed. We were wrong.
 
-## FGA Access Control
+Our first implementation used the Auth0 Management API (`GET /api/v2/users/{id}`) to read `identities[].access_token`. This worked for GitHub (which uses long-lived tokens), but it was the wrong approach. Management API requires broad permissions, doesn't auto-refresh tokens, and isn't the recommended pattern.
+
+The proper approach is **Token Exchange (RFC 8693)**: exchange an Auth0 refresh token for a fresh external provider access token. But this required a discovery that cost us significant debugging time.
+
+### The Login Flow vs Connected Accounts Flow
+
+When a user authorizes a social connection via Auth0's standard `/authorize` endpoint, tokens are stored in the `identities[]` array on the user profile. Token Exchange **cannot access these tokens**.
+
+For Token Exchange to work, tokens must be stored via the **Connected Accounts** flow using Auth0's My Account API:
 
 ```
-workspace_admin  → Full access to rules, approvers, audit, dashboard
-approver         → Own approval history only
-agent_owner      → Own agent's data only
-viewer           → Summary dashboard only
+POST /me/v1/connected-accounts/connect
+→ user authorizes external service
+POST /me/v1/connected-accounts/complete
+→ tokens stored in connected_accounts[] (Token Vault)
 ```
+
+This flow requires:
+- `oidc_conformant: true` on the application
+- Token Vault grant type explicitly enabled
+- MFA policy set to "Never" (Token Exchange doesn't support MFA)
+- `create:me:connected_accounts` scope via My Account API
+
+None of this was immediately obvious from the documentation. We discovered it through trial and error with the `federated_connection_refresh_token_not_found` error.
+
+### The Architecture
+
+Our final Token Vault integration has two paths:
+
+**Primary (Token Exchange):** For providers that support refresh tokens (Stripe, Google, Salesforce). The user connects via Connected Accounts flow, Auth0 stores the federated refresh token, and Token Exchange retrieves fresh access tokens at execution time.
+
+**Fallback (Management API):** For providers like GitHub that issue long-lived access tokens without refresh tokens. The Management API reads the token directly from the user's identity profile.
+
+This dual approach ensures ApprovalKit works with **any** OAuth provider while using the most secure method available.
+
+### The Insight
+
+The biggest insight from building with Token Vault: **the boundary between "login" and "connected account" is the most important architectural decision**. Getting this wrong means your Token Exchange calls silently fail. Getting it right means your AI agents can securely execute actions across 20+ services without ever holding a credential.
+
+For the Auth0 team: clearer documentation on the Connected Accounts flow prerequisites would save developers significant time. The `federated_connection_refresh_token_not_found` error could include a hint about which flow was used to store the token.
 
 ---
 
-## Auth0 Gap Analysis
-
-ApprovalKit addresses 6 gaps in Auth0's current offering:
-
-1. **n-of-m Approval Threshold** — CIBA is single-approver only
-2. **Escalation Chains** — No built-in timeout routing
-3. **Action-Scoped Tokens** — Token Vault has no per-action scoping
-4. **Temporal Delegation** — No delegated approval authority
-5. **Approval History Persistence** — CIBA is stateless, no persistent grants
-6. **FGA for Approval Workflows** — FGA documented only for RAG, not approvals
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Frontend | Next.js 14 + Tailwind + React Flow |
-| HTTP API | FastAPI + Pydantic v2 |
-| Worker | Celery + Redis |
-| Database | PostgreSQL + SQLAlchemy + Alembic |
-| Auth | Auth0 (Token Vault, CIBA, FGA) |
-| Error Tracking | Sentry (optional) |
-
----
-
-## Project Structure
-
-```
-ApprovalKit/
-├── api/                    # FastAPI backend
-│   ├── main.py             # App entrypoint + Sentry init
-│   ├── config.py           # Settings (env vars)
-│   ├── database.py         # SQLAlchemy async setup
-│   ├── routes/             # request, rules, approvers, audit, connections
-│   ├── models/             # SQLAlchemy ORM models
-│   ├── schemas/            # Pydantic request/response schemas
-│   ├── services/           # rule_engine, ciba, fga, token_vault
-│   ├── worker/             # Celery tasks + state machine
-│   ├── middleware/         # HMAC auth, rate limiting, FGA guards
-│   └── migrations/         # Alembic migrations
-├── frontend/               # Next.js 14
-│   └── src/
-│       ├── app/            # Pages: /, dashboard, rules, approvers,
-│       │                   #        audit, gallery, simulate, docs,
-│       │                   #        onboarding, connections
-│       ├── components/     # UI components, sidebar, rule-builder, rule-graph
-│       ├── lib/            # API client
-│       └── types/          # TypeScript types
-├── sdk/                    # pip-installable Python SDK
-│   ├── pyproject.toml
-│   └── approvalkit/        # ApprovalKit class + ApprovalDenied exception
-├── examples/               # Integration demos
-│   └── shopping_bot.py     # Full working demo with/without approval
-├── scripts/                # Setup helpers
-│   ├── setup.py            # Generate API key, HMAC secret, credentials key
-│   ├── setup_auth0.py      # Auth0 tenant setup
-│   └── setup_fga.py        # FGA store + model setup
-├── fga/                    # Auth0 FGA model and tuples
-├── tests/                  # Unit tests
-├── docker-compose.yml
-└── Dockerfile.api
-```
+*Built for the Authorized to Act hackathon. ApprovalKit is open source.*
