@@ -142,7 +142,7 @@ export default function RuleDetailPage() {
       <div className="space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle>Approval Flow Graph</CardTitle>
+            <CardTitle className="text-sm">Approval Flow</CardTitle>
           </CardHeader>
           <CardContent>
             <ApprovalFlow rule={rule} approverNames={approverNames} />
