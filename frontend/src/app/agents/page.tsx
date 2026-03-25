@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useUser } from "@auth0/nextjs-auth0/client";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,12 +31,19 @@ interface Scenario {
   badgeLabel: string;
 }
 
+interface SetupItem {
+  type: "connection" | "approver" | "rule";
+  name: string;
+  detail: string;
+}
+
 interface Agent {
   id: string;
   title: string;
   icon: React.ElementType;
   description: string;
   scenarios: Scenario[];
+  setupInfo: SetupItem[];
 }
 
 // ── Agent definitions ─────────────────────────────────────────────────────────
@@ -47,6 +54,21 @@ const AGENTS: Agent[] = [
     title: "E-Commerce Agent",
     icon: ShoppingCart,
     description: "AI shopping agent that processes Stripe payments and refunds. Amount tiers trigger different approval chains — small orders pass automatically, large ones require step-up approval.",
+    setupInfo: [
+      { type: "connection", name: "stripe-prod", detail: "Stripe payments (charge, refund)" },
+      { type: "connection", name: "slack-prod", detail: "Team notifications (#general, #finance, #hr)" },
+      { type: "approver", name: "Sales Manager", detail: "Approves medium charges ($100-$999)" },
+      { type: "approver", name: "CFO", detail: "Co-approves large charges ($1000+)" },
+      { type: "approver", name: "CS Agent", detail: "Approves small refunds (<$50)" },
+      { type: "approver", name: "CS Manager", detail: "Approves large refunds ($50+), can edit amount" },
+      { type: "approver", name: "Team Lead", detail: "Approves Slack posts to #general" },
+      { type: "rule", name: "Stripe charge — medium ($100-999)", detail: "any_one → Sales Manager" },
+      { type: "rule", name: "Stripe charge — large ($1000+)", detail: "all_of_n → Sales Manager + CFO" },
+      { type: "rule", name: "Stripe refund — small (<$50)", detail: "any_one → CS Agent" },
+      { type: "rule", name: "Stripe refund — large ($50+)", detail: "specific → CS Manager (partial approval)" },
+      { type: "rule", name: "Slack #general", detail: "any_one → Team Lead" },
+      { type: "rule", name: "Slack #finance", detail: "specific → CFO" },
+    ],
     scenarios: [
       {
         title: "Small charge ($49)",
@@ -107,6 +129,17 @@ const AGENTS: Agent[] = [
     title: "HR Agent",
     icon: Users,
     description: "AI HR assistant handling hiring, offboarding, and team communication. Termination emails require both HR Manager and CEO. GitHub access removal requires IT + HR sign-off.",
+    setupInfo: [
+      { type: "connection", name: "gmail-prod", detail: "Email (offer letters, terminations)" },
+      { type: "connection", name: "github-prod", detail: "GitHub org member management" },
+      { type: "approver", name: "HR Manager", detail: "Approves offer letters, co-approves terminations" },
+      { type: "approver", name: "CEO", detail: "Co-approves termination emails" },
+      { type: "approver", name: "IT Manager", detail: "Co-approves GitHub access removal" },
+      { type: "rule", name: "Gmail offer letter", detail: "specific → HR Manager" },
+      { type: "rule", name: "Gmail termination", detail: "all_of_n → HR Manager + CEO" },
+      { type: "rule", name: "GitHub remove member", detail: "all_of_n → IT Manager + HR Manager" },
+      { type: "rule", name: "GitHub add member (admin)", detail: "specific → CTO" },
+    ],
     scenarios: [
       {
         title: "Interview invite",
@@ -168,6 +201,14 @@ const AGENTS: Agent[] = [
     title: "DevOps Agent",
     icon: Server,
     description: "CI/CD agent managing GitHub deployments. Staging is always auto-approved. Production needs a maintainer. Rollbacks require the lead engineer only.",
+    setupInfo: [
+      { type: "connection", name: "github-main", detail: "GitHub deployments and rollbacks" },
+      { type: "approver", name: "Maintainer", detail: "Approves production deployments" },
+      { type: "approver", name: "Lead Engineer", detail: "Approves rollbacks (specific)" },
+      { type: "approver", name: "CTO", detail: "Backup escalation" },
+      { type: "rule", name: "GitHub deploy — production", detail: "any_one → Maintainer" },
+      { type: "rule", name: "GitHub rollback — production", detail: "specific → Lead Engineer" },
+    ],
     scenarios: [
       {
         title: "Deploy to staging",
@@ -214,6 +255,16 @@ const AGENTS: Agent[] = [
     title: "Open Source Bot",
     icon: Package,
     description: "Governance bot for an open source project. Large PRs require a k-of-n maintainer vote. Treasury disbursements above $100 need the lead plus the treasurer.",
+    setupInfo: [
+      { type: "connection", name: "github-main", detail: "PR merges" },
+      { type: "connection", name: "stripe-prod", detail: "Treasury payouts" },
+      { type: "approver", name: "Maintainer", detail: "PR review vote" },
+      { type: "approver", name: "Lead Maintainer", detail: "PR review + treasury co-sign" },
+      { type: "approver", name: "CTO", detail: "PR review vote" },
+      { type: "approver", name: "Treasurer", detail: "Treasury co-sign" },
+      { type: "rule", name: "PR merge — large (200+ lines)", detail: "k_of_n (2/3) → Maintainer, Lead, CTO" },
+      { type: "rule", name: "Treasury payout — large ($100+)", detail: "all_of_n → Treasurer + Lead Maintainer" },
+    ],
     scenarios: [
       {
         title: "Small PR (42 lines) — auto-merge",
@@ -263,6 +314,15 @@ const AGENTS: Agent[] = [
     title: "Research Lab Agent",
     icon: FlaskConical,
     description: "Lab assistant that provisions compute, submits papers, and manages grant budgets. Paper submissions require every co-author to approve. Large AWS jobs need the PI plus finance.",
+    setupInfo: [
+      { type: "connection", name: "aws-lab", detail: "AWS compute provisioning" },
+      { type: "connection", name: "arxiv", detail: "Paper submissions" },
+      { type: "approver", name: "PI", detail: "Approves compute and papers" },
+      { type: "approver", name: "Finance Dept", detail: "Co-approves large compute ($500+)" },
+      { type: "rule", name: "AWS compute — medium ($50-499)", detail: "any_one → PI" },
+      { type: "rule", name: "AWS compute — large ($500+)", detail: "all_of_n → PI + Finance" },
+      { type: "rule", name: "Paper submission", detail: "all_of_n → PI + HR + CTO" },
+    ],
     scenarios: [
       {
         title: "Small compute job ($12) — auto",
@@ -312,6 +372,18 @@ const AGENTS: Agent[] = [
     title: "Financial Services",
     icon: CreditCard,
     description: "Payment agent with a strict compliance chain. Wire transfers always go through a three-step sequential approval: Operations → Finance → CFO. New vendors need procurement and legal.",
+    setupInfo: [
+      { type: "connection", name: "stripe-prod", detail: "Payouts, wire transfers, vendor payments" },
+      { type: "approver", name: "Manager", detail: "Approves standard payouts ($1k-$50k)" },
+      { type: "approver", name: "Operations", detail: "Wire transfer step 1" },
+      { type: "approver", name: "Finance Dept", detail: "Wire transfer step 2 + vendor co-sign" },
+      { type: "approver", name: "CFO", detail: "Wire transfer step 3" },
+      { type: "approver", name: "Procurement", detail: "New vendor vetting" },
+      { type: "approver", name: "Legal", detail: "New vendor legal clearance" },
+      { type: "rule", name: "Payout — standard ($1k-$50k)", detail: "any_one → Manager" },
+      { type: "rule", name: "Wire transfer ($50k+)", detail: "all_of_n → Ops + Finance + CFO" },
+      { type: "rule", name: "New vendor payment", detail: "all_of_n → Procurement + Legal" },
+    ],
     scenarios: [
       {
         title: "Standard payout $4,500",
@@ -362,6 +434,15 @@ const AGENTS: Agent[] = [
     title: "Communications Agent",
     icon: Mail,
     description: "Marketing and PR agent that sends emails and press releases. Audience size drives the approval level — small batches are automatic, mass sends need legal review, press releases need the CEO.",
+    setupInfo: [
+      { type: "connection", name: "gmail-prod", detail: "Email sending and press releases" },
+      { type: "approver", name: "Marketing Lead", detail: "Reviews mass email content" },
+      { type: "approver", name: "Legal", detail: "Compliance review for mass sends" },
+      { type: "approver", name: "CEO", detail: "Approves press releases" },
+      { type: "rule", name: "Gmail mass email (500+)", detail: "sequential → Marketing Lead → Legal" },
+      { type: "rule", name: "Gmail mass email legal (10k+)", detail: "all_of_n → Marketing + Legal + CEO" },
+      { type: "rule", name: "Gmail press release", detail: "specific → CEO" },
+    ],
     scenarios: [
       {
         title: "Internal email (8 people) — auto",
@@ -1149,6 +1230,41 @@ export default function AgentsPage() {
                 )}
               </div>
             </CardHeader>
+            {/* Setup Details */}
+            {!setupDone[agent.id] && agent.setupInfo && (
+              <CardContent className="border-t border-zinc-100 pt-4">
+                <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wide mb-3">Setup Demo will create:</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <p className="text-xs font-medium text-blue-600 mb-1.5">Connections</p>
+                    {agent.setupInfo.filter(s => s.type === "connection").map(s => (
+                      <div key={s.name} className="text-xs text-zinc-600 mb-1">
+                        <code className="bg-zinc-100 px-1 rounded">{s.name}</code>
+                        <span className="text-zinc-400 ml-1">{s.detail}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-amber-600 mb-1.5">Approvers</p>
+                    {agent.setupInfo.filter(s => s.type === "approver").map(s => (
+                      <div key={s.name} className="text-xs text-zinc-600 mb-1">
+                        <span className="font-medium">{s.name}</span>
+                        <span className="text-zinc-400 ml-1">— {s.detail}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-green-600 mb-1.5">Rules</p>
+                    {agent.setupInfo.filter(s => s.type === "rule").map(s => (
+                      <div key={s.name} className="text-xs text-zinc-600 mb-1">
+                        <span className="font-medium">{s.name}</span>
+                        <span className="text-zinc-400 ml-1">— {s.detail}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            )}
           </Card>
 
           <div className="space-y-3">
