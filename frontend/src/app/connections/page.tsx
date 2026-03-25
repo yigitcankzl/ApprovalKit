@@ -354,7 +354,7 @@ function ConnectionsContent() {
                 <li className="flex gap-2"><span className="font-bold text-zinc-400">4.</span> Enable it for this application</li>
               </ol>
               <a
-                href="https://manage.auth0.com/dashboard/us/dev-wrto7kh3s1cfhdrt/connections/social"
+                href={`https://manage.auth0.com/dashboard/us/${(process.env.NEXT_PUBLIC_AUTH0_DOMAIN || "").replace(".us.auth0.com", "")}/connections/social`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block w-full text-center bg-zinc-900 text-white text-sm font-medium py-2 rounded-lg hover:bg-zinc-800 transition-colors"

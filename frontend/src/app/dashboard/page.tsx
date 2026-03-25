@@ -59,31 +59,54 @@ export default function DashboardPage() {
       .then(([s, sec]) => { setStats(s); setSecurity(sec); });
 
   useEffect(() => {
+    let active = true;
     Promise.all([
       loadStats(),
       api.getRecentActivity(20)
-        .then((rows: LiveEvent[]) => setEvents(Array.isArray(rows) ? rows : []))
+        .then((rows: LiveEvent[]) => { if (active) setEvents(Array.isArray(rows) ? rows : []); })
         .catch(() => {}),
     ])
-      .catch((err) => setError(err.message || "Failed to load"))
-      .finally(() => setLoading(false));
+      .catch((err) => { if (active) setError(err.message || "Failed to load"); })
+      .finally(() => { if (active) setLoading(false); });
 
     // Auto-refresh stats only — do not replace Live Activity (SSE + initial hydrate)
     const refreshInterval = setInterval(() => { loadStats(); }, 30000);
 
-    // SSE subscription
-    const es = new EventSource(`${API_BASE}/api/v1/events`);
-    es.onmessage = (e) => {
-      try {
-        const data: LiveEvent = JSON.parse(e.data);
-        setEvents((prev) => [data, ...prev].slice(0, 20));
-        if (["approved", "rejected", "blocked", "requested", "ciba_sent"].includes(data.type)) {
-          loadStats();
-        }
-      } catch {}
-    };
+    // SSE subscription with exponential backoff reconnection
+    let es: EventSource | null = null;
+    let reconnectDelay = 1000;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
 
-    return () => { es.close(); clearInterval(refreshInterval); };
+    function connectSSE() {
+      if (cancelled) return;
+      es = new EventSource(`${API_BASE}/api/v1/events`);
+      es.onopen = () => { reconnectDelay = 1000; };
+      es.onmessage = (e) => {
+        try {
+          const data: LiveEvent = JSON.parse(e.data);
+          setEvents((prev) => [data, ...prev].slice(0, 20));
+          if (["approved", "rejected", "blocked", "requested", "ciba_sent"].includes(data.type)) {
+            loadStats();
+          }
+        } catch {}
+      };
+      es.onerror = () => {
+        es?.close();
+        if (!cancelled) {
+          reconnectTimer = setTimeout(connectSSE, reconnectDelay);
+          reconnectDelay = Math.min(reconnectDelay * 2, 30000);
+        }
+      };
+    }
+    connectSSE();
+
+    return () => {
+      cancelled = true;
+      es?.close();
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      clearInterval(refreshInterval);
+    };
   }, []);
 
 
