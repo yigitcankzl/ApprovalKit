@@ -1,7 +1,5 @@
-import { Auth0Client } from "@auth0/nextjs-auth0/server";
-
-const client = new Auth0Client();
+import { auth0 } from "@/lib/auth0";
 
 export async function middleware(req: Request) {
-  return await client.middleware(req);
+  return await auth0.middleware(req);
 }
