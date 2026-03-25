@@ -86,6 +86,6 @@ export const api = {
   getWorkspace: () => fetchAPI("/api/v1/workspace"),
 
   // Demo seed
-  seedDemoData: () => fetchAPI("/api/v1/demo/seed", { method: "POST" }),
+  seedDemoData: (agentId?: string) => fetchAPI(`/api/v1/demo/seed${agentId ? `?agent_id=${agentId}` : ""}`, { method: "POST" }),
   clearDemoData: () => fetchAPI("/api/v1/demo/seed", { method: "DELETE" }),
 };

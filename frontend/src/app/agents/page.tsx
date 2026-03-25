@@ -651,7 +651,18 @@ function ScenarioCard({ scenario }: { scenario: Scenario }) {
 
 export default function AgentsPage() {
   const [activeId, setActiveId] = useState(AGENTS[0].id);
+  const [settingUp, setSettingUp] = useState<string | null>(null);
+  const [setupDone, setSetupDone] = useState<Record<string, boolean>>({});
   const agent = AGENTS.find((a) => a.id === activeId)!;
+
+  const handleSetupAgent = async (agentId: string) => {
+    setSettingUp(agentId);
+    try {
+      await api.seedDemoData(agentId);
+      setSetupDone((prev) => ({ ...prev, [agentId]: true }));
+    } catch {}
+    setSettingUp(null);
+  };
 
   return (
     <div>
@@ -688,14 +699,30 @@ export default function AgentsPage() {
         <div className="flex-1 min-w-0">
           <Card className="mb-6">
             <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-zinc-100 rounded-lg">
-                  <agent.icon className="h-5 w-5 text-zinc-700" />
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-zinc-100 rounded-lg">
+                    <agent.icon className="h-5 w-5 text-zinc-700" />
+                  </div>
+                  <div>
+                    <CardTitle>{agent.title}</CardTitle>
+                    <p className="text-sm text-zinc-500 mt-0.5">{agent.description}</p>
+                  </div>
                 </div>
-                <div>
-                  <CardTitle>{agent.title}</CardTitle>
-                  <p className="text-sm text-zinc-500 mt-0.5">{agent.description}</p>
-                </div>
+                <Button
+                  size="sm"
+                  variant={setupDone[agent.id] ? "outline" : "default"}
+                  disabled={settingUp === agent.id}
+                  onClick={() => handleSetupAgent(agent.id)}
+                >
+                  {settingUp === agent.id ? (
+                    <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> Setting up...</>
+                  ) : setupDone[agent.id] ? (
+                    <><CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Configured</>
+                  ) : (
+                    <><Play className="h-3.5 w-3.5 mr-1" /> Setup Demo</>
+                  )}
+                </Button>
               </div>
             </CardHeader>
           </Card>

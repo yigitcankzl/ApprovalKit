@@ -347,11 +347,42 @@ def _build_rules(ar: dict[str, uuid.UUID]) -> list[dict]:
 
 # ── Seed endpoint ──────────────────────────────────────────────────────────────
 
+# Agent → rule name prefix mapping
+AGENT_RULES = {
+    "ecommerce": ["Stripe charge", "Stripe refund", "Slack"],
+    "hr": ["Gmail offer", "Gmail termination", "Gmail mass email", "Gmail press", "GitHub add member", "GitHub remove member"],
+    "devops": ["GitHub deploy", "GitHub rollback"],
+    "opensource": ["PR merge", "Treasury payout"],
+    "research": ["AWS compute", "Paper submission"],
+    "fintech": ["Payout", "Wire transfer", "New vendor"],
+}
+
+# Agent → required connections
+AGENT_CONNECTIONS = {
+    "ecommerce": ["stripe-prod", "slack-prod"],
+    "hr": ["gmail-prod", "github-prod"],
+    "devops": ["github-main"],
+    "opensource": ["github-main", "stripe-prod"],
+    "research": ["aws-lab", "arxiv"],
+    "fintech": ["stripe-prod"],
+}
+
+# Agent → required approver roles
+AGENT_APPROVERS = {
+    "ecommerce": ["sales_manager", "cfo", "cs_agent", "cs_manager", "team_lead"],
+    "hr": ["hr_manager", "ceo", "it_manager"],
+    "devops": ["maintainer", "lead_engineer", "cto"],
+    "opensource": ["maintainer", "lead_maintainer", "cto", "treasurer"],
+    "research": ["pi", "finance", "hr_manager", "cto"],
+    "fintech": ["manager", "operations", "finance", "cfo", "procurement", "legal"],
+}
+
+
 @router.post("/seed")
-async def seed_demo_data(db: AsyncSession = Depends(get_db)):
+async def seed_demo_data(agent_id: str | None = None, db: AsyncSession = Depends(get_db)):
     """
-    Idempotently seed all demo connections, approvers, and rules.
-    Existing resources (matched by slug / auth0_user_id / rule name) are skipped.
+    Idempotently seed demo data. Pass ?agent_id=ecommerce to seed only
+    one agent's data. Without agent_id, seeds everything.
     """
     report: dict[str, list[str]] = {
         "created": [], "skipped": []
@@ -373,7 +404,10 @@ async def seed_demo_data(db: AsyncSession = Depends(get_db)):
     existing_conns_result = await db.execute(select(ServiceConnection))
     existing_conn_slugs = {c.slug for c in existing_conns_result.scalars().all()}
 
+    needed_slugs = set(AGENT_CONNECTIONS.get(agent_id, [])) if agent_id else None
     for conn_def in CONNECTIONS:
+        if needed_slugs is not None and conn_def["slug"] not in needed_slugs:
+            continue
         if conn_def["slug"] in existing_conn_slugs:
             report["skipped"].append(f"connection: {conn_def['slug']}")
             continue
@@ -394,8 +428,13 @@ async def seed_demo_data(db: AsyncSession = Depends(get_db)):
     existing_appr_result = await db.execute(select(Approver))
     existing_appr_ids = {a.auth0_user_id: a.id for a in existing_appr_result.scalars().all()}
 
+    needed_roles = set(AGENT_APPROVERS.get(agent_id, [])) if agent_id else None
     approver_by_role: dict[str, uuid.UUID] = {}
     for appr_def in APPROVERS:
+        if needed_roles is not None and appr_def["role"] not in needed_roles:
+            if appr_def["auth0_user_id"] in existing_appr_ids:
+                approver_by_role[appr_def["role"]] = existing_appr_ids[appr_def["auth0_user_id"]]
+            continue
         uid = appr_def["auth0_user_id"]
         if uid in existing_appr_ids:
             approver_by_role[appr_def["role"]] = existing_appr_ids[uid]
@@ -418,7 +457,11 @@ async def seed_demo_data(db: AsyncSession = Depends(get_db)):
     existing_rules_result = await db.execute(select(Rule).where(Rule.workspace_id == ws_id))
     existing_rule_names = {r.name for r in existing_rules_result.scalars().all()}
 
+    rule_prefixes = AGENT_RULES.get(agent_id, []) if agent_id else None
     for rule_def in _build_rules(approver_by_role):
+        if rule_prefixes is not None:
+            if not any(rule_def["name"].replace("[Demo] ", "").startswith(p) for p in rule_prefixes):
+                continue
         if rule_def["name"] in existing_rule_names:
             report["skipped"].append(f"rule: {rule_def['name']}")
             continue
