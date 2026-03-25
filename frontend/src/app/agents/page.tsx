@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -707,6 +707,26 @@ export default function AgentsPage() {
   const [settingUp, setSettingUp] = useState<string | null>(null);
   const [setupDone, setSetupDone] = useState<Record<string, boolean>>({});
   const agent = AGENTS.find((a) => a.id === activeId)!;
+
+  // Check which agents are already configured on mount
+  useEffect(() => {
+    api.getRules().then((rules: any[]) => {
+      const ruleNames = rules.map((r: any) => r.name);
+      const done: Record<string, boolean> = {};
+      for (const [agentId, prefixes] of Object.entries({
+        ecommerce: ["[Demo] Stripe charge"],
+        hr: ["[Demo] Gmail offer"],
+        devops: ["[Demo] GitHub deploy"],
+        opensource: ["[Demo] PR merge"],
+        research: ["[Demo] AWS compute"],
+        fintech: ["[Demo] Payout"],
+        comms: ["[Demo] Gmail mass email"],
+      })) {
+        done[agentId] = (prefixes as string[]).some((p) => ruleNames.some((n: string) => n.startsWith(p)));
+      }
+      setSetupDone(done);
+    }).catch(() => {});
+  }, []);
 
   const handleSetupAgent = async (agentId: string) => {
     setSettingUp(agentId);
