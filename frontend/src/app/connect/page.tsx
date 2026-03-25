@@ -142,6 +142,7 @@ export default function ConnectPage() {
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
+  const [savedApiKey, setSavedApiKey] = useState<string | null>(null);
 
   useEffect(() => {
     api.getCredentials()
@@ -177,9 +178,11 @@ export default function ConnectPage() {
         name: saveAgentName,
         description: saveAgentDesc || undefined,
         icon: saveAgentIcon,
+        allowed_connections: conn ? [conn] : undefined,
         scenarios,
       });
       setSavedId(res.id);
+      if (res.api_key) setSavedApiKey(res.api_key);
     } catch (e: any) {
       setSaveErr(e.message);
     } finally {
@@ -311,8 +314,10 @@ def ${agentName.replace(/[^a-z0-9_]/gi, "_")}_${action || "charge"}(amount_usd: 
                   <CopyButton text={baseUrl} />
                 </div>
               </div>
-              <SecretField label="API Key" value={creds.api_key} />
               <SecretField label="HMAC Secret" value={creds.hmac_secret} />
+              <div className="p-3 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-800">
+                Each agent gets its own API key. Save your agent below (Step 5) to generate a unique <code className="bg-blue-100 px-1 rounded">ak_*</code> key.
+              </div>
             </>
           ) : (
             <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800">
@@ -556,20 +561,39 @@ def ${agentName.replace(/[^a-z0-9_]/gi, "_")}_${action || "charge"}(amount_usd: 
         </CardHeader>
         <CardContent className="space-y-4">
           {savedId ? (
-            <div className="flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3">
-              <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-green-800">Agent saved!</p>
-                <p className="text-xs text-green-700 mt-0.5">
-                  Head to the Agents page to see and test it.
-                </p>
-                <button
-                  onClick={() => router.push("/agents")}
-                  className="mt-2 text-xs font-medium text-green-700 underline"
-                >
-                  Go to Agents →
-                </button>
+            <div className="space-y-3">
+              <div className="flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3">
+                <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-green-800">Agent created with unique API key!</p>
+                  <p className="text-xs text-green-700 mt-0.5">
+                    Save this key — it is shown only once.
+                  </p>
+                </div>
               </div>
+              {savedApiKey && (
+                <SecretField label="Agent API Key" value={savedApiKey} />
+              )}
+              {creds && (
+                <SecretField label="HMAC Secret (shared)" value={creds.hmac_secret} />
+              )}
+              <div className="bg-zinc-950 rounded-lg p-4">
+                <p className="text-xs text-zinc-400 mb-2">Use in your agent:</p>
+                <pre className="text-xs text-zinc-100 font-mono overflow-x-auto">{`from approvalkit import ApprovalKit
+
+kit = ApprovalKit(
+    base_url="${typeof window !== 'undefined' ? window.location.origin.replace(':3000', ':8000') : 'http://localhost:8000'}",
+    api_key="${savedApiKey || '<your-agent-key>'}",
+    hmac_secret="${creds?.hmac_secret || '<hmac-secret>'}",
+    user_id="${saveAgentName || 'my-agent'}",
+)`}</pre>
+              </div>
+              <button
+                onClick={() => router.push("/agents")}
+                className="text-sm font-medium text-blue-600 hover:text-blue-800"
+              >
+                Go to Agents →
+              </button>
             </div>
           ) : (
             <>
