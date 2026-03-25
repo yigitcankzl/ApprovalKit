@@ -11,6 +11,7 @@ import { LivePreview } from "@/components/rule-builder/live-preview";
 import { api } from "@/lib/api";
 import type { ApprovalModel, Approver, Condition, TimeoutAction } from "@/types";
 import { Save } from "lucide-react";
+import { FormError } from "@/components/ui/form-error";
 
 const services = [
   { value: "stripe-prod", label: "Stripe (Production)" },
@@ -73,6 +74,9 @@ export default function NewRulePage() {
 
   const handleSave = async () => {
     setSaveError(null);
+    if (!name.trim()) { setSaveError("Rule name is required."); return; }
+    if (!connection) { setSaveError("Service connection is required."); return; }
+    if (!action) { setSaveError("Action is required."); return; }
     if (selectedApproverIds.length === 0) {
       setSaveError("At least one approver must be selected.");
       return;
@@ -313,9 +317,7 @@ export default function NewRulePage() {
             </CardContent>
           </Card>
 
-          {saveError && (
-            <p className="text-sm text-red-500 text-right">{saveError}</p>
-          )}
+          <FormError message={saveError} />
           <div className="flex justify-end gap-3">
             <Button variant="outline" onClick={() => router.push("/rules")}>Cancel</Button>
             <Button onClick={handleSave} disabled={saving || !name || !connection || !action || selectedApproverIds.length === 0}>

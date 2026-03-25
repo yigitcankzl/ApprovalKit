@@ -11,6 +11,7 @@ import {
   CheckCircle2, XCircle, Clock, Send, RefreshCw, BookMarked,
   ShoppingCart, Server, Package, FlaskConical, CreditCard, Mail, Users, Bot,
 } from "lucide-react";
+import { FormError } from "@/components/ui/form-error";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -223,8 +224,15 @@ export default function ConnectPage() {
     setJobId(null);
     setJobState(null);
     stopPoll();
+    let params: Record<string, unknown>;
     try {
-      const params = JSON.parse(paramsText);
+      params = JSON.parse(paramsText);
+    } catch {
+      setSendErr("Invalid JSON in parameters. Check your syntax.");
+      setSending(false);
+      return;
+    }
+    try {
       const res = await api.sendTestRequest({ connection: conn, action, params });
       setSendMsg(res.message);
       if (res.job_id) {
@@ -444,11 +452,7 @@ def ${agentName.replace(/[^a-z0-9_]/gi, "_")}_${action || "charge"}(amount_usd: 
             />
           </div>
 
-          {sendErr && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-center gap-2">
-              <XCircle className="h-4 w-4 shrink-0" /> {sendErr}
-            </div>
-          )}
+          <FormError message={sendErr} />
 
           <Button onClick={handleSend} disabled={sending || !conn || !action} className="w-full">
             {sending
@@ -656,9 +660,7 @@ kit = ApprovalKit(
                 </div>
               )}
 
-              {saveErr && (
-                <p className="text-xs text-red-600">{saveErr}</p>
-              )}
+              <FormError message={saveErr} />
 
               <Button onClick={handleSaveAgent} disabled={saving || !saveAgentName.trim()} className="w-full">
                 {saving

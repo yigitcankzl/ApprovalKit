@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
 import type { Approver } from "@/types";
 import { Plus, Pencil, Trash2, UserCheck, ChevronDown, ChevronUp, X, Link2, CheckCircle2 } from "lucide-react";
+import { FormError } from "@/components/ui/form-error";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
@@ -89,10 +90,9 @@ function ApproversContent() {
   const closeForm = () => { setFormMode(null); setEditId(null); };
 
   const handleSave = async () => {
-    if (!form.name || !form.email) {
-      setFormError("Name and email are required.");
-      return;
-    }
+    if (!form.name.trim()) { setFormError("Name is required."); return; }
+    if (!form.email.trim()) { setFormError("Email is required."); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) { setFormError("Please enter a valid email address."); return; }
     setSaving(true);
     setFormError(null);
     try {
@@ -203,7 +203,7 @@ function ApproversContent() {
                 <Input type="time" value={form.blackout_end} onChange={(e) => setForm({ ...form, blackout_end: e.target.value })} className="mt-1" />
               </div>
             </div>
-            {formError && <p className="text-sm text-red-500">{formError}</p>}
+            <FormError message={formError} />
             <div className="flex justify-end gap-3">
               <Button variant="outline" onClick={closeForm}>Cancel</Button>
               <Button onClick={handleSave} disabled={saving}>
