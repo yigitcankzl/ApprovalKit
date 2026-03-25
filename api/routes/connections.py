@@ -16,6 +16,7 @@ from urllib.parse import urlencode
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
+from loguru import logger
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -313,7 +314,7 @@ async def get_connect_url(connection_id: str, request: Request, db: AsyncSession
     callback_url = f"{settings.CALLBACK_BASE_URL}/api/v1/connections/connected-accounts/callback"
     scope = _SERVICE_SCOPE.get(service, "openid profile email")
 
-    print(f"[CONNECT] user_token={'present' if user_token else 'MISSING'} refresh_token={'present' if login_refresh_token else 'MISSING'}", flush=True)
+    logger.debug(f"connect-url: user_token={'present' if user_token else 'MISSING'} refresh_token={'present' if login_refresh_token else 'MISSING'}")
 
     # Save login refresh token on connection (needed for Token Exchange)
     if login_refresh_token:
@@ -333,8 +334,8 @@ async def get_connect_url(connection_id: str, request: Request, db: AsyncSession
                         "state": connection_id,
                     },
                 )
-                print(f"[CONNECT] Connected Accounts API: {resp.status_code}", flush=True)
-                print(f"[CONNECT] Response: {resp.text}", flush=True)
+                logger.debug(f"Connected Accounts API: {resp.status_code}")
+                logger.debug(f"Connected Accounts response: {resp.text[:200]}")
                 if resp.status_code in (200, 201):
                     data = resp.json()
                     await _store_auth_session(connection_id, data.get("auth_session", ""), user_token)
@@ -343,7 +344,7 @@ async def get_connect_url(connection_id: str, request: Request, db: AsyncSession
                     connect_params = data.get("connect_params", {})
                     if connect_params:
                         connect_uri = f"{connect_uri}?{urlencode(connect_params)}"
-                    print(f"[CONNECT] Redirecting to: {connect_uri}", flush=True)
+                    logger.debug(f"Connected Accounts redirect: {connect_uri[:100]}...")
                     return {
                         "url": connect_uri,
                         "service": service,
@@ -351,7 +352,7 @@ async def get_connect_url(connection_id: str, request: Request, db: AsyncSession
                         "flow": "connected_accounts",
                     }
         except Exception as e:
-            print(f"[CONNECT] Connected Accounts API exception: {e}", flush=True)
+            logger.warning(f"Connected Accounts API exception: {e}")
 
     # Fallback: standard authorize URL (login flow)
     if "offline_access" not in scope:
@@ -423,7 +424,7 @@ async def connected_accounts_callback(
                 "redirect_uri": callback_url,
             },
         )
-        print(f"[CONNECT] Complete: {complete_resp.status_code} {complete_resp.text[:300]}", flush=True)
+        logger.debug(f"Connected Accounts complete: {complete_resp.status_code}")
 
         if complete_resp.status_code in (200, 201):
             data = complete_resp.json()

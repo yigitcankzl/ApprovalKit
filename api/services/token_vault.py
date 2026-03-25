@@ -362,8 +362,14 @@ class TokenVaultService:
 
         handler = _SERVICE_HANDLERS.get(service)
         if handler is None:
-            logger.warning(f"No handler for service '{service}'")
-            return {"success": False, "reason": f"unsupported_service:{service}"}
+            logger.warning(f"No execution handler for service '{service}' — token retrieved but action not implemented")
+            return {
+                "success": False,
+                "reason": "not_implemented",
+                "error": f"Service '{service}' does not have an execution handler yet. Supported: {', '.join(_SERVICE_HANDLERS.keys())}",
+                "connection": connection,
+                "action": action,
+            }
 
         try:
             result = await handler(action, params, creds)

@@ -8,6 +8,7 @@ import base64
 import hashlib
 
 from cryptography.fernet import Fernet, InvalidToken
+from loguru import logger
 
 from api.config import get_settings
 
@@ -30,7 +31,8 @@ def encrypt_secret(value: str | None) -> str | None:
         return value
     f = _get_fernet()
     if not f:
-        return value  # No key available — store plain (dev mode)
+        logger.warning("CREDENTIALS_KEY not set — storing secret in plaintext. Set CREDENTIALS_KEY or HMAC_SECRET for encryption.")
+        return value
     return f.encrypt(value.encode()).decode()
 
 
