@@ -21,6 +21,7 @@ import {
   Settings,
   Bot,
   Plug,
+  Plane,
 } from "lucide-react";
 
 const navigation = [
@@ -32,6 +33,7 @@ const navigation = [
   { name: "Consent", href: "/consent", icon: KeyRound },
   { name: "Connect Agent", href: "/connect", icon: Plug },
   { name: "Agents", href: "/agents", icon: Bot },
+  { name: "TravelOps", href: "/travelops", icon: Plane },
   { name: "Use Cases", href: "/gallery", icon: BookOpen },
   { name: "Docs", href: "/docs", icon: FileText },
   { name: "Settings", href: "/settings", icon: Settings },

@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@auth0/nextjs-auth0/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import type { DashboardStats } from "@/types";
 import {
@@ -24,10 +23,6 @@ interface LiveEvent {
   type: string; job_id: string; connection: string; action: string;
   timestamp: string; exec_note?: string; note?: string;
 }
-interface PendingJob {
-  job_id: string; connection: string; action: string; params: any;
-  state: string; created_at: string; binding_message?: string;
-}
 
 const EVENT_COLORS: Record<string, string> = {
   requested: "bg-blue-500",
@@ -37,18 +32,20 @@ const EVENT_COLORS: Record<string, string> = {
   timeout:   "bg-yellow-500",
   ciba_sent: "bg-purple-500",
   step_up_triggered: "bg-yellow-500",
+  step_up: "bg-yellow-500",
+  pre_approved: "bg-emerald-500",
+  partial_approved: "bg-teal-500",
+  escalated: "bg-orange-600",
 };
 
 export default function DashboardPage() {
   const router = useRouter();
   const { user, isLoading: authLoading } = useUser();
-  const [stats, setStats]       = useState<DashboardStats & { pending_count?: number } | null>(null);
+  const [stats, setStats]       = useState<DashboardStats | null>(null);
   const [security, setSecurity] = useState<SecurityStatus | null>(null);
   const [events, setEvents]     = useState<LiveEvent[]>([]);
-  const [pending, setPending]   = useState<PendingJob[]>([]);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState<string | null>(null);
-  const eventsRef = useRef<HTMLDivElement>(null);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -61,16 +58,18 @@ export default function DashboardPage() {
     Promise.all([api.getDashboard(), api.getSecurityStatus().catch(() => null)])
       .then(([s, sec]) => { setStats(s); setSecurity(sec); });
 
-  const loadPending = () =>
-    api.getPendingJobs().then(setPending).catch(() => {});
-
   useEffect(() => {
-    Promise.all([loadStats(), loadPending()])
+    Promise.all([
+      loadStats(),
+      api.getRecentActivity(20)
+        .then((rows: LiveEvent[]) => setEvents(Array.isArray(rows) ? rows : []))
+        .catch(() => {}),
+    ])
       .catch((err) => setError(err.message || "Failed to load"))
       .finally(() => setLoading(false));
 
-    // Auto-refresh every 30s
-    const refreshInterval = setInterval(() => { loadStats(); loadPending(); }, 30000);
+    // Auto-refresh stats only — do not replace Live Activity (SSE + initial hydrate)
+    const refreshInterval = setInterval(() => { loadStats(); }, 30000);
 
     // SSE subscription
     const es = new EventSource(`${API_BASE}/api/v1/events`);
@@ -78,8 +77,7 @@ export default function DashboardPage() {
       try {
         const data: LiveEvent = JSON.parse(e.data);
         setEvents((prev) => [data, ...prev].slice(0, 20));
-        if (["approved", "rejected", "blocked"].includes(data.type)) {
-          loadPending();
+        if (["approved", "rejected", "blocked", "requested", "ciba_sent"].includes(data.type)) {
           loadStats();
         }
       } catch {}
@@ -98,7 +96,6 @@ export default function DashboardPage() {
   if (!stats) return null;
 
   const cibaPercent = Math.round((stats.ciba_usage / stats.ciba_limit) * 100);
-  const pendingCount = stats.pending_count ?? pending.length;
 
   const statCards = [
     { title: "Total Actions (7d)", value: stats.total_actions_week, icon: Activity,       color: "text-zinc-600" },
@@ -113,16 +110,9 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-zinc-900">Permission Dashboard</h1>
-          <p className="text-zinc-500 mt-1">Workspace overview — access controlled by FGA role</p>
-        </div>
-        {pendingCount > 0 && (
-          <span className="inline-flex items-center gap-1.5 bg-red-500 text-white text-sm font-semibold px-3 py-1.5 rounded-full animate-pulse">
-            <Clock className="h-4 w-4" /> {pendingCount} pending
-          </span>
-        )}
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-zinc-900">Permission Dashboard</h1>
+        <p className="text-zinc-500 mt-1">Workspace overview — access controlled by FGA role</p>
       </div>
 
       {/* Stats grid */}
@@ -142,42 +132,9 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* Pending Approvals */}
-      {pending.length > 0 && (
-        <Card className="mb-6 border-orange-200 bg-orange-50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-orange-800">
-              <Clock className="h-5 w-5" /> Pending Approvals ({pending.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {pending.map((job) => (
-              <div key={job.job_id} className="bg-white rounded-lg border border-orange-200 p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <code className="text-sm font-semibold text-zinc-900">{job.connection}:{job.action}</code>
-                      <Badge variant="warning">{job.state}</Badge>
-                    </div>
-                    {job.binding_message && (
-                      <p className="text-xs text-purple-700 font-mono bg-purple-50 px-2 py-1 rounded inline-block mb-2">
-                        Binding: {job.binding_message}
-                      </p>
-                    )}
-                    <pre className="text-xs text-zinc-500 bg-zinc-50 px-2 py-1.5 rounded overflow-x-auto">
-                      {JSON.stringify(job.params, null, 2)}
-                    </pre>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* CIBA + Security + Live Feed */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card>
+      {/* CIBA + Security + Live Feed — items-start so short cards are not stretched to tallest column */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        <Card className="w-full">
           <CardHeader><CardTitle>CIBA Quota Usage</CardTitle></CardHeader>
           <CardContent>
             <div className="space-y-3">
@@ -194,7 +151,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="w-full">
           <CardHeader><CardTitle>Security Status</CardTitle></CardHeader>
           <CardContent>
             <div className="space-y-3">
@@ -207,19 +164,30 @@ export default function DashboardPage() {
                   {stats.scope_creep_alerts > 0 ? `${stats.scope_creep_alerts} alerts` : "Clear"}
                 </Badge>
               </div>
-              <SecurityRow label="Auth0 Token Vault" ok={security?.token_vault.ok ?? false} detail={security?.token_vault.detail} isLast />
+              <SecurityRow label="Auth0 Token Vault" ok={security?.token_vault.ok ?? false} detail={security?.token_vault.detail} />
+              <SecurityRow
+                label="Credentials Key Isolation"
+                ok={security?.credentials_key.ok ?? false}
+                detail={security?.credentials_key.detail}
+              />
+              <SecurityRow
+                label="Sentry Error Tracking"
+                ok={security?.sentry.ok ?? false}
+                detail={security?.sentry.detail}
+                isLast
+              />
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="w-full">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Radio className="h-4 w-4 text-green-500 animate-pulse" /> Live Activity
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div ref={eventsRef} className="space-y-2 max-h-64 overflow-y-auto">
+            <div className="space-y-2 max-h-64 overflow-y-auto">
               {events.length === 0 ? (
                 <p className="text-sm text-zinc-400 text-center py-8">Waiting for events…</p>
               ) : (

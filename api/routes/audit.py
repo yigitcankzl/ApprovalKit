@@ -50,6 +50,53 @@ async def stream_events(request: Request):
     )
 
 
+_LIVE_EVENT_TYPES = (
+    AuditEventType.REQUESTED,
+    AuditEventType.CIBA_SENT,
+    AuditEventType.APPROVED,
+    AuditEventType.REJECTED,
+    AuditEventType.TIMEOUT,
+    AuditEventType.BLOCKED,
+    AuditEventType.PRE_APPROVED,
+    AuditEventType.PARTIAL_APPROVED,
+    AuditEventType.STEP_UP,
+    AuditEventType.ESCALATED,
+)
+
+
+@router.get("/recent-activity")
+async def get_recent_activity(
+    db: AsyncSession = Depends(get_db),
+    limit: int = Query(default=20, le=50),
+):
+    """
+    Last N audit events shaped like SSE payloads so the dashboard can hydrate
+    Live Activity after a full page refresh.
+    """
+    result = await db.execute(
+        select(AuditLog)
+        .join(ApprovalJob, AuditLog.job_id == ApprovalJob.id)
+        .where(AuditLog.event_type.in_(_LIVE_EVENT_TYPES))
+        .order_by(AuditLog.created_at.desc())
+        .limit(limit)
+    )
+    logs = result.scalars().all()
+
+    out = []
+    for log in logs:
+        job = log.job
+        et = log.event_type.value if isinstance(log.event_type, AuditEventType) else log.event_type
+        out.append({
+            "type": et,
+            "job_id": str(log.job_id),
+            "connection": job.connection if job else "",
+            "action": job.action if job else "",
+            "timestamp": log.created_at.isoformat(),
+            "note": log.note,
+        })
+    return out
+
+
 @router.get("/audit")
 async def get_audit_log(
     db: AsyncSession = Depends(get_db),

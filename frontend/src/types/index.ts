@@ -75,4 +75,5 @@ export interface DashboardStats {
   ciba_usage: number;
   ciba_limit: number;
   scope_creep_alerts: number;
+  pending_count?: number;
 }

@@ -42,6 +42,10 @@ export const api = {
   getLinkUrl: (id: string) => fetchAPI(`/api/v1/approvers/${id}/link-url`),
 
   // Audit & Dashboard
+  getRecentActivity: (limit?: number) => {
+    const q = limit ? `?limit=${limit}` : "";
+    return fetchAPI(`/api/v1/recent-activity${q}`);
+  },
   getAuditLog: (params?: { limit?: number; offset?: number; event_type?: string }) => {
     const search = new URLSearchParams();
     if (params?.limit) search.set("limit", String(params.limit));
