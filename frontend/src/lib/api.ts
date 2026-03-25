@@ -65,6 +65,9 @@ export const api = {
   submitDecision: (jobId: string, data: { decision: "approve" | "reject"; modified_params?: any; note?: string }) =>
     fetchAPI(`/api/v1/jobs/${jobId}/decision`, { method: "POST", body: JSON.stringify(data) }),
 
+  // Consent
+  getConsent: () => fetchAPI("/api/v1/consent"),
+
   // Workspace
   setupWorkspace: (data: { name: string; auth0_tenant: string }) =>
     fetchAPI("/api/v1/workspace/setup", { method: "POST", body: JSON.stringify(data) }),

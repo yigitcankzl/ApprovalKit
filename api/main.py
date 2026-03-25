@@ -9,7 +9,7 @@ from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 
 from api.config import get_settings
 import api.models  # noqa: F401 — registers all ORM mappers before any query runs
-from api.routes import request, rules, approvers, audit, connections, workspace
+from api.routes import request, rules, approvers, audit, connections, workspace, consent
 
 settings = get_settings()
 
@@ -63,6 +63,7 @@ app.include_router(approvers.router)
 app.include_router(audit.router)
 app.include_router(connections.router)
 app.include_router(workspace.router)
+app.include_router(consent.router)
 
 
 @app.get("/")

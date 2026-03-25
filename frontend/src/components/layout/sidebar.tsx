@@ -14,6 +14,7 @@ import {
   Rocket,
   FileText,
   Link2,
+  KeyRound,
 } from "lucide-react";
 
 const navigation = [
@@ -23,6 +24,7 @@ const navigation = [
   { name: "Rules", href: "/rules", icon: GitBranch },
   { name: "Approvers", href: "/approvers", icon: Users },
   { name: "Audit Log", href: "/audit", icon: ScrollText },
+  { name: "Consent", href: "/consent", icon: KeyRound },
   { name: "Use Cases", href: "/gallery", icon: BookOpen },
   { name: "Simulate", href: "/simulate", icon: FlaskConical },
   { name: "Docs", href: "/docs", icon: FileText },
