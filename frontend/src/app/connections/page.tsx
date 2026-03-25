@@ -214,7 +214,7 @@ function ConnectionsContent() {
                         </>
                       ) : (
                         <div className="flex items-center gap-2">
-                          <Badge variant="default">Demo: not configured</Badge>
+                          <Badge variant="default">Setup required</Badge>
                           <button onClick={() => setInfoPopup(conn.id)} className="text-zinc-400 hover:text-zinc-600">
                             <Info className="h-4 w-4" />
                           </button>
