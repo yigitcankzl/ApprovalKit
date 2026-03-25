@@ -174,6 +174,43 @@ Initially, approvers required manually entering their Auth0 user ID. This was er
 4. After login, the `sub` (e.g., `github|111859800`) is saved automatically
 5. Guardian push notifications now go to the right person
 
+### Phase 8: Multi-tenant — Credentials from DB, not .env
+
+**Decision: Move Auth0/FGA credentials from environment variables to the database.**
+
+Previously, all Auth0 credentials (`AUTH0_DOMAIN`, `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET`, etc.) and FGA credentials lived in `.env` files. This meant:
+- Only one organization per deployment
+- Server restart required to change credentials
+- Manual file editing for new orgs
+
+We added 14 credential columns to the `workspaces` table. Each organization stores its own:
+- Auth0 M2M client (for CIBA, Management API)
+- Auth0 Web client (for Token Exchange, Connected Accounts)
+- FGA store and client credentials
+- Encryption key for local secrets
+
+**The onboarding flow now collects all credentials via the dashboard UI** — no `.env` editing needed. A new organization:
+1. Opens `/onboarding`
+2. Enters Auth0 domain, M2M client ID/secret, Web client ID/secret
+3. Optionally enters FGA credentials
+4. Clicks "Connect" — platform validates Auth0 connectivity and saves to DB
+5. Gets API key + HMAC secret for their agents
+
+**Encryption at rest:** All client secrets are encrypted with Fernet (AES-128-CBC + HMAC-SHA256) before storage. The encryption key is derived from the platform's `CREDENTIALS_KEY`. Secrets are transparently decrypted when read via the `WorkspaceConfig` helper.
+
+**Fallback chain:** `DB workspace value → .env global value → empty string`. This ensures backward compatibility — existing deployments with `.env` config continue working without migration.
+
+```python
+# api/services/workspace_config.py
+async def get_workspace_config(workspace_id, db) -> WorkspaceConfig:
+    ws = await db.get(Workspace, workspace_id)
+    return WorkspaceConfig(
+        auth0_domain=ws.auth0_domain or settings.AUTH0_DOMAIN,
+        auth0_client_secret=decrypt_secret(ws.auth0_m2m_client_secret) or settings.AUTH0_CLIENT_SECRET,
+        # ... DB first, .env fallback for every field
+    )
+```
+
 ---
 
 ## Auth0 Integration Summary
@@ -262,8 +299,8 @@ Initially, approvers required manually entering their Auth0 user ID. This was er
 ### Workspace
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/v1/workspace/setup` | Create workspace |
-| GET | `/api/v1/workspace` | Get workspace info |
+| POST | `/api/v1/workspace/setup` | Create workspace or update credentials |
+| GET | `/api/v1/workspace` | Get workspace info (no secrets exposed) |
 
 ---
 
@@ -283,7 +320,7 @@ Initially, approvers required manually entering their Auth0 user ID. This was er
 | Consent | `/consent` | Per-service permissions, scopes, revoke |
 | Simulate | `/simulate` | Test rule matching with step-up result |
 | Use Cases | `/gallery` | Feature showcase |
-| Onboarding | `/onboarding` | 3-step setup wizard |
+| Onboarding | `/onboarding` | 3-step setup wizard with Auth0/FGA credential form |
 | Docs | `/docs` | Full SDK reference with 9 sections |
 
 ---
@@ -300,6 +337,8 @@ Initially, approvers required manually entering their Auth0 user ID. This was er
 8. **Blackout Windows** — Block approvals during maintenance periods
 9. **Cooldown Limits** — Rate limiting per rule
 10. **Delegation** — Approvers can delegate to others with time bounds
+11. **Credential Encryption at Rest** — Workspace secrets encrypted with Fernet (AES-128-CBC) before DB storage
+12. **Multi-tenant Isolation** — Each workspace has its own Auth0 tenant, FGA store, and credentials
 
 ---
 
@@ -311,19 +350,28 @@ git clone https://github.com/yourusername/ApprovalKit.git
 cd ApprovalKit
 docker compose up -d
 
-# 2. Run setup (creates workspace, API key, HMAC secret)
-docker compose exec api python scripts/setup.py
+# 2. Open dashboard and complete onboarding
+open http://localhost:3000/onboarding
+# → Enter Auth0 domain, M2M client ID/secret, Web client ID/secret
+# → Enter FGA credentials (optional)
+# → Platform validates and saves to DB
+# → Creates API key + HMAC secret for agents
 
-# 3. Open dashboard
-open http://localhost:3000
+# 3. Login and configure
+# → Login with Auth0 (sidebar button)
+# → Connect services (Connections page)
+# → Add approvers and link their Guardian accounts
+# → Create approval rules
 
 # 4. Run shopping bot demo
 pip install requests
 APPROVALKIT_URL=http://localhost:8000 \
-APPROVALKIT_API_KEY=<from setup> \
-APPROVALKIT_HMAC_SECRET=<from setup> \
+APPROVALKIT_API_KEY=<from onboarding> \
+APPROVALKIT_HMAC_SECRET=<from onboarding> \
 python examples/shopping_bot.py
 ```
+
+> **Note:** No `.env` file editing required for Auth0/FGA credentials. Everything is configured through the dashboard. A minimal `.env` with just `DATABASE_URL`, `REDIS_URL`, and `CREDENTIALS_KEY` is needed for the platform itself.
 
 ---
 
@@ -354,3 +402,5 @@ python examples/shopping_bot.py
 5. **Management API is a valid fallback.** Not all providers support refresh tokens (GitHub doesn't). A graceful fallback to the Management API ensures the system works universally while using Token Exchange where possible.
 
 6. **Real-time feedback changes behavior.** SSE live events and pending approval panels give administrators immediate visibility into agent actions, which is fundamentally different from after-the-fact audit logs.
+
+7. **Credentials belong in the database, not in environment files.** Moving Auth0/FGA credentials from `.env` to the workspace table enables true multi-tenancy. Each organization configures its own Auth0 tenant through the dashboard UI. Secrets are encrypted at rest with Fernet. The `.env` serves only as a fallback for the platform's own infrastructure config (database URL, Redis, encryption key).
