@@ -253,6 +253,23 @@ async def dashboard_test_request(
     }
 
 
+@router.get("/test-status/{job_id}")
+async def dashboard_test_status(job_id: str, db: AsyncSession = Depends(get_db)):
+    """Dashboard job status polling — no HMAC required."""
+    result = await db.execute(
+        select(ApprovalJob).where(ApprovalJob.id == uuid.UUID(job_id))
+    )
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return {
+        "job_id": str(job.id),
+        "status": job.state.value,
+        "final_params": job.final_params,
+        "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+    }
+
+
 @router.patch("/jobs/{job_id}/params")
 async def modify_job_params(
     job_id: str,
