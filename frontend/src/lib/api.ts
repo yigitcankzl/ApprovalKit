@@ -19,7 +19,13 @@ async function fetchAPI(path: string, options?: RequestInit) {
 
   if (!res.ok) {
     const error = await res.json().catch(() => ({ detail: "Request failed" }));
-    throw new Error(error.detail || `HTTP ${res.status}`);
+    const msg = error.detail || `HTTP ${res.status}`;
+    // Redirect to setup if workspace not found for this user
+    if (res.status === 404 && msg.includes("No workspace") && typeof window !== "undefined" && !window.location.pathname.startsWith("/settings") && !window.location.pathname.startsWith("/onboarding")) {
+      window.location.href = "/settings";
+      return new Promise(() => {}); // never resolves — page is navigating
+    }
+    throw new Error(msg);
   }
 
   if (res.status === 204) return null;
