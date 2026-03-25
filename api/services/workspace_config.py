@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.config import get_settings
 from api.models.workspace import Workspace
+from api.services.encryption import decrypt_secret
 
 settings = get_settings()
 
@@ -50,16 +51,16 @@ async def get_workspace_config(workspace_id: UUID, db: AsyncSession) -> Workspac
         return WorkspaceConfig(
             auth0_domain=domain,
             auth0_client_id=_pick(ws.auth0_m2m_client_id, settings.AUTH0_CLIENT_ID),
-            auth0_client_secret=_pick(ws.auth0_m2m_client_secret, settings.AUTH0_CLIENT_SECRET),
+            auth0_client_secret=_pick(decrypt_secret(ws.auth0_m2m_client_secret), settings.AUTH0_CLIENT_SECRET),
             auth0_web_client_id=_pick(ws.auth0_web_client_id, settings.AUTH0_WEB_CLIENT_ID) or _pick(ws.auth0_m2m_client_id, settings.AUTH0_CLIENT_ID),
-            auth0_web_client_secret=_pick(ws.auth0_web_client_secret, settings.AUTH0_WEB_CLIENT_SECRET) or _pick(ws.auth0_m2m_client_secret, settings.AUTH0_CLIENT_SECRET),
+            auth0_web_client_secret=_pick(decrypt_secret(ws.auth0_web_client_secret), settings.AUTH0_WEB_CLIENT_SECRET) or _pick(decrypt_secret(ws.auth0_m2m_client_secret), settings.AUTH0_CLIENT_SECRET),
             auth0_audience=_pick(ws.auth0_audience, settings.AUTH0_AUDIENCE),
             auth0_mgmt_api_audience=_pick(ws.auth0_mgmt_api_audience, settings.AUTH0_MGMT_API_AUDIENCE) or f"https://{domain}/api/v2/",
             fga_api_url=_pick(ws.fga_api_url, settings.FGA_API_URL),
             fga_store_id=_pick(ws.fga_store_id, settings.FGA_STORE_ID),
             fga_model_id=_pick(ws.fga_model_id, settings.FGA_MODEL_ID),
             fga_client_id=_pick(ws.fga_client_id, settings.FGA_CLIENT_ID),
-            fga_client_secret=_pick(ws.fga_client_secret, settings.FGA_CLIENT_SECRET),
+            fga_client_secret=_pick(decrypt_secret(ws.fga_client_secret), settings.FGA_CLIENT_SECRET),
             credentials_key=_pick(ws.credentials_key, settings.CREDENTIALS_KEY),
             callback_base_url=settings.CALLBACK_BASE_URL,
             frontend_url=settings.FRONTEND_URL,

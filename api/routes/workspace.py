@@ -17,6 +17,7 @@ from loguru import logger
 from api.config import get_settings
 from api.database import get_db
 from api.models.workspace import Workspace
+from api.services.encryption import encrypt_secret
 
 router = APIRouter(prefix="/api/v1/workspace", tags=["workspace"])
 settings = get_settings()
@@ -79,17 +80,17 @@ async def setup_workspace(body: WorkspaceSetupRequest, db: AsyncSession = Depend
     m2m_secret = body.auth0_m2m_client_secret or settings.AUTH0_CLIENT_SECRET
 
     if existing:
-        # Update credentials on existing workspace
+        # Update credentials on existing workspace (secrets encrypted at rest)
         if body.auth0_domain:
             existing.auth0_domain = body.auth0_domain
         if body.auth0_m2m_client_id:
             existing.auth0_m2m_client_id = body.auth0_m2m_client_id
         if body.auth0_m2m_client_secret:
-            existing.auth0_m2m_client_secret = body.auth0_m2m_client_secret
+            existing.auth0_m2m_client_secret = encrypt_secret(body.auth0_m2m_client_secret)
         if body.auth0_web_client_id:
             existing.auth0_web_client_id = body.auth0_web_client_id
         if body.auth0_web_client_secret:
-            existing.auth0_web_client_secret = body.auth0_web_client_secret
+            existing.auth0_web_client_secret = encrypt_secret(body.auth0_web_client_secret)
         if body.auth0_audience:
             existing.auth0_audience = body.auth0_audience
         if body.fga_api_url:
@@ -101,7 +102,7 @@ async def setup_workspace(body: WorkspaceSetupRequest, db: AsyncSession = Depend
         if body.fga_client_id:
             existing.fga_client_id = body.fga_client_id
         if body.fga_client_secret:
-            existing.fga_client_secret = body.fga_client_secret
+            existing.fga_client_secret = encrypt_secret(body.fga_client_secret)
         if body.name and body.name != "My Workspace":
             existing.name = body.name
         existing.auth0_tenant = domain
@@ -134,16 +135,16 @@ async def setup_workspace(body: WorkspaceSetupRequest, db: AsyncSession = Depend
         hmac_secret=hmac_secret,
         auth0_domain=body.auth0_domain,
         auth0_m2m_client_id=body.auth0_m2m_client_id,
-        auth0_m2m_client_secret=body.auth0_m2m_client_secret,
+        auth0_m2m_client_secret=encrypt_secret(body.auth0_m2m_client_secret),
         auth0_web_client_id=body.auth0_web_client_id,
-        auth0_web_client_secret=body.auth0_web_client_secret,
+        auth0_web_client_secret=encrypt_secret(body.auth0_web_client_secret),
         auth0_audience=body.auth0_audience,
         auth0_mgmt_api_audience=f"https://{domain}/api/v2/" if domain else None,
         fga_api_url=body.fga_api_url,
         fga_store_id=body.fga_store_id,
         fga_model_id=body.fga_model_id,
         fga_client_id=body.fga_client_id,
-        fga_client_secret=body.fga_client_secret,
+        fga_client_secret=encrypt_secret(body.fga_client_secret),
     )
     db.add(workspace)
     await db.commit()
