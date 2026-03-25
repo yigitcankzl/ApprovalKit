@@ -32,7 +32,6 @@ const navigation = [
   { name: "Audit Log", href: "/audit", icon: ScrollText },
   { name: "Connect Agent", href: "/connect", icon: Plug },
   { name: "Agents", href: "/agents", icon: Bot },
-  { name: "Use Cases", href: "/gallery", icon: BookOpen },
   { name: "Docs", href: "/docs", icon: FileText },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
