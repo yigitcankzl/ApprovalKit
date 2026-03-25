@@ -31,12 +31,26 @@ const steps = [
 ];
 
 const services = [
-  { id: "stripe",     name: "Stripe",     slug: "stripe-prod", actions: ["charge", "refund", "payout"] },
-  { id: "github",     name: "GitHub",     slug: "github-main", actions: ["deploy", "rollback", "merge_pr"] },
-  { id: "gmail",      name: "Gmail",      slug: "gmail",       actions: ["send_email", "delete_email"] },
-  { id: "slack",      name: "Slack",      slug: "slack",       actions: ["send_message", "create_channel"] },
-  { id: "salesforce", name: "Salesforce", slug: "salesforce",  actions: ["create_deal", "update_contact"] },
-  { id: "aws",        name: "AWS",        slug: "aws",         actions: ["launch_instance", "terminate_instance"] },
+  { id: "stripe",     name: "Stripe",        slug: "stripe-prod",  actions: ["charge", "refund", "payout"] },
+  { id: "github",     name: "GitHub",        slug: "github-main",  actions: ["deploy", "rollback", "merge_pr"] },
+  { id: "google",     name: "Google",        slug: "google",       actions: ["send_email", "create_event", "read_drive"] },
+  { id: "slack",      name: "Slack",         slug: "slack",        actions: ["send_message", "create_channel"] },
+  { id: "salesforce", name: "Salesforce",    slug: "salesforce",   actions: ["create_deal", "update_contact"] },
+  { id: "microsoft",  name: "Microsoft",     slug: "microsoft",    actions: ["send_email", "create_event", "upload_file"] },
+  { id: "notion",     name: "Notion",        slug: "notion",       actions: ["create_page", "update_database"] },
+  { id: "jira",       name: "Jira",          slug: "jira",         actions: ["create_issue", "update_issue", "transition"] },
+  { id: "discord",    name: "Discord",       slug: "discord",      actions: ["send_message", "create_channel"] },
+  { id: "dropbox",    name: "Dropbox",       slug: "dropbox",      actions: ["upload_file", "share_folder"] },
+  { id: "box",        name: "Box",           slug: "box",          actions: ["upload_file", "share_folder"] },
+  { id: "figma",      name: "Figma",         slug: "figma",        actions: ["export_assets", "get_comments"] },
+  { id: "shopify",    name: "Shopify",       slug: "shopify",      actions: ["create_order", "update_product"] },
+  { id: "hubspot",    name: "HubSpot",       slug: "hubspot",      actions: ["create_contact", "create_deal"] },
+  { id: "linear",     name: "Linear",        slug: "linear",       actions: ["create_issue", "update_status"] },
+  { id: "bitbucket",  name: "Bitbucket",     slug: "bitbucket",    actions: ["create_pr", "merge_pr"] },
+  { id: "asana",      name: "Asana",         slug: "asana",        actions: ["create_task", "complete_task"] },
+  { id: "freshbooks", name: "FreshBooks",    slug: "freshbooks",   actions: ["create_invoice", "send_invoice"] },
+  { id: "paypal",     name: "PayPal",        slug: "paypal",       actions: ["send_payment", "create_invoice"] },
+  { id: "spotify",    name: "Spotify",       slug: "spotify",      actions: ["create_playlist", "add_track"] },
 ];
 
 export default function OnboardingPage() {

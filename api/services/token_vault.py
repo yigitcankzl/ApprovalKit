@@ -29,9 +29,26 @@ settings = get_settings()
 _PROVIDER_MAP = {
     "github":     "github",
     "stripe":     "stripe",
-    "slack":      "slack",
+    "slack":      "sign-in-with-slack",
     "salesforce": "salesforce",
+    "google":     "google-oauth2",
     "gmail":      "google-oauth2",
+    "microsoft":  "windowslive",
+    "outlook":    "windowslive",
+    "box":        "box",
+    "dropbox":    "dropbox",
+    "discord":    "discord",
+    "figma":      "figma",
+    "notion":     "notion",
+    "jira":       "jira",
+    "hubspot":    "hubspot",
+    "shopify":    "shopify",
+    "linear":     "linear",
+    "bitbucket":  "bitbucket",
+    "spotify":    "spotify",
+    "amazon":     "amazon",
+    "paypal":     "paypal",
+    "freshbooks": "freshbooks",
 }
 
 
