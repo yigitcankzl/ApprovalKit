@@ -173,6 +173,86 @@ async def submit_approval_request(
     return ApprovalResponse(**response_data)
 
 
+class TestRequest(ApprovalRequest):
+    """Same as ApprovalRequest but with defaults for dashboard testing."""
+    user_id: str = "dashboard-test"
+    idempotency_key: str = ""
+
+
+@router.post("/test-request", status_code=202)
+async def dashboard_test_request(
+    body: TestRequest,
+    db: AsyncSession = Depends(get_db),
+    redis_client: aioredis.Redis = Depends(get_redis),
+):
+    """
+    Dashboard-initiated test request — no HMAC required.
+    Triggers the full CIBA → approval → Token Vault flow.
+    """
+    if not body.idempotency_key:
+        body.idempotency_key = f"test-{uuid.uuid4()}"
+
+    result = await db.execute(
+        select(Workspace).where(Workspace.is_active.is_(True)).limit(1)
+    )
+    workspace = result.scalar_one_or_none()
+    if not workspace:
+        raise HTTPException(status_code=400, detail="No workspace configured")
+
+    rule = await find_matching_rule(
+        workspace.id, body.connection, body.action, body.params, db
+    )
+    if not rule:
+        return {"job_id": None, "status": "auto_approved", "message": "No matching rule — would auto-approve"}
+
+    if is_in_blackout(rule):
+        raise HTTPException(status_code=403, detail="Blackout window active")
+
+    required = get_required_approval_count(rule)
+    job = ApprovalJob(
+        id=uuid.uuid4(),
+        idempotency_key=body.idempotency_key,
+        workspace_id=workspace.id,
+        rule_id=rule.id,
+        connection=body.connection,
+        action=body.action,
+        params=body.params,
+        agent_user_id=body.user_id,
+        state=JobState.PENDING,
+        required_count=required,
+        expires_at=datetime.utcnow() + timedelta(seconds=rule.timeout_seconds),
+    )
+    db.add(job)
+
+    audit = AuditLog(
+        job_id=job.id,
+        workspace_id=workspace.id,
+        event_type=AuditEventType.REQUESTED,
+        binding_message=render_binding_message(rule.context_template, body.params),
+    )
+    db.add(audit)
+    await db.commit()
+
+    from api.worker.tasks import process_approval_job
+    process_approval_job.delay(str(job.id))
+
+    await redis_client.publish("approval_events", json.dumps({
+        "type": "requested",
+        "job_id": str(job.id),
+        "connection": body.connection,
+        "action": body.action,
+        "timestamp": datetime.utcnow().isoformat(),
+    }))
+
+    return {
+        "job_id": str(job.id),
+        "status": "pending",
+        "message": f"Test request sent — CIBA push going to approver(s)",
+        "rule": rule.name,
+        "model": rule.model.value,
+    }
+
+
 @router.patch("/jobs/{job_id}/params")
 async def modify_job_params(
     job_id: str,

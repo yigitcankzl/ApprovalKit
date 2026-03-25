@@ -72,6 +72,11 @@ export const api = {
   submitDecision: (jobId: string, data: { decision: "approve" | "reject"; modified_params?: any; note?: string }) =>
     fetchAPI(`/api/v1/jobs/${jobId}/decision`, { method: "POST", body: JSON.stringify(data) }),
 
+  // Test
+  sendTestRequest: (data: { connection: string; action: string; params: Record<string, any> }) =>
+    fetchAPI("/api/v1/test-request", { method: "POST", body: JSON.stringify(data) }),
+  getJobStatus: (jobId: string) => fetchAPI(`/api/v1/status/${jobId}`),
+
   // Consent
   getConsent: () => fetchAPI("/api/v1/consent"),
 
@@ -79,4 +84,8 @@ export const api = {
   setupWorkspace: (data: Record<string, any>) =>
     fetchAPI("/api/v1/workspace/setup", { method: "POST", body: JSON.stringify(data) }),
   getWorkspace: () => fetchAPI("/api/v1/workspace"),
+
+  // Demo seed
+  seedDemoData: () => fetchAPI("/api/v1/demo/seed", { method: "POST" }),
+  clearDemoData: () => fetchAPI("/api/v1/demo/seed", { method: "DELETE" }),
 };
