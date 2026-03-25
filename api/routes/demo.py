@@ -379,7 +379,7 @@ AGENT_APPROVERS = {
 
 
 @router.post("/seed")
-async def seed_demo_data(agent_id: str | None = None, db: AsyncSession = Depends(get_db)):
+async def seed_demo_data(agent_id: str | None = None, real_user_id: str | None = None, db: AsyncSession = Depends(get_db)):
     """
     Idempotently seed demo data. Pass ?agent_id=ecommerce to seed only
     one agent's data. Without agent_id, seeds everything.
@@ -434,8 +434,11 @@ async def seed_demo_data(agent_id: str | None = None, db: AsyncSession = Depends
         if needed_roles is not None and appr_def["role"] not in needed_roles:
             if appr_def["auth0_user_id"] in existing_appr_ids:
                 approver_by_role[appr_def["role"]] = existing_appr_ids[appr_def["auth0_user_id"]]
+            # Also check by real_user_id
+            if real_user_id and real_user_id in existing_appr_ids:
+                approver_by_role[appr_def["role"]] = existing_appr_ids[real_user_id]
             continue
-        uid = appr_def["auth0_user_id"]
+        uid = real_user_id or appr_def["auth0_user_id"]
         if uid in existing_appr_ids:
             approver_by_role[appr_def["role"]] = existing_appr_ids[uid]
             report["skipped"].append(f"approver: {appr_def['name']}")

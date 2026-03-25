@@ -86,6 +86,12 @@ export const api = {
   getWorkspace: () => fetchAPI("/api/v1/workspace"),
 
   // Demo seed
-  seedDemoData: (agentId?: string) => fetchAPI(`/api/v1/demo/seed${agentId ? `?agent_id=${agentId}` : ""}`, { method: "POST" }),
+  seedDemoData: (agentId?: string, realUserId?: string) => {
+    const params = new URLSearchParams();
+    if (agentId) params.set("agent_id", agentId);
+    if (realUserId) params.set("real_user_id", realUserId);
+    const qs = params.toString();
+    return fetchAPI(`/api/v1/demo/seed${qs ? `?${qs}` : ""}`, { method: "POST" });
+  },
   clearDemoData: () => fetchAPI("/api/v1/demo/seed", { method: "DELETE" }),
 };

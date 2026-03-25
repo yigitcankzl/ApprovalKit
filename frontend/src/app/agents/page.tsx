@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useUser } from "@auth0/nextjs-auth0/client";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -703,6 +704,7 @@ function ScenarioCard({ scenario }: { scenario: Scenario }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AgentsPage() {
+  const { user } = useUser();
   const [activeId, setActiveId] = useState(AGENTS[0].id);
   const [settingUp, setSettingUp] = useState<string | null>(null);
   const [setupDone, setSetupDone] = useState<Record<string, boolean>>({});
@@ -731,7 +733,7 @@ export default function AgentsPage() {
   const handleSetupAgent = async (agentId: string) => {
     setSettingUp(agentId);
     try {
-      await api.seedDemoData(agentId);
+      await api.seedDemoData(agentId, user?.sub || undefined);
       setSetupDone((prev) => ({ ...prev, [agentId]: true }));
     } catch {}
     setSettingUp(null);
