@@ -674,8 +674,6 @@ export default function AgentsPage() {
         </p>
       </div>
 
-      <SeedBanner />
-
       <div className="flex gap-6">
         {/* Sidebar */}
         <aside className="w-52 shrink-0">
@@ -709,20 +707,21 @@ export default function AgentsPage() {
                     <p className="text-sm text-zinc-500 mt-0.5">{agent.description}</p>
                   </div>
                 </div>
+                {setupDone[agent.id] ? (
+                  <Badge variant="success"><CheckCircle2 className="h-3 w-3 mr-1" /> Ready</Badge>
+                ) : (
                 <Button
                   size="sm"
-                  variant={setupDone[agent.id] ? "outline" : "default"}
                   disabled={settingUp === agent.id}
                   onClick={() => handleSetupAgent(agent.id)}
                 >
                   {settingUp === agent.id ? (
-                    <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> Setting up...</>
-                  ) : setupDone[agent.id] ? (
-                    <><CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Configured</>
+                    <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> Creating rules &amp; approvers...</>
                   ) : (
-                    <><Play className="h-3.5 w-3.5 mr-1" /> Setup Demo</>
+                    <>Setup Demo</>
                   )}
                 </Button>
+                )}
               </div>
             </CardHeader>
           </Card>
