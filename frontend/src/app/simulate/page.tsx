@@ -14,6 +14,8 @@ interface SimulationResult {
   rule_id?: string;
   rule_name?: string;
   model?: string;
+  effective_model?: string;
+  step_up_triggered?: boolean;
   approvers?: { id: string; name: string; order: number }[];
   timeout_seconds?: number;
   on_timeout?: string;
@@ -134,9 +136,17 @@ export default function SimulatePage() {
                     Matched: {result.rule_name}
                   </p>
                   <p className="text-xs text-blue-600 mt-1">
-                    Model: {result.model} | Timeout: {result.timeout_seconds}s
+                    Model: {result.model}{result.step_up_triggered ? ` → ${result.effective_model}` : ""} | Timeout: {result.timeout_seconds}s
                   </p>
                 </div>
+                {result.step_up_triggered && (
+                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex items-center gap-2">
+                    <Badge variant="warning">Step-up Triggered</Badge>
+                    <span className="text-sm text-yellow-800">
+                      Approval model escalated: {result.model} → {result.effective_model}
+                    </span>
+                  </div>
+                )}
 
                 {result.approvers && result.approvers.length > 0 && (
                   <div>
