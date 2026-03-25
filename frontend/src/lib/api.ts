@@ -89,7 +89,8 @@ export const api = {
     fetchAPI("/api/v1/workspace/setup", { method: "POST", body: JSON.stringify(data) }),
   getWorkspace: () => fetchAPI("/api/v1/workspace"),
 
-  // Demo seed
+  // Demo
+  getDemoAgents: () => fetchAPI("/api/v1/demo/agents"),
   seedDemoData: (agentId?: string, realUserId?: string) => {
     const params = new URLSearchParams();
     if (agentId) params.set("agent_id", agentId);
