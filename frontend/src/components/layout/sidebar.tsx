@@ -22,6 +22,8 @@ import {
   Bot,
   Plug,
   Plane,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 
 const navigation = [
@@ -36,65 +38,110 @@ const navigation = [
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  collapsed: boolean;
+  onToggle: () => void;
+}
+
+export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const { user, isLoading } = useUser();
 
   return (
-    <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r border-zinc-200 bg-white">
-      <Link href="/" className="flex h-16 items-center gap-2 border-b border-zinc-200 px-6 hover:bg-zinc-50 transition-colors">
-        <Shield className="h-6 w-6 text-zinc-900" />
-        <span className="text-lg font-bold text-zinc-900">ApprovalKit</span>
-      </Link>
-      <nav className="space-y-1 px-3 py-4">
+    <aside
+      className={cn(
+        "fixed left-0 top-0 z-40 h-screen border-r border-zinc-200 bg-white transition-all duration-200",
+        collapsed ? "w-16" : "w-64"
+      )}
+    >
+      {/* Header */}
+      <div className="flex h-16 items-center border-b border-zinc-200">
+        <Link
+          href="/"
+          className={cn(
+            "flex items-center gap-2 hover:bg-zinc-50 transition-colors h-full",
+            collapsed ? "justify-center w-full px-0" : "px-6 flex-1"
+          )}
+        >
+          <Shield className="h-6 w-6 shrink-0 text-zinc-900" />
+          {!collapsed && <span className="text-lg font-bold text-zinc-900">ApprovalKit</span>}
+        </Link>
+      </div>
+
+      {/* Toggle button */}
+      <button
+        onClick={onToggle}
+        className="absolute -right-3.5 top-[4.5rem] z-50 flex h-7 w-7 items-center justify-center rounded-full border border-zinc-300 bg-white text-zinc-400 shadow hover:bg-zinc-100 hover:text-zinc-900 hover:border-zinc-400 transition-all"
+      >
+        {collapsed ? <PanelLeftOpen className="h-3.5 w-3.5" /> : <PanelLeftClose className="h-3.5 w-3.5" />}
+      </button>
+
+      {/* Navigation */}
+      <nav className={cn("space-y-1 py-4", collapsed ? "px-2" : "px-3")}>
         {navigation.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
           return (
             <Link
               key={item.name}
               href={item.href}
+              title={collapsed ? item.name : undefined}
               className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                "flex items-center rounded-lg text-sm font-medium transition-colors",
+                collapsed ? "justify-center px-0 py-2" : "gap-3 px-3 py-2",
                 isActive
                   ? "bg-zinc-100 text-zinc-900"
                   : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
               )}
             >
-              <item.icon className="h-4 w-4" />
-              {item.name}
+              <item.icon className="h-4 w-4 shrink-0" />
+              {!collapsed && item.name}
             </Link>
           );
         })}
       </nav>
-      <div className="absolute bottom-0 w-full border-t border-zinc-200 p-4">
+
+      {/* User section */}
+      <div className={cn("absolute bottom-0 w-full border-t border-zinc-200", collapsed ? "p-2" : "p-4")}>
         {isLoading ? (
           <div className="rounded-lg bg-zinc-50 p-3">
-            <div className="h-4 w-24 bg-zinc-200 rounded animate-pulse" />
+            <div className="h-4 w-6 bg-zinc-200 rounded animate-pulse mx-auto" />
           </div>
         ) : user ? (
-          <div className="rounded-lg bg-zinc-50 p-3">
-            <div className="flex items-center gap-2">
+          <div className={cn("rounded-lg bg-zinc-50", collapsed ? "p-2 flex flex-col items-center" : "p-3")}>
+            <div className={cn("flex items-center", collapsed ? "justify-center" : "gap-2")}>
               {user.picture && (
-                <img src={user.picture} alt="" className="h-7 w-7 rounded-full" />
+                <img src={user.picture} alt="" className="h-7 w-7 rounded-full shrink-0" />
               )}
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-zinc-700 truncate">{user.name}</p>
-                <p className="text-xs text-zinc-400 truncate">{user.email}</p>
-              </div>
+              {!collapsed && (
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-zinc-700 truncate">{user.name}</p>
+                  <p className="text-xs text-zinc-400 truncate">{user.email}</p>
+                </div>
+              )}
             </div>
             <a
               href="/auth/logout"
-              className="mt-2 flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-700 transition-colors"
+              title={collapsed ? "Logout" : undefined}
+              className={cn(
+                "flex items-center text-xs text-zinc-500 hover:text-zinc-700 transition-colors",
+                collapsed ? "mt-2 justify-center" : "mt-2 gap-1.5"
+              )}
             >
-              <LogOut className="h-3 w-3" /> Logout
+              <LogOut className="h-3 w-3" />
+              {!collapsed && " Logout"}
             </a>
           </div>
         ) : (
           <a
             href="/auth/login"
-            className="flex items-center justify-center gap-2 w-full rounded-lg bg-zinc-900 text-white text-sm font-medium py-2 hover:bg-zinc-800 transition-colors"
+            title={collapsed ? "Login" : undefined}
+            className={cn(
+              "flex items-center justify-center rounded-lg bg-zinc-900 text-white text-sm font-medium py-2 hover:bg-zinc-800 transition-colors",
+              collapsed ? "w-full" : "gap-2 w-full"
+            )}
           >
-            <LogIn className="h-4 w-4" /> Login with Auth0
+            <LogIn className="h-4 w-4" />
+            {!collapsed && " Login with Auth0"}
           </a>
         )}
       </div>

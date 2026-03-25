@@ -1231,7 +1231,7 @@ export default function AgentsPage() {
               </div>
             </CardHeader>
             {/* Setup Details */}
-            {!setupDone[agent.id] && agent.setupInfo && (
+            {agent.setupInfo && (
               <CardContent className="border-t border-zinc-100 pt-4">
                 <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wide mb-3">Setup Demo will create:</p>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
