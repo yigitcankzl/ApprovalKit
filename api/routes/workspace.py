@@ -24,23 +24,35 @@ settings = get_settings()
 
 class WorkspaceSetupRequest(BaseModel):
     name: str = "My Workspace"
-    auth0_tenant: str
+    auth0_tenant: str = ""
+    # Auth0 credentials (stored in DB, not .env)
+    auth0_domain: str | None = None
+    auth0_m2m_client_id: str | None = None
+    auth0_m2m_client_secret: str | None = None
+    auth0_web_client_id: str | None = None
+    auth0_web_client_secret: str | None = None
+    auth0_audience: str | None = None
+    # FGA credentials
+    fga_api_url: str | None = None
+    fga_store_id: str | None = None
+    fga_model_id: str | None = None
+    fga_client_id: str | None = None
+    fga_client_secret: str | None = None
 
 
-async def _validate_auth0(tenant: str) -> bool:
-    """Verify backend can reach Auth0 with configured credentials."""
-    if not settings.AUTH0_CLIENT_ID or not settings.AUTH0_CLIENT_SECRET:
-        logger.warning("AUTH0_CLIENT_ID/SECRET not configured — skipping validation")
+async def _validate_auth0(domain: str, client_id: str, client_secret: str) -> bool:
+    """Verify backend can reach Auth0 with given credentials."""
+    if not client_id or not client_secret or not domain:
+        logger.warning("Auth0 credentials not provided — skipping validation")
         return True
-    domain = settings.AUTH0_DOMAIN or tenant
     try:
         async with httpx.AsyncClient(timeout=10) as c:
             r = await c.post(
                 f"https://{domain}/oauth/token",
                 json={
-                    "client_id": settings.AUTH0_CLIENT_ID,
-                    "client_secret": settings.AUTH0_CLIENT_SECRET,
-                    "audience": settings.AUTH0_MGMT_API_AUDIENCE or f"https://{domain}/api/v2/",
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "audience": f"https://{domain}/api/v2/",
                     "grant_type": "client_credentials",
                 },
             )
@@ -53,29 +65,62 @@ async def _validate_auth0(tenant: str) -> bool:
 @router.post("/setup")
 async def setup_workspace(body: WorkspaceSetupRequest, db: AsyncSession = Depends(get_db)):
     """
-    Create workspace if one doesn't exist, or return the existing one.
-    api_key and hmac_secret are only included in the response on creation.
+    Create workspace with Auth0/FGA credentials stored in DB.
+    If workspace exists, update its credentials.
     """
-    # Check if active workspace already exists
     result = await db.execute(
         select(Workspace).where(Workspace.is_active.is_(True)).limit(1)
     )
     existing = result.scalar_one_or_none()
+
+    # Determine Auth0 domain — from body or .env fallback
+    domain = body.auth0_domain or body.auth0_tenant or settings.AUTH0_DOMAIN
+    m2m_id = body.auth0_m2m_client_id or settings.AUTH0_CLIENT_ID
+    m2m_secret = body.auth0_m2m_client_secret or settings.AUTH0_CLIENT_SECRET
+
     if existing:
-        logger.info(f"Returning existing workspace: {existing.id}")
+        # Update credentials on existing workspace
+        if body.auth0_domain:
+            existing.auth0_domain = body.auth0_domain
+        if body.auth0_m2m_client_id:
+            existing.auth0_m2m_client_id = body.auth0_m2m_client_id
+        if body.auth0_m2m_client_secret:
+            existing.auth0_m2m_client_secret = body.auth0_m2m_client_secret
+        if body.auth0_web_client_id:
+            existing.auth0_web_client_id = body.auth0_web_client_id
+        if body.auth0_web_client_secret:
+            existing.auth0_web_client_secret = body.auth0_web_client_secret
+        if body.auth0_audience:
+            existing.auth0_audience = body.auth0_audience
+        if body.fga_api_url:
+            existing.fga_api_url = body.fga_api_url
+        if body.fga_store_id:
+            existing.fga_store_id = body.fga_store_id
+        if body.fga_model_id:
+            existing.fga_model_id = body.fga_model_id
+        if body.fga_client_id:
+            existing.fga_client_id = body.fga_client_id
+        if body.fga_client_secret:
+            existing.fga_client_secret = body.fga_client_secret
+        if body.name and body.name != "My Workspace":
+            existing.name = body.name
+        existing.auth0_tenant = domain
+
+        await db.commit()
         return {
             "workspace_id": str(existing.id),
             "name": existing.name,
             "auth0_tenant": existing.auth0_tenant,
             "created": False,
+            "credentials_updated": True,
         }
 
     # Validate Auth0 connection
-    valid = await _validate_auth0(body.auth0_tenant)
+    valid = await _validate_auth0(domain, m2m_id, m2m_secret)
     if not valid:
         raise HTTPException(
             status_code=400,
-            detail="Could not connect to Auth0 with configured credentials. Check AUTH0_CLIENT_ID and AUTH0_CLIENT_SECRET.",
+            detail="Could not connect to Auth0 with provided credentials.",
         )
 
     api_key = secrets.token_urlsafe(32)
@@ -84,9 +129,21 @@ async def setup_workspace(body: WorkspaceSetupRequest, db: AsyncSession = Depend
     workspace = Workspace(
         id=uuid.uuid4(),
         name=body.name,
-        auth0_tenant=body.auth0_tenant,
+        auth0_tenant=domain,
         api_key=api_key,
         hmac_secret=hmac_secret,
+        auth0_domain=body.auth0_domain,
+        auth0_m2m_client_id=body.auth0_m2m_client_id,
+        auth0_m2m_client_secret=body.auth0_m2m_client_secret,
+        auth0_web_client_id=body.auth0_web_client_id,
+        auth0_web_client_secret=body.auth0_web_client_secret,
+        auth0_audience=body.auth0_audience,
+        auth0_mgmt_api_audience=f"https://{domain}/api/v2/" if domain else None,
+        fga_api_url=body.fga_api_url,
+        fga_store_id=body.fga_store_id,
+        fga_model_id=body.fga_model_id,
+        fga_client_id=body.fga_client_id,
+        fga_client_secret=body.fga_client_secret,
     )
     db.add(workspace)
     await db.commit()
@@ -117,5 +174,7 @@ async def get_workspace(db: AsyncSession = Depends(get_db)):
         "name": workspace.name,
         "auth0_tenant": workspace.auth0_tenant,
         "is_active": workspace.is_active,
+        "has_auth0_credentials": bool(workspace.auth0_domain and workspace.auth0_m2m_client_id),
+        "has_fga_credentials": bool(workspace.fga_store_id),
         "created_at": workspace.created_at.isoformat(),
     }

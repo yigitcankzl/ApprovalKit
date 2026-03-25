@@ -43,6 +43,13 @@ export default function OnboardingPage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1);
   const [tenant, setTenant] = useState("");
+  const [m2mClientId, setM2mClientId] = useState("");
+  const [m2mClientSecret, setM2mClientSecret] = useState("");
+  const [webClientId, setWebClientId] = useState("");
+  const [webClientSecret, setWebClientSecret] = useState("");
+  const [fgaStoreId, setFgaStoreId] = useState("");
+  const [fgaClientId, setFgaClientId] = useState("");
+  const [fgaClientSecret, setFgaClientSecret] = useState("");
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +66,18 @@ export default function OnboardingPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await api.setupWorkspace({ name: "My Workspace", auth0_tenant: tenant });
+      const res = await api.setupWorkspace({
+        name: "My Workspace",
+        auth0_tenant: tenant,
+        auth0_domain: tenant,
+        auth0_m2m_client_id: m2mClientId || undefined,
+        auth0_m2m_client_secret: m2mClientSecret || undefined,
+        auth0_web_client_id: webClientId || undefined,
+        auth0_web_client_secret: webClientSecret || undefined,
+        fga_store_id: fgaStoreId || undefined,
+        fga_client_id: fgaClientId || undefined,
+        fga_client_secret: fgaClientSecret || undefined,
+      });
       if (res.api_key) {
         setWorkspaceApiKey(res.api_key);
       }
@@ -155,17 +173,46 @@ export default function OnboardingPage() {
           <CardContent className="space-y-4">
             <div>
               <label className="text-sm font-medium text-zinc-700">Auth0 Domain</label>
-              <Input
-                placeholder="your-tenant.auth0.com"
-                value={tenant}
-                onChange={(e) => setTenant(e.target.value)}
-                className="mt-1"
-              />
+              <Input placeholder="your-tenant.us.auth0.com" value={tenant} onChange={(e) => setTenant(e.target.value)} className="mt-1" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium text-zinc-700">M2M Client ID</label>
+                <Input placeholder="Machine to Machine app" value={m2mClientId} onChange={(e) => setM2mClientId(e.target.value)} className="mt-1 font-mono text-xs" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-zinc-700">M2M Client Secret</label>
+                <Input type="password" placeholder="Client secret" value={m2mClientSecret} onChange={(e) => setM2mClientSecret(e.target.value)} className="mt-1 font-mono text-xs" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-zinc-700">Web App Client ID</label>
+                <Input placeholder="Regular Web Application" value={webClientId} onChange={(e) => setWebClientId(e.target.value)} className="mt-1 font-mono text-xs" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-zinc-700">Web App Client Secret</label>
+                <Input type="password" placeholder="Client secret" value={webClientSecret} onChange={(e) => setWebClientSecret(e.target.value)} className="mt-1 font-mono text-xs" />
+              </div>
+            </div>
+            <div className="border-t border-zinc-200 pt-4">
+              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">FGA (Optional)</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-sm font-medium text-zinc-700">Store ID</label>
+                  <Input placeholder="01KMG6..." value={fgaStoreId} onChange={(e) => setFgaStoreId(e.target.value)} className="mt-1 font-mono text-xs" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-zinc-700">Client ID</label>
+                  <Input placeholder="FGA client" value={fgaClientId} onChange={(e) => setFgaClientId(e.target.value)} className="mt-1 font-mono text-xs" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-zinc-700">Client Secret</label>
+                  <Input type="password" value={fgaClientSecret} onChange={(e) => setFgaClientSecret(e.target.value)} className="mt-1 font-mono text-xs" />
+                </div>
+              </div>
             </div>
             <div className="p-3 bg-blue-50 rounded-lg">
               <p className="text-sm text-blue-700">
-                Token Vault must be enabled on your tenant. CIBA and Guardian push must be configured.
-                FGA store should be created with the ApprovalKit authorization model.
+                All credentials are stored securely in the database — no .env files needed. Token Vault and CIBA must be enabled on your Auth0 tenant.
               </p>
             </div>
             {error && (

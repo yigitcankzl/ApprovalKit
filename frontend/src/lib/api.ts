@@ -75,7 +75,7 @@ export const api = {
   getConsent: () => fetchAPI("/api/v1/consent"),
 
   // Workspace
-  setupWorkspace: (data: { name: string; auth0_tenant: string }) =>
+  setupWorkspace: (data: Record<string, any>) =>
     fetchAPI("/api/v1/workspace/setup", { method: "POST", body: JSON.stringify(data) }),
   getWorkspace: () => fetchAPI("/api/v1/workspace"),
 };
