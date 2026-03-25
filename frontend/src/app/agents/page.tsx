@@ -1113,7 +1113,7 @@ function MyAgentsTab() {
 
 export default function AgentsPage() {
   const { user } = useUser();
-  const [tab, setTab] = useState<"demo" | "my">("demo");
+  const [tab, setTab] = useState<"demo" | "my">("my");
   const [activeId, setActiveId] = useState(AGENTS[0].id);
   const [settingUp, setSettingUp] = useState<string | null>(null);
   const [setupDone, setSetupDone] = useState<Record<string, boolean>>({});
