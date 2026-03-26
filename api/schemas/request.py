@@ -23,6 +23,7 @@ class ApprovalResponse(BaseModel):
     job_id: str
     status: str
     message: str | None = None
+    risk: dict | None = None
 
 
 class JobStatusResponse(BaseModel):

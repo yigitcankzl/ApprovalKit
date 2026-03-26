@@ -93,11 +93,6 @@ async def submit_approval_request(
     is_new_action = scope_creep["is_new_action"]
 
     # Budget check (per-agent spending limits)
-    agent = getattr(request_obj, "state", None) and request_obj.state.agent if hasattr(request_obj, "state") else None
-    if not agent:
-        # Try from request.state set by auth middleware
-        from starlette.requests import Request as StarletteRequest
-        # agent may be on the raw request object — check via scope
     amount_val = None
     for k in ("amount", "amount_usd", "total"):
         raw = request.params.get(k)
