@@ -1,33 +1,21 @@
 """
-Simple circuit breaker — no external dependencies.
+Simple circuit breaker with Redis persistence.
 
 States:
   CLOSED   → normal operation, requests pass through
   OPEN     → too many failures, requests fail-fast
   HALF_OPEN → after reset_timeout, allow one probe request
 
-Usage:
-    breaker = CircuitBreaker("auth0", failure_threshold=5, reset_timeout=30)
-
-    if not breaker.allow_request():
-        raise RuntimeError("Auth0 circuit is OPEN — failing fast")
-
-    try:
-        result = await call_auth0(...)
-        breaker.record_success()
-    except Exception:
-        breaker.record_failure()
-        raise
+State persists across restarts via Redis keys.
 """
 import time
-from enum import Enum
+
+import redis
 from loguru import logger
 
+from api.config import get_settings
 
-class _State(Enum):
-    CLOSED = "closed"
-    OPEN = "open"
-    HALF_OPEN = "half_open"
+settings = get_settings()
 
 
 class CircuitBreaker:
@@ -35,44 +23,58 @@ class CircuitBreaker:
         self.name = name
         self.failure_threshold = failure_threshold
         self.reset_timeout = reset_timeout
-        self._state = _State.CLOSED
-        self._failure_count = 0
-        self._last_failure_time = 0.0
+        self._redis: redis.Redis | None = None
+        self._key_failures = f"cb:{name}:failures"
+        self._key_opened_at = f"cb:{name}:opened_at"
+
+    def _get_redis(self) -> redis.Redis | None:
+        if self._redis is None:
+            try:
+                self._redis = redis.from_url(settings.REDIS_URL, decode_responses=True)
+            except Exception:
+                return None
+        return self._redis
+
+    def _get_state(self) -> str:
+        r = self._get_redis()
+        if not r:
+            return "closed"  # Redis down → allow requests
+        opened_at = r.get(self._key_opened_at)
+        if opened_at:
+            if time.time() - float(opened_at) >= self.reset_timeout:
+                return "half_open"
+            return "open"
+        return "closed"
 
     @property
     def state(self) -> str:
-        return self._current_state().value
-
-    def _current_state(self) -> _State:
-        if self._state == _State.OPEN:
-            if time.monotonic() - self._last_failure_time >= self.reset_timeout:
-                return _State.HALF_OPEN
-        return self._state
+        return self._get_state()
 
     def allow_request(self) -> bool:
-        s = self._current_state()
-        if s == _State.CLOSED:
-            return True
-        if s == _State.HALF_OPEN:
-            return True  # allow one probe
-        return False  # OPEN
+        s = self._get_state()
+        return s != "open"
 
     def record_success(self):
-        if self._current_state() == _State.HALF_OPEN:
+        r = self._get_redis()
+        if not r:
+            return
+        if self._get_state() == "half_open":
             logger.info(f"Circuit breaker [{self.name}]: HALF_OPEN → CLOSED (probe succeeded)")
-        self._state = _State.CLOSED
-        self._failure_count = 0
+        r.delete(self._key_failures, self._key_opened_at)
 
     def record_failure(self):
-        self._failure_count += 1
-        self._last_failure_time = time.monotonic()
-        if self._failure_count >= self.failure_threshold:
-            if self._state != _State.OPEN:
+        r = self._get_redis()
+        if not r:
+            return
+        count = r.incr(self._key_failures)
+        r.expire(self._key_failures, self.reset_timeout * 3)
+        if count >= self.failure_threshold:
+            if not r.exists(self._key_opened_at):
                 logger.warning(
-                    f"Circuit breaker [{self.name}]: OPEN after {self._failure_count} failures "
+                    f"Circuit breaker [{self.name}]: OPEN after {count} failures "
                     f"(will retry in {self.reset_timeout}s)"
                 )
-            self._state = _State.OPEN
+            r.setex(self._key_opened_at, self.reset_timeout, str(time.time()))
 
 
 # Shared breakers for external services

@@ -112,7 +112,7 @@ async def check_scope_creep(
             ApprovalJob.agent_user_id == agent_user_id,
             ApprovalJob.connection == connection,
             ApprovalJob.action == action,
-        ).order_by(ApprovalJob.created_at.desc()).limit(20)
+        ).order_by(ApprovalJob.created_at.desc()).limit(100)
     )
     past_jobs = result.scalars().all()
 
