@@ -26,3 +26,11 @@ AUTH_SESSION_TTL_SECONDS = 600               # 10 min Redis TTL for OAuth sessio
 IDEMPOTENCY_TTL_SECONDS = 86400              # 24 hour TTL for idempotency keys
 DECISION_RATE_LIMIT_PER_JOB = 5              # max decisions per job per minute
 DECISION_RATE_WINDOW_SECONDS = 60
+
+# Budget tracking Redis key patterns
+REDIS_KEY_BUDGET_DAILY = "budget:daily:{agent_id}"
+REDIS_KEY_BUDGET_WEEKLY = "budget:weekly:{agent_id}"
+REDIS_KEY_BUDGET_MONTHLY = "budget:monthly:{agent_id}"
+BUDGET_DAILY_TTL = 86400          # 24 hours
+BUDGET_WEEKLY_TTL = 604800        # 7 days
+BUDGET_MONTHLY_TTL = 2678400      # 31 days

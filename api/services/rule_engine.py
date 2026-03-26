@@ -9,7 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.models.rule import Rule
 from api.models.approval_job import ApprovalJob, AuditLog, AuditEventType, JobState
-from api.constants import REDIS_KEY_COOLDOWN, COOLDOWN_WINDOW_SECONDS
+from api.constants import (
+    REDIS_KEY_COOLDOWN, COOLDOWN_WINDOW_SECONDS,
+    REDIS_KEY_BUDGET_DAILY, REDIS_KEY_BUDGET_WEEKLY, REDIS_KEY_BUDGET_MONTHLY,
+    BUDGET_DAILY_TTL, BUDGET_WEEKLY_TTL, BUDGET_MONTHLY_TTL,
+)
 
 OPERATORS = {
     "eq": operator.eq,
@@ -313,6 +317,49 @@ def compute_risk_score(
         level = "low"
 
     return {"score": score, "level": level, "factors": factors}
+
+
+async def check_budget(
+    agent_id: str, amount: float, limits: dict, redis_client: aioredis.Redis,
+) -> dict:
+    """Check agent spending against daily/weekly/monthly budget limits.
+
+    ``limits`` is a dict like {"daily": 5000, "weekly": 20000, "monthly": 50000}.
+    Returns {"allowed": bool, "exceeded": str|None, "spent": {"daily": ..., ...}}.
+    """
+    periods = {
+        "daily": (REDIS_KEY_BUDGET_DAILY.format(agent_id=agent_id), BUDGET_DAILY_TTL),
+        "weekly": (REDIS_KEY_BUDGET_WEEKLY.format(agent_id=agent_id), BUDGET_WEEKLY_TTL),
+        "monthly": (REDIS_KEY_BUDGET_MONTHLY.format(agent_id=agent_id), BUDGET_MONTHLY_TTL),
+    }
+
+    spent: dict[str, float] = {}
+    for period, (key, _ttl) in periods.items():
+        raw = await redis_client.get(key)
+        spent[period] = float(raw) if raw else 0.0
+
+    for period in ("daily", "weekly", "monthly"):
+        limit = limits.get(period)
+        if limit is not None and (spent[period] + amount) > limit:
+            return {"allowed": False, "exceeded": period, "spent": spent}
+
+    return {"allowed": True, "exceeded": None, "spent": spent}
+
+
+async def record_spending(
+    agent_id: str, amount: float, redis_client: aioredis.Redis,
+):
+    """Increment spending counters after a successful charge."""
+    periods = {
+        "daily": (REDIS_KEY_BUDGET_DAILY.format(agent_id=agent_id), BUDGET_DAILY_TTL),
+        "weekly": (REDIS_KEY_BUDGET_WEEKLY.format(agent_id=agent_id), BUDGET_WEEKLY_TTL),
+        "monthly": (REDIS_KEY_BUDGET_MONTHLY.format(agent_id=agent_id), BUDGET_MONTHLY_TTL),
+    }
+    pipe = redis_client.pipeline()
+    for _period, (key, ttl) in periods.items():
+        pipe.incrbyfloat(key, amount)
+        pipe.expire(key, ttl)
+    await pipe.execute()
 
 
 def render_binding_message(template: str | None, params: dict) -> str:
