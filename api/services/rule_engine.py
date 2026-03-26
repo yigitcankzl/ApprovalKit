@@ -24,12 +24,33 @@ OPERATORS = {
 }
 
 
+def _resolve_field(params: dict, field: str) -> Any:
+    """Resolve a possibly nested field like 'billing.country' or 'items.0.price'."""
+    if "." not in field:
+        return params.get(field)
+    parts = field.split(".")
+    current: Any = params
+    for part in parts:
+        if isinstance(current, dict):
+            current = current.get(part)
+        elif isinstance(current, (list, tuple)):
+            try:
+                current = current[int(part)]
+            except (ValueError, IndexError):
+                return None
+        else:
+            return None
+        if current is None:
+            return None
+    return current
+
+
 def evaluate_condition(condition: dict, params: dict) -> bool:
     field = condition.get("field", "")
     op = condition.get("operator", "eq")
     expected = condition.get("value")
 
-    actual = params.get(field)
+    actual = _resolve_field(params, field)
     if actual is None:
         return False
 
@@ -46,9 +67,35 @@ def evaluate_condition(condition: dict, params: dict) -> bool:
 
 
 def evaluate_conditions(conditions: list[dict], params: dict) -> bool:
+    """Evaluate a list of conditions with support for nested groups.
+
+    Each item can be a plain condition ``{"field": ..., "operator": ..., "value": ...}``
+    or a **group** ``{"logic": "or"|"and", "conditions": [...]}``.
+
+    Top-level items are combined with AND (all must be true).
+    Groups can use ``"logic": "or"`` for OR semantics.
+
+    Example — amount > 1000 OR risk_level == "critical":
+        [{"logic": "or", "conditions": [
+            {"field": "amount", "operator": "gt", "value": 1000},
+            {"field": "risk_level", "operator": "eq", "value": "critical"}
+        ]}]
+    """
     if not conditions:
         return True
-    return all(evaluate_condition(c, params) for c in conditions)
+
+    results = []
+    for item in conditions:
+        if "logic" in item:
+            logic = item["logic"].lower()
+            sub = item.get("conditions", [])
+            if logic == "or":
+                results.append(any(evaluate_condition(c, params) for c in sub))
+            else:
+                results.append(all(evaluate_condition(c, params) for c in sub))
+        else:
+            results.append(evaluate_condition(item, params))
+    return all(results)
 
 
 def is_in_blackout(rule: Rule) -> bool:
