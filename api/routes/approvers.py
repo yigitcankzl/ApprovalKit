@@ -139,8 +139,8 @@ async def link_callback(
 
 
 @router.get("/{approver_id}/link-url")
-async def get_link_url(approver_id: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Approver).where(Approver.id == uuid.UUID(approver_id)))
+async def get_link_url(approver_id: str, ws: Workspace = Depends(get_current_workspace), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Approver).where(Approver.id == uuid.UUID(approver_id), Approver.workspace_id == ws.id))
     approver = result.scalar_one_or_none()
     if not approver:
         raise HTTPException(status_code=404, detail="Approver not found")
@@ -158,8 +158,8 @@ async def get_link_url(approver_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/{approver_id}", response_model=ApproverResponse)
-async def get_approver(approver_id: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Approver).where(Approver.id == uuid.UUID(approver_id)))
+async def get_approver(approver_id: str, ws: Workspace = Depends(get_current_workspace), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Approver).where(Approver.id == uuid.UUID(approver_id), Approver.workspace_id == ws.id))
     approver = result.scalar_one_or_none()
     if not approver:
         raise HTTPException(status_code=404, detail="Approver not found")
@@ -170,9 +170,10 @@ async def get_approver(approver_id: str, db: AsyncSession = Depends(get_db)):
 async def update_approver(
     approver_id: str,
     data: ApproverUpdate,
+    ws: Workspace = Depends(get_current_workspace),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Approver).where(Approver.id == uuid.UUID(approver_id)))
+    result = await db.execute(select(Approver).where(Approver.id == uuid.UUID(approver_id), Approver.workspace_id == ws.id))
     approver = result.scalar_one_or_none()
     if not approver:
         raise HTTPException(status_code=404, detail="Approver not found")
@@ -192,8 +193,8 @@ async def update_approver(
 
 
 @router.delete("/{approver_id}", status_code=204)
-async def delete_approver(approver_id: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Approver).where(Approver.id == uuid.UUID(approver_id)))
+async def delete_approver(approver_id: str, ws: Workspace = Depends(get_current_workspace), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Approver).where(Approver.id == uuid.UUID(approver_id), Approver.workspace_id == ws.id))
     approver = result.scalar_one_or_none()
     if not approver:
         raise HTTPException(status_code=404, detail="Approver not found")
@@ -205,9 +206,10 @@ async def delete_approver(approver_id: str, db: AsyncSession = Depends(get_db)):
 async def set_delegation(
     approver_id: str,
     data: DelegationRequest,
+    ws: Workspace = Depends(get_current_workspace),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Approver).where(Approver.id == uuid.UUID(approver_id)))
+    result = await db.execute(select(Approver).where(Approver.id == uuid.UUID(approver_id), Approver.workspace_id == ws.id))
     approver = result.scalar_one_or_none()
     if not approver:
         raise HTTPException(status_code=404, detail="Approver not found")
@@ -228,9 +230,10 @@ async def set_delegation(
 @router.delete("/{approver_id}/delegate")
 async def remove_delegation(
     approver_id: str,
+    ws: Workspace = Depends(get_current_workspace),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Approver).where(Approver.id == uuid.UUID(approver_id)))
+    result = await db.execute(select(Approver).where(Approver.id == uuid.UUID(approver_id), Approver.workspace_id == ws.id))
     approver = result.scalar_one_or_none()
     if not approver:
         raise HTTPException(status_code=404, detail="Approver not found")

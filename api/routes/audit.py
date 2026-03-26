@@ -25,8 +25,10 @@ settings = get_settings()
 
 
 @router.get("/events")
-async def stream_events(request: Request):
-    """SSE endpoint — streams approval events in real-time via Redis pub/sub."""
+async def stream_events(request: Request, workspace: Workspace = Depends(get_current_workspace)):
+    """SSE endpoint — workspace-scoped real-time approval events."""
+    ws_id = str(workspace.id)
+
     async def generator():
         r = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
         pubsub = r.pubsub()
@@ -37,7 +39,13 @@ async def stream_events(request: Request):
                     break
                 message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
                 if message and message["type"] == "message":
-                    yield f"data: {message['data']}\n\n"
+                    # Filter: only forward events for this workspace
+                    try:
+                        event = json.loads(message["data"])
+                        if event.get("workspace_id", ws_id) == ws_id:
+                            yield f"data: {message['data']}\n\n"
+                    except (json.JSONDecodeError, KeyError):
+                        pass
                 else:
                     yield ": ping\n\n"
                 await asyncio.sleep(0.5)
@@ -234,12 +242,12 @@ async def get_dashboard(workspace: Workspace = Depends(get_current_workspace), d
 
 
 @router.get("/ciba-quota")
-async def get_ciba_quota():
+async def get_ciba_quota(_ws: Workspace = Depends(get_current_workspace)):
     return await rate_limiter.check_ciba_quota()
 
 
 @router.get("/security-status")
-async def get_security_status(db: AsyncSession = Depends(get_db)):
+async def get_security_status(_ws: Workspace = Depends(get_current_workspace), db: AsyncSession = Depends(get_db)):
     """
     Returns real-time status for each security layer.
     Frontend uses this to replace hardcoded 'Active' badges.
@@ -321,7 +329,17 @@ async def get_security_status(db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/connections/{connection_id}/revoke")
-async def revoke_connection(connection_id: str):
+async def revoke_connection(connection_id: str, workspace: Workspace = Depends(get_current_workspace), db: AsyncSession = Depends(get_db)):
+    from api.models.connection import ServiceConnection
+    result = await db.execute(
+        select(ServiceConnection).where(
+            ServiceConnection.id == uuid.UUID(connection_id),
+            ServiceConnection.workspace_id == workspace.id,
+        )
+    )
+    conn = result.scalar_one_or_none()
+    if not conn:
+        raise HTTPException(status_code=404, detail="Connection not found in your workspace")
     from api.services.token_vault import token_vault_service
     success = await token_vault_service.revoke_connection(connection_id)
     if not success:
