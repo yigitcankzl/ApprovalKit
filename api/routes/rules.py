@@ -52,6 +52,7 @@ def _rule_to_response(rule: Rule) -> dict:
         "is_active": rule.is_active,
         "step_up_model": rule.step_up_model.value if rule.step_up_model and isinstance(rule.step_up_model, ApprovalModel) else None,
         "step_up_conditions": rule.step_up_conditions or [],
+        "approval_checklist": rule.approval_checklist,
         "created_at": rule.created_at.isoformat(),
         "updated_at": rule.updated_at.isoformat(),
     }
@@ -85,6 +86,7 @@ async def create_rule(
         priority=data.priority,
         step_up_model=data.step_up_model,
         step_up_conditions=[c.model_dump() for c in data.step_up_conditions] if data.step_up_conditions else None,
+        approval_checklist=data.approval_checklist,
     )
     db.add(rule)
     await db.flush()

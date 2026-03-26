@@ -31,6 +31,7 @@ class RuleCreate(BaseModel):
     priority: int = Field(default=0, ge=0, le=100)
     step_up_model: ApprovalModel | None = None
     step_up_conditions: list[ConditionSchema] = Field(default_factory=list)
+    approval_checklist: list[dict] | None = None  # [{"id": "amount", "label": "I verified the amount"}]
 
 
 class RuleUpdate(BaseModel):
@@ -53,6 +54,7 @@ class RuleUpdate(BaseModel):
     is_active: bool | None = None
     step_up_model: ApprovalModel | None = None
     step_up_conditions: list[ConditionSchema] | None = None
+    approval_checklist: list[dict] | None = None
 
 
 class RuleResponse(BaseModel):
@@ -78,6 +80,7 @@ class RuleResponse(BaseModel):
     is_active: bool
     step_up_model: str | None = None
     step_up_conditions: list[dict] = []
+    approval_checklist: list[dict] | None = None
     created_at: str
     updated_at: str
 
