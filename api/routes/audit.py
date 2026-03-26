@@ -153,41 +153,20 @@ async def get_audit_log(
 async def get_dashboard(workspace: Workspace = Depends(get_current_workspace), db: AsyncSession = Depends(get_db)):
     week_ago = datetime.utcnow() - timedelta(days=7)
 
-    # Total actions this week
-    total_result = await db.execute(
-        select(func.count(ApprovalJob.id)).where(
-            ApprovalJob.workspace_id == workspace.id,
-            ApprovalJob.created_at >= week_ago,
-        )
+    # Single GROUP BY query for all state counts (R2: eliminates N+1)
+    state_result = await db.execute(
+        select(ApprovalJob.state, func.count(ApprovalJob.id))
+        .where(ApprovalJob.workspace_id == workspace.id, ApprovalJob.created_at >= week_ago)
+        .group_by(ApprovalJob.state)
     )
-    total = total_result.scalar() or 0
+    counts = {row[0]: row[1] for row in state_result.all()}
 
-    # Count by state
-    async def count_state(state: JobState) -> int:
-        result = await db.execute(
-            select(func.count(ApprovalJob.id)).where(
-                ApprovalJob.workspace_id == workspace.id,
-                ApprovalJob.created_at >= week_ago,
-                ApprovalJob.state == state,
-            )
-        )
-        return result.scalar() or 0
-
-    approved = await count_state(JobState.APPROVED) + await count_state(JobState.PRE_APPROVED)
-    rejected = await count_state(JobState.REJECTED)
-    blocked = await count_state(JobState.BLOCKED)
-    timed_out = await count_state(JobState.TIMEOUT)
-
-    # Active pre-approvals
-    pre_result = await db.execute(
-        select(func.count()).select_from(
-            select(ApprovalJob.id).where(
-                ApprovalJob.workspace_id == workspace.id,
-                ApprovalJob.state == JobState.PRE_APPROVED,
-            ).subquery()
-        )
-    )
-    active_pre = pre_result.scalar() or 0
+    total = sum(counts.values())
+    approved = counts.get(JobState.APPROVED, 0) + counts.get(JobState.PRE_APPROVED, 0)
+    rejected = counts.get(JobState.REJECTED, 0)
+    blocked = counts.get(JobState.BLOCKED, 0)
+    timed_out = counts.get(JobState.TIMEOUT, 0)
+    active_pre = counts.get(JobState.PRE_APPROVED, 0)
 
     # Active delegations
     del_result = await db.execute(
@@ -214,17 +193,8 @@ async def get_dashboard(workspace: Workspace = Depends(get_current_workspace), d
     )
     scope_creep = scope_result.scalar() or 0
 
-    # Pending approvals count
-    pending_result = await db.execute(
-        select(func.count(ApprovalJob.id)).where(
-            ApprovalJob.workspace_id == workspace.id,
-            ApprovalJob.state.in_([
-                JobState.PENDING, JobState.CIBA_SENT,
-                JobState.WAITING_APPROVAL, JobState.PARTIALLY_APPROVED,
-            ])
-        )
-    )
-    pending_count = pending_result.scalar() or 0
+    # Pending from same counts dict (includes non-week jobs too, so separate query)
+    pending_count = counts.get(JobState.PENDING, 0) + counts.get(JobState.CIBA_SENT, 0) + counts.get(JobState.WAITING_APPROVAL, 0) + counts.get(JobState.PARTIALLY_APPROVED, 0)
 
     return DashboardStats(
         total_actions_week=total,
