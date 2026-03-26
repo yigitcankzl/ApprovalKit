@@ -201,9 +201,12 @@ async def create_connection(body: CreateConnectionRequest, workspace: Workspace 
             token_url=body.m2m_token_url,
         )
         if stored:
-            logger.info(f"M2M credentials for '{body.slug}' stored in HashiCorp Vault (not in DB)")
+            logger.info(f"M2M credentials for '{body.slug}' stored in HashiCorp Vault")
         else:
-            logger.error(f"Failed to store M2M credentials in Vault for '{body.slug}' — Vault may be unavailable")
+            # Vault unavailable — store encrypted in DB as fallback
+            conn.m2m_api_key = encrypt_secret(body.m2m_api_key)
+            await db.commit()
+            logger.info(f"M2M credentials for '{body.slug}' stored in DB (Fernet encrypted, Vault unavailable)")
 
     return _conn_to_dict(conn)
 

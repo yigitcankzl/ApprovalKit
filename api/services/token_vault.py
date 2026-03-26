@@ -1042,7 +1042,17 @@ class TokenVaultService:
                                 creds = {"api_key": token, "token": token, "access_token": token}
                                 logger.info(f"Credential Vault: M2M token for {connection} via HashiCorp Vault")
                     else:
-                        logger.warning(f"Credential Vault: no credentials in Vault for {connection} — store via dashboard")
+                        # Fallback: read Fernet-encrypted M2M key from DB
+                        m2m_secret = decrypt_secret(conn_obj.m2m_api_key)
+                        m2m_client = conn_obj.m2m_client_id
+                        m2m_url = conn_obj.m2m_token_url
+                        if m2m_secret and m2m_client and m2m_url:
+                            token = await self.get_token_via_m2m(m2m_url, m2m_client, m2m_secret)
+                            if token:
+                                creds = {"api_key": token, "token": token, "access_token": token}
+                                logger.info(f"Credential Vault: M2M token for {connection} via Fernet fallback")
+                        else:
+                            logger.warning(f"Credential Vault: no M2M credentials for {connection}")
 
                 if creds is None:
                     logger.warning(f"Token Vault: no token for '{connection}'")
