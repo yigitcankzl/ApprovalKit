@@ -28,6 +28,7 @@ async def _publish(event_type: str, job: ApprovalJob, **kwargs):
             "job_id": str(job.id),
             "connection": job.connection,
             "action": job.action,
+            "workspace_id": str(job.workspace_id),
             "timestamp": datetime.utcnow().isoformat(),
             **kwargs,
         }))

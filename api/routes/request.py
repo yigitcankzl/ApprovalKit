@@ -250,6 +250,7 @@ async def _create_pending_job(
         "job_id": str(job.id),
         "connection": connection,
         "action": action,
+        "workspace_id": str(workspace.id),
         "timestamp": datetime.utcnow().isoformat(),
     }))
     return job
@@ -345,6 +346,14 @@ async def modify_job_params(
     from api.constants import FORBIDDEN_PARAM_KEYS
     if FORBIDDEN_PARAM_KEYS.intersection(modified.keys()):
         raise HTTPException(status_code=422, detail="Forbidden param key detected")
+
+    # Check if rule allows partial approval (param modification)
+    from api.models.rule import Rule
+    if job.rule_id:
+        rule_result = await db.execute(select(Rule).where(Rule.id == job.rule_id))
+        rule = rule_result.scalar_one_or_none()
+        if rule and not rule.partial_approval:
+            raise HTTPException(status_code=403, detail="This rule does not allow parameter modification")
 
     job.final_params = modified
 
@@ -475,12 +484,15 @@ async def submit_web_decision(
     note = body.get("note") or "Approved via web dashboard"
     checklist_responses = body.get("checklist")  # {"amount": true, "recipient": true}
 
-    # Validate checklist if rule requires it
-    if decision == "approve" and job.rule_id:
-        from api.models.rule import Rule
+    # Load rule for checklist + partial_approval checks
+    from api.models.rule import Rule
+    rule = None
+    if job.rule_id:
         rule_result = await db.execute(select(Rule).where(Rule.id == job.rule_id))
         rule = rule_result.scalar_one_or_none()
-        if rule and rule.approval_checklist:
+
+    # Validate checklist if rule requires it
+    if decision == "approve" and rule and rule.approval_checklist:
             required_ids = {item["id"] for item in rule.approval_checklist}
             confirmed_ids = {k for k, v in (checklist_responses or {}).items() if v}
             missing = required_ids - confirmed_ids
@@ -491,6 +503,9 @@ async def submit_web_decision(
                 )
 
     if decision == "approve":
+        # Enforce partial_approval flag for param modification
+        if modified_params and rule and not rule.partial_approval:
+            raise HTTPException(status_code=403, detail="This rule does not allow parameter modification")
         job.state = JobState.APPROVED
         job.completed_at = datetime.utcnow()
         job.approvals_count = (job.approvals_count or 0) + 1
@@ -519,6 +534,7 @@ async def submit_web_decision(
         "job_id": job_id,
         "connection": job.connection,
         "action": job.action,
+        "workspace_id": str(job.workspace_id),
         "note": note,
         "timestamp": datetime.utcnow().isoformat(),
     }))
