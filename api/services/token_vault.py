@@ -227,9 +227,451 @@ async def _execute_github(action: str, params: dict, creds: dict) -> dict:
             raise ValueError(f"Unsupported GitHub action: {action}")
 
 
+async def _execute_slack(action: str, params: dict, creds: dict) -> dict:
+    """Slack API — send messages, create channels, invite users."""
+    token = creds.get("access_token", "")
+    if not token:
+        raise ValueError("Slack token not found")
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+    async with httpx.AsyncClient(base_url="https://slack.com/api", timeout=15) as c:
+        if action == "send_message":
+            channel = params.get("channel", "#general")
+            text = params.get("message") or params.get("text", "")
+            r = await c.post("/chat.postMessage", headers=headers, json={"channel": channel, "text": text})
+            data = r.json()
+            if not data.get("ok"):
+                raise RuntimeError(f"Slack send failed: {data.get('error', r.text)}")
+            return {"success": True, "action": "send_message", "channel": channel, "ts": data.get("ts")}
+
+        elif action == "create_channel":
+            name = params.get("name", "")
+            r = await c.post("/conversations.create", headers=headers, json={"name": name})
+            data = r.json()
+            if not data.get("ok"):
+                raise RuntimeError(f"Slack create_channel failed: {data.get('error')}")
+            return {"success": True, "action": "create_channel", "id": data["channel"]["id"]}
+
+        elif action == "invite_user":
+            channel = params.get("channel", "")
+            user = params.get("user_id") or params.get("user", "")
+            r = await c.post("/conversations.invite", headers=headers, json={"channel": channel, "users": user})
+            data = r.json()
+            if not data.get("ok"):
+                raise RuntimeError(f"Slack invite failed: {data.get('error')}")
+            return {"success": True, "action": "invite_user", "channel": channel}
+
+        else:
+            raise ValueError(f"Unsupported Slack action: {action}")
+
+
+async def _execute_google(action: str, params: dict, creds: dict) -> dict:
+    """Google APIs — Gmail send, Calendar create event, Drive operations."""
+    token = creds.get("access_token", "")
+    if not token:
+        raise ValueError("Google token not found")
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+    async with httpx.AsyncClient(timeout=15) as c:
+        if action == "send_email":
+            import base64
+            to = params.get("to") or params.get("recipient", "")
+            subject = params.get("subject", "")
+            body_text = params.get("body") or params.get("message", "")
+            raw_msg = f"To: {to}\r\nSubject: {subject}\r\n\r\n{body_text}"
+            encoded = base64.urlsafe_b64encode(raw_msg.encode()).decode()
+            r = await c.post(
+                "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+                headers=headers, json={"raw": encoded},
+            )
+            if r.status_code not in (200, 201):
+                raise RuntimeError(f"Gmail send failed: {r.text[:200]}")
+            data = r.json()
+            return {"success": True, "action": "send_email", "id": data.get("id"), "to": to}
+
+        elif action == "create_event":
+            summary = params.get("summary") or params.get("title", "")
+            start = params.get("start", "")
+            end = params.get("end", "")
+            r = await c.post(
+                "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+                headers=headers,
+                json={
+                    "summary": summary,
+                    "start": {"dateTime": start, "timeZone": "UTC"},
+                    "end": {"dateTime": end, "timeZone": "UTC"},
+                },
+            )
+            if r.status_code not in (200, 201):
+                raise RuntimeError(f"Calendar create failed: {r.text[:200]}")
+            data = r.json()
+            return {"success": True, "action": "create_event", "id": data.get("id"), "link": data.get("htmlLink")}
+
+        elif action == "read_drive":
+            file_id = params.get("file_id", "")
+            r = await c.get(
+                f"https://www.googleapis.com/drive/v3/files/{file_id}",
+                headers=headers, params={"fields": "id,name,mimeType,webViewLink"},
+            )
+            if r.status_code != 200:
+                raise RuntimeError(f"Drive read failed: {r.text[:200]}")
+            return {"success": True, "action": "read_drive", **r.json()}
+
+        else:
+            raise ValueError(f"Unsupported Google action: {action}")
+
+
+async def _execute_microsoft(action: str, params: dict, creds: dict) -> dict:
+    """Microsoft Graph API — email, calendar, file upload."""
+    token = creds.get("access_token", "")
+    if not token:
+        raise ValueError("Microsoft token not found")
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+    async with httpx.AsyncClient(base_url="https://graph.microsoft.com/v1.0", timeout=15) as c:
+        if action == "send_email":
+            to = params.get("to") or params.get("recipient", "")
+            subject = params.get("subject", "")
+            body = params.get("body") or params.get("message", "")
+            r = await c.post("/me/sendMail", headers=headers, json={
+                "message": {
+                    "subject": subject,
+                    "body": {"contentType": "Text", "content": body},
+                    "toRecipients": [{"emailAddress": {"address": to}}],
+                },
+            })
+            if r.status_code not in (200, 202):
+                raise RuntimeError(f"Microsoft send_email failed: {r.text[:200]}")
+            return {"success": True, "action": "send_email", "to": to}
+
+        elif action == "create_event":
+            summary = params.get("summary") or params.get("title", "")
+            start = params.get("start", "")
+            end = params.get("end", "")
+            r = await c.post("/me/events", headers=headers, json={
+                "subject": summary,
+                "start": {"dateTime": start, "timeZone": "UTC"},
+                "end": {"dateTime": end, "timeZone": "UTC"},
+            })
+            if r.status_code not in (200, 201):
+                raise RuntimeError(f"Microsoft create_event failed: {r.text[:200]}")
+            data = r.json()
+            return {"success": True, "action": "create_event", "id": data.get("id")}
+
+        elif action == "upload_file":
+            filename = params.get("filename", "file.txt")
+            content = params.get("content", "")
+            r = await c.put(
+                f"/me/drive/root:/{filename}:/content",
+                headers={**headers, "Content-Type": "application/octet-stream"},
+                content=content.encode() if isinstance(content, str) else content,
+            )
+            if r.status_code not in (200, 201):
+                raise RuntimeError(f"Microsoft upload failed: {r.text[:200]}")
+            data = r.json()
+            return {"success": True, "action": "upload_file", "id": data.get("id"), "name": filename}
+
+        else:
+            raise ValueError(f"Unsupported Microsoft action: {action}")
+
+
+async def _execute_salesforce(action: str, params: dict, creds: dict) -> dict:
+    """Salesforce REST API — create deal, update contact, delete lead."""
+    token = creds.get("access_token", "")
+    instance_url = params.get("instance_url", "https://login.salesforce.com")
+    if not token:
+        raise ValueError("Salesforce token not found")
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+    async with httpx.AsyncClient(timeout=15) as c:
+        if action == "create_deal":
+            r = await c.post(f"{instance_url}/services/data/v59.0/sobjects/Opportunity", headers=headers, json={
+                "Name": params.get("name", "New Deal"),
+                "StageName": params.get("stage", "Prospecting"),
+                "CloseDate": params.get("close_date", "2026-12-31"),
+                "Amount": params.get("amount"),
+            })
+            if r.status_code not in (200, 201):
+                raise RuntimeError(f"Salesforce create_deal failed: {r.text[:200]}")
+            return {"success": True, "action": "create_deal", "id": r.json().get("id")}
+
+        elif action == "update_contact":
+            contact_id = params.get("contact_id", "")
+            r = await c.patch(f"{instance_url}/services/data/v59.0/sobjects/Contact/{contact_id}", headers=headers, json={
+                k: v for k, v in params.items() if k not in ("contact_id", "instance_url")
+            })
+            if r.status_code not in (200, 204):
+                raise RuntimeError(f"Salesforce update_contact failed: {r.text[:200]}")
+            return {"success": True, "action": "update_contact", "id": contact_id}
+
+        elif action == "delete_lead":
+            lead_id = params.get("lead_id", "")
+            r = await c.delete(f"{instance_url}/services/data/v59.0/sobjects/Lead/{lead_id}", headers=headers)
+            if r.status_code not in (200, 204):
+                raise RuntimeError(f"Salesforce delete_lead failed: {r.text[:200]}")
+            return {"success": True, "action": "delete_lead", "id": lead_id}
+
+        else:
+            raise ValueError(f"Unsupported Salesforce action: {action}")
+
+
+async def _execute_notion(action: str, params: dict, creds: dict) -> dict:
+    """Notion API — create page, update database."""
+    token = creds.get("access_token", "")
+    if not token:
+        raise ValueError("Notion token not found")
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json", "Notion-Version": "2022-06-28"}
+
+    async with httpx.AsyncClient(base_url="https://api.notion.com/v1", timeout=15) as c:
+        if action == "create_page":
+            parent_id = params.get("parent_id") or params.get("database_id", "")
+            title = params.get("title", "")
+            r = await c.post("/pages", headers=headers, json={
+                "parent": {"database_id": parent_id},
+                "properties": {"Name": {"title": [{"text": {"content": title}}]}},
+            })
+            if r.status_code not in (200, 201):
+                raise RuntimeError(f"Notion create_page failed: {r.text[:200]}")
+            return {"success": True, "action": "create_page", "id": r.json().get("id")}
+
+        elif action == "update_database":
+            db_id = params.get("database_id", "")
+            title = params.get("title", "")
+            r = await c.patch(f"/databases/{db_id}", headers=headers, json={
+                "title": [{"text": {"content": title}}],
+            })
+            if r.status_code != 200:
+                raise RuntimeError(f"Notion update_database failed: {r.text[:200]}")
+            return {"success": True, "action": "update_database", "id": db_id}
+
+        else:
+            raise ValueError(f"Unsupported Notion action: {action}")
+
+
+async def _execute_jira(action: str, params: dict, creds: dict) -> dict:
+    """Jira Cloud REST API — create/update issues."""
+    token = creds.get("access_token", "")
+    cloud_id = params.get("cloud_id", "")
+    if not token:
+        raise ValueError("Jira token not found")
+    base = f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3" if cloud_id else "https://your-domain.atlassian.net/rest/api/3"
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+    async with httpx.AsyncClient(timeout=15) as c:
+        if action == "create_issue":
+            project = params.get("project", "")
+            summary = params.get("summary", "")
+            issue_type = params.get("issue_type", "Task")
+            r = await c.post(f"{base}/issue", headers=headers, json={
+                "fields": {
+                    "project": {"key": project},
+                    "summary": summary,
+                    "issuetype": {"name": issue_type},
+                    "description": {"type": "doc", "version": 1, "content": [{"type": "paragraph", "content": [{"type": "text", "text": params.get("description", "")}]}]},
+                },
+            })
+            if r.status_code not in (200, 201):
+                raise RuntimeError(f"Jira create_issue failed: {r.text[:200]}")
+            data = r.json()
+            return {"success": True, "action": "create_issue", "key": data.get("key"), "id": data.get("id")}
+
+        elif action == "update_issue":
+            issue_key = params.get("issue_key", "")
+            r = await c.put(f"{base}/issue/{issue_key}", headers=headers, json={
+                "fields": {k: v for k, v in params.items() if k not in ("issue_key", "cloud_id")},
+            })
+            if r.status_code not in (200, 204):
+                raise RuntimeError(f"Jira update_issue failed: {r.text[:200]}")
+            return {"success": True, "action": "update_issue", "key": issue_key}
+
+        elif action == "transition":
+            issue_key = params.get("issue_key", "")
+            transition_id = params.get("transition_id", "")
+            r = await c.post(f"{base}/issue/{issue_key}/transitions", headers=headers, json={
+                "transition": {"id": transition_id},
+            })
+            if r.status_code not in (200, 204):
+                raise RuntimeError(f"Jira transition failed: {r.text[:200]}")
+            return {"success": True, "action": "transition", "key": issue_key}
+
+        else:
+            raise ValueError(f"Unsupported Jira action: {action}")
+
+
+async def _execute_discord(action: str, params: dict, creds: dict) -> dict:
+    """Discord API — send message, create channel."""
+    token = creds.get("access_token", "")
+    if not token:
+        raise ValueError("Discord token not found")
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+    async with httpx.AsyncClient(base_url="https://discord.com/api/v10", timeout=15) as c:
+        if action == "send_message":
+            channel_id = params.get("channel_id", "")
+            content = params.get("message") or params.get("content", "")
+            r = await c.post(f"/channels/{channel_id}/messages", headers=headers, json={"content": content})
+            if r.status_code not in (200, 201):
+                raise RuntimeError(f"Discord send failed: {r.text[:200]}")
+            return {"success": True, "action": "send_message", "id": r.json().get("id")}
+
+        else:
+            raise ValueError(f"Unsupported Discord action: {action}")
+
+
+async def _execute_linear(action: str, params: dict, creds: dict) -> dict:
+    """Linear GraphQL API — create/update issues."""
+    token = creds.get("access_token", "")
+    if not token:
+        raise ValueError("Linear token not found")
+    headers = {"Authorization": token, "Content-Type": "application/json"}
+
+    async with httpx.AsyncClient(timeout=15) as c:
+        if action == "create_issue":
+            r = await c.post("https://api.linear.app/graphql", headers=headers, json={
+                "query": """mutation($input: IssueCreateInput!) { issueCreate(input: $input) { success issue { id identifier title } } }""",
+                "variables": {"input": {
+                    "teamId": params.get("team_id", ""),
+                    "title": params.get("title", ""),
+                    "description": params.get("description", ""),
+                }},
+            })
+            data = r.json()
+            issue = data.get("data", {}).get("issueCreate", {}).get("issue", {})
+            return {"success": True, "action": "create_issue", "id": issue.get("id"), "identifier": issue.get("identifier")}
+
+        elif action == "update_status":
+            r = await c.post("https://api.linear.app/graphql", headers=headers, json={
+                "query": """mutation($id: String!, $input: IssueUpdateInput!) { issueUpdate(id: $id, input: $input) { success } }""",
+                "variables": {"id": params.get("issue_id", ""), "input": {"stateId": params.get("state_id", "")}},
+            })
+            return {"success": True, "action": "update_status", "issue_id": params.get("issue_id")}
+
+        else:
+            raise ValueError(f"Unsupported Linear action: {action}")
+
+
+async def _execute_hubspot(action: str, params: dict, creds: dict) -> dict:
+    """HubSpot API — contacts and deals."""
+    token = creds.get("access_token", "")
+    if not token:
+        raise ValueError("HubSpot token not found")
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+    async with httpx.AsyncClient(base_url="https://api.hubapi.com", timeout=15) as c:
+        if action == "create_contact":
+            r = await c.post("/crm/v3/objects/contacts", headers=headers, json={
+                "properties": {
+                    "email": params.get("email", ""),
+                    "firstname": params.get("first_name", ""),
+                    "lastname": params.get("last_name", ""),
+                    "company": params.get("company", ""),
+                },
+            })
+            if r.status_code not in (200, 201):
+                raise RuntimeError(f"HubSpot create_contact failed: {r.text[:200]}")
+            return {"success": True, "action": "create_contact", "id": r.json().get("id")}
+
+        elif action == "create_deal":
+            r = await c.post("/crm/v3/objects/deals", headers=headers, json={
+                "properties": {
+                    "dealname": params.get("name", ""),
+                    "amount": str(params.get("amount", "")),
+                    "pipeline": params.get("pipeline", "default"),
+                    "dealstage": params.get("stage", "appointmentscheduled"),
+                },
+            })
+            if r.status_code not in (200, 201):
+                raise RuntimeError(f"HubSpot create_deal failed: {r.text[:200]}")
+            return {"success": True, "action": "create_deal", "id": r.json().get("id")}
+
+        else:
+            raise ValueError(f"Unsupported HubSpot action: {action}")
+
+
+async def _execute_shopify(action: str, params: dict, creds: dict) -> dict:
+    """Shopify Admin API."""
+    token = creds.get("access_token", "")
+    shop = params.get("shop", "")
+    if not token or not shop:
+        raise ValueError("Shopify token or shop not found")
+    headers = {"X-Shopify-Access-Token": token, "Content-Type": "application/json"}
+
+    async with httpx.AsyncClient(timeout=15) as c:
+        if action == "create_order":
+            r = await c.post(f"https://{shop}/admin/api/2024-01/orders.json", headers=headers, json={
+                "order": {
+                    "line_items": params.get("line_items", []),
+                    "email": params.get("email", ""),
+                },
+            })
+            if r.status_code not in (200, 201):
+                raise RuntimeError(f"Shopify create_order failed: {r.text[:200]}")
+            return {"success": True, "action": "create_order", "id": r.json().get("order", {}).get("id")}
+
+        elif action == "update_product":
+            product_id = params.get("product_id", "")
+            r = await c.put(f"https://{shop}/admin/api/2024-01/products/{product_id}.json", headers=headers, json={
+                "product": {k: v for k, v in params.items() if k not in ("product_id", "shop")},
+            })
+            if r.status_code != 200:
+                raise RuntimeError(f"Shopify update_product failed: {r.text[:200]}")
+            return {"success": True, "action": "update_product", "id": product_id}
+
+        else:
+            raise ValueError(f"Unsupported Shopify action: {action}")
+
+
+async def _execute_paypal(action: str, params: dict, creds: dict) -> dict:
+    """PayPal REST API."""
+    token = creds.get("access_token", "")
+    if not token:
+        raise ValueError("PayPal token not found")
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    base = "https://api-m.paypal.com"
+
+    async with httpx.AsyncClient(timeout=15) as c:
+        if action == "send_payment":
+            r = await c.post(f"{base}/v2/checkout/orders", headers=headers, json={
+                "intent": "CAPTURE",
+                "purchase_units": [{
+                    "amount": {"currency_code": params.get("currency", "USD"), "value": str(params.get("amount", "0"))},
+                    "description": params.get("description", ""),
+                }],
+            })
+            if r.status_code not in (200, 201):
+                raise RuntimeError(f"PayPal send_payment failed: {r.text[:200]}")
+            return {"success": True, "action": "send_payment", "id": r.json().get("id")}
+
+        elif action == "create_invoice":
+            r = await c.post(f"{base}/v2/invoicing/invoices", headers=headers, json={
+                "detail": {"currency_code": params.get("currency", "USD"), "note": params.get("note", "")},
+                "primary_recipients": [{"billing_info": {"email_address": params.get("email", "")}}],
+                "items": [{"name": params.get("item", "Service"), "quantity": "1", "unit_amount": {"currency_code": "USD", "value": str(params.get("amount", "0"))}}],
+            })
+            if r.status_code not in (200, 201):
+                raise RuntimeError(f"PayPal create_invoice failed: {r.text[:200]}")
+            return {"success": True, "action": "create_invoice", "id": r.json().get("id")}
+
+        else:
+            raise ValueError(f"Unsupported PayPal action: {action}")
+
+
 _SERVICE_HANDLERS = {
-    "stripe": _execute_stripe,
-    "github": _execute_github,
+    "stripe":     _execute_stripe,
+    "github":     _execute_github,
+    "slack":      _execute_slack,
+    "google":     _execute_google,
+    "gmail":      _execute_google,
+    "microsoft":  _execute_microsoft,
+    "outlook":    _execute_microsoft,
+    "salesforce": _execute_salesforce,
+    "notion":     _execute_notion,
+    "jira":       _execute_jira,
+    "discord":    _execute_discord,
+    "linear":     _execute_linear,
+    "hubspot":    _execute_hubspot,
+    "shopify":    _execute_shopify,
+    "paypal":     _execute_paypal,
 }
 
 
