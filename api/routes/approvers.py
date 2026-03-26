@@ -97,12 +97,17 @@ async def link_callback(
         return RedirectResponse(url=f"{settings.FRONTEND_URL}/approvers?error={error}")
     if not code or not state:
         return RedirectResponse(url=f"{settings.FRONTEND_URL}/approvers?error=missing_code")
+    # State format: approver_id:workspace_id
+    parts = state.split(":", 1) if state else []
+    if len(parts) != 2:
+        return RedirectResponse(url=f"{settings.FRONTEND_URL}/approvers?error=invalid_state")
     try:
-        approver_uuid = uuid.UUID(state)
+        approver_uuid = uuid.UUID(parts[0])
+        workspace_uuid = uuid.UUID(parts[1])
     except ValueError:
         return RedirectResponse(url=f"{settings.FRONTEND_URL}/approvers?error=invalid_state")
 
-    result = await db.execute(select(Approver).where(Approver.id == approver_uuid))
+    result = await db.execute(select(Approver).where(Approver.id == approver_uuid, Approver.workspace_id == workspace_uuid))
     approver = result.scalar_one_or_none()
     if not approver:
         return RedirectResponse(url=f"{settings.FRONTEND_URL}/approvers?error=approver_not_found")
@@ -147,11 +152,13 @@ async def get_link_url(approver_id: str, ws: Workspace = Depends(get_current_wor
 
     callback_url = f"{settings.CALLBACK_BASE_URL}/api/v1/approvers/link-callback"
     client_id = settings.AUTH0_WEB_CLIENT_ID or settings.AUTH0_CLIENT_ID
+    # State includes workspace_id for callback verification
+    state_value = f"{approver_id}:{ws.id}"
     params = urlencode({
         "client_id": client_id,
         "response_type": "code",
         "scope": "openid profile email",
-        "state": approver_id,
+        "state": state_value,
         "redirect_uri": callback_url,
     })
     return {"url": f"https://{settings.AUTH0_DOMAIN}/authorize?{params}"}

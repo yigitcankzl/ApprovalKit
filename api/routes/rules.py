@@ -187,10 +187,12 @@ async def simulate_rule(
     connection: str,
     action: str,
     params: dict,
+    ws_id: uuid.UUID = Depends(_resolve_workspace_id),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
         select(Rule).where(
+            Rule.workspace_id == ws_id,
             Rule.connection == connection,
             Rule.action == action,
             Rule.is_active.is_(True),

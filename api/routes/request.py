@@ -430,7 +430,11 @@ async def submit_web_decision(
     db: AsyncSession = Depends(get_db),
     redis_client: aioredis.Redis = Depends(get_redis),
 ):
-    """Web-based approve/reject — workspace-scoped."""
+    """Web-based approve/reject — workspace-scoped, rate-limited."""
+    from api.middleware.rate_limit import rate_limiter
+    allowed = await rate_limiter.check_rate_limit(key=f"decision:{job_id}", max_requests=5, window_seconds=60)
+    if not allowed:
+        raise HTTPException(status_code=429, detail="Too many decisions for this job. Try again later.")
     result = await db.execute(
         select(ApprovalJob).where(
             ApprovalJob.id == uuid.UUID(job_id),

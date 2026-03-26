@@ -9,6 +9,7 @@ import uuid
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -168,14 +169,17 @@ async def setup_workspace(body: WorkspaceSetupRequest, request: Request, db: Asy
     await db.refresh(workspace)
 
     logger.info(f"Workspace created: {workspace.id}")
-    return {
-        "workspace_id": str(workspace.id),
-        "name": workspace.name,
-        "auth0_tenant": workspace.auth0_tenant,
-        "api_key": api_key,
-        "hmac_secret": hmac_secret,
-        "created": True,
-    }
+    return JSONResponse(
+        content={
+            "workspace_id": str(workspace.id),
+            "name": workspace.name,
+            "auth0_tenant": workspace.auth0_tenant,
+            "api_key": api_key,
+            "hmac_secret": hmac_secret,
+            "created": True,
+        },
+        headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+    )
 
 
 @router.get("/credentials")

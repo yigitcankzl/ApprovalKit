@@ -830,7 +830,7 @@ async def list_demo_agents():
 
 
 @router.post("/seed")
-async def seed_demo_data(request: Request, agent_id: str | None = None, real_user_id: str | None = None, db: AsyncSession = Depends(get_db)):
+async def seed_demo_data(request: Request, agent_id: str | None = None, real_user_id: str | None = None, _ws: Workspace = Depends(get_current_workspace), db: AsyncSession = Depends(get_db)):
     """
     Idempotently seed demo data. Pass ?agent_id=ecommerce to seed only
     one agent's data. Without agent_id, seeds everything.
