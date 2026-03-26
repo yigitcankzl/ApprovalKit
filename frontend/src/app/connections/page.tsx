@@ -6,7 +6,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
-import { CheckCircle2, Link2, Unlink, X, AlertCircle, Info, Trash2, ChevronRight } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { FormError } from "@/components/ui/form-error";
+import { CheckCircle2, Link2, Unlink, X, AlertCircle, Info, Trash2, ChevronRight, Plus, Webhook, Globe } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 interface Connection {
@@ -16,10 +18,12 @@ interface Connection {
   slug: string;
   actions: string[];
   has_credentials: boolean;
-  connected_via: "auth0" | null;
+  connected_via: "auth0" | "webhook" | null;
   connected_user_name: string | null;
   is_active: boolean;
   is_auth0_configured: boolean;
+  has_webhook?: boolean;
+  webhook_method?: string;
 }
 
 const SERVICE_LABEL: Record<string, string> = {
@@ -58,6 +62,18 @@ function ConnectionsContent() {
   const [successSlug, setSuccessSlug] = useState<string | null>(null);
   const [infoPopup, setInfoPopup] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Custom connection modal
+  const [showCustom, setShowCustom] = useState(false);
+  const [customName, setCustomName] = useState("");
+  const [customSlug, setCustomSlug] = useState("");
+  const [customActions, setCustomActions] = useState("");
+  const [customUrl, setCustomUrl] = useState("");
+  const [customMethod, setCustomMethod] = useState("POST");
+  const [customHeaders, setCustomHeaders] = useState('{"Authorization": "Bearer {{token}}"}');
+  const [customBody, setCustomBody] = useState("");
+  const [customSaving, setCustomSaving] = useState(false);
+  const [customError, setCustomError] = useState<string | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -121,13 +137,55 @@ function ConnectionsContent() {
     }
   };
 
+  const handleSaveCustom = async () => {
+    if (!customName.trim()) { setCustomError("Name is required."); return; }
+    if (!customSlug.trim()) { setCustomError("Slug is required."); return; }
+    if (!customUrl.trim()) { setCustomError("Webhook URL is required."); return; }
+
+    let headersObj: Record<string, string> = {};
+    let bodyObj: Record<string, string> | undefined;
+    try {
+      headersObj = customHeaders.trim() ? JSON.parse(customHeaders) : {};
+    } catch { setCustomError("Headers must be valid JSON."); return; }
+    try {
+      bodyObj = customBody.trim() ? JSON.parse(customBody) : undefined;
+    } catch { setCustomError("Body template must be valid JSON."); return; }
+
+    setCustomSaving(true);
+    setCustomError(null);
+    try {
+      await api.createConnection({
+        name: customName,
+        service: "custom",
+        slug: customSlug.toLowerCase().replace(/[^a-z0-9-]/g, "-"),
+        actions: customActions.split(",").map(a => a.trim()).filter(Boolean),
+        webhook_url: customUrl,
+        webhook_method: customMethod,
+        webhook_headers: headersObj,
+        webhook_body_template: bodyObj,
+      });
+      setShowCustom(false);
+      setCustomName(""); setCustomSlug(""); setCustomActions(""); setCustomUrl(""); setCustomBody("");
+      load();
+    } catch (e: any) {
+      setCustomError(e.message || "Failed to create connection.");
+    } finally {
+      setCustomSaving(false);
+    }
+  };
+
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Connections</h1>
-        <p className="text-zinc-500 dark:text-zinc-400 mt-1">
-          Connect services via Auth0 Token Vault — no API keys stored, ever.
-        </p>
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Connections</h1>
+          <p className="text-zinc-500 dark:text-zinc-400 mt-1">
+            Connect services via Auth0 Token Vault — no API keys stored, ever.
+          </p>
+        </div>
+        <Button onClick={() => setShowCustom(true)}>
+          <Plus className="h-4 w-4 mr-2" /> Custom Connection
+        </Button>
       </div>
 
       {successSlug && (
@@ -195,7 +253,11 @@ function ConnectionsContent() {
                   </button>
 
                   <div className="flex items-center gap-3">
-                    {conn.connected_via === "auth0" ? (
+                    {conn.has_webhook && conn.connected_via === "webhook" ? (
+                      <Badge variant="info">
+                        <Globe className="h-3 w-3 mr-1" /> Webhook {conn.webhook_method || "POST"}
+                      </Badge>
+                    ) : conn.connected_via === "auth0" ? (
                       <>
                         <Badge variant="success">
                           <CheckCircle2 className="h-3 w-3 mr-1" /> Auth0 Token Vault
@@ -365,6 +427,101 @@ function ConnectionsContent() {
           </div>
         );
       })()}
+
+      {/* Custom Connection Modal */}
+      {showCustom && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowCustom(false)}>
+          <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-xl p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                <Webhook className="h-5 w-5" /> Add Custom Connection
+              </h3>
+              <button onClick={() => setShowCustom(false)} className="text-zinc-400 hover:text-zinc-600"><X className="h-4 w-4" /></button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Name *</label>
+                  <Input placeholder="My CRM" value={customName} onChange={e => { setCustomName(e.target.value); if (!customSlug || customSlug === customName.toLowerCase().replace(/[^a-z0-9]/g, "-")) setCustomSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, "-")); }} className="mt-1" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Slug *</label>
+                  <Input placeholder="my-crm" value={customSlug} onChange={e => setCustomSlug(e.target.value)} className="mt-1 font-mono text-xs" />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Actions</label>
+                <Input placeholder="create_deal, update_contact, notify" value={customActions} onChange={e => setCustomActions(e.target.value)} className="mt-1" />
+                <p className="text-xs text-zinc-400 mt-1">Comma-separated list of actions this connection supports</p>
+              </div>
+
+              <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4">
+                <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                  <Globe className="h-3.5 w-3.5" /> Webhook Execution Config
+                </p>
+
+                <div>
+                  <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Webhook URL *</label>
+                  <Input placeholder="https://api.example.com/{{action}}" value={customUrl} onChange={e => setCustomUrl(e.target.value)} className="mt-1 font-mono text-xs" />
+                  <p className="text-xs text-zinc-400 mt-1">Use {"{{action}}"}, {"{{token}}"}, {"{{param_name}}"} as placeholders</p>
+                </div>
+
+                <div className="mt-3">
+                  <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Method</label>
+                  <div className="flex gap-1.5 mt-1">
+                    {["GET", "POST", "PUT", "PATCH", "DELETE"].map(m => (
+                      <button key={m} onClick={() => setCustomMethod(m)}
+                        className={`px-3 py-1.5 rounded text-xs font-mono font-medium transition-colors ${
+                          customMethod === m
+                            ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900"
+                            : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                        }`}>{m}</button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-3">
+                  <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Headers (JSON)</label>
+                  <textarea
+                    value={customHeaders}
+                    onChange={e => setCustomHeaders(e.target.value)}
+                    rows={3}
+                    className="mt-1 w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 dark:text-zinc-100 px-3 py-2 text-xs font-mono focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+                    placeholder='{"Authorization": "Bearer {{token}}"}'
+                  />
+                </div>
+
+                <div className="mt-3">
+                  <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Body Template (JSON, optional)</label>
+                  <textarea
+                    value={customBody}
+                    onChange={e => setCustomBody(e.target.value)}
+                    rows={4}
+                    className="mt-1 w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 dark:text-zinc-100 px-3 py-2 text-xs font-mono focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+                    placeholder='{"amount": "{{amount}}", "customer": "{{customer}}"}'
+                  />
+                  <p className="text-xs text-zinc-400 mt-1">If empty, raw request params are sent as the body</p>
+                </div>
+              </div>
+
+              <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-400">
+                After approval, Token Vault replaces <code className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">{"{{token}}"}</code> with the real OAuth token and <code className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">{"{{param}}"}</code> with request values, then executes the HTTP call. Your agent never sees the token.
+              </div>
+
+              <FormError message={customError} />
+
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowCustom(false)}>Cancel</Button>
+                <Button onClick={handleSaveCustom} disabled={customSaving}>
+                  {customSaving ? "Creating..." : "Create Connection"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

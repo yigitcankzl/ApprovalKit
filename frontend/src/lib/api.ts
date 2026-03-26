@@ -73,7 +73,7 @@ export const api = {
 
   // Connections
   getConnections: () => fetchAPI("/api/v1/connections"),
-  createConnection: (data: { name: string; service: string; slug: string; actions: string[] }) =>
+  createConnection: (data: { name: string; service: string; slug: string; actions: string[]; webhook_url?: string; webhook_method?: string; webhook_headers?: Record<string, string>; webhook_body_template?: Record<string, string> }) =>
     fetchAPI("/api/v1/connections", { method: "POST", body: JSON.stringify(data) }),
   getConnectUrl: (id: string, userToken?: string | null, refreshToken?: string | null) =>
     fetchAPI(`/api/v1/connections/${id}/connect-url`, {
