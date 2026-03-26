@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timedelta
 
 import redis.asyncio as aioredis
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request as FastAPIRequest, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -46,10 +46,35 @@ async def get_redis() -> aioredis.Redis:
 async def submit_approval_request(
     request: ApprovalRequest,
     response: Response,
+    raw_request: FastAPIRequest,
     workspace: Workspace = Depends(verify_hmac_signature),
     db: AsyncSession = Depends(get_db),
     redis_client: aioredis.Redis = Depends(get_redis),
 ):
+    # Dynamic action scoping: enforce agent's allowed_connections
+    agent = getattr(raw_request.state, "agent", None)
+    if agent and agent.allowed_connections:
+        allowed = agent.allowed_connections
+        if isinstance(allowed, list) and request.connection not in allowed:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Agent '{agent.name}' is not allowed to use connection '{request.connection}'. "
+                       f"Allowed: {', '.join(allowed)}",
+            )
+        if isinstance(allowed, dict):
+            conn_actions = allowed.get(request.connection)
+            if conn_actions is None:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Agent '{agent.name}' is not allowed to use connection '{request.connection}'.",
+                )
+            if isinstance(conn_actions, list) and request.action not in conn_actions:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Agent '{agent.name}' cannot perform '{request.action}' on '{request.connection}'. "
+                           f"Allowed actions: {', '.join(conn_actions)}",
+                )
+
     # Check idempotency (key includes params hash to prevent replay with different params)
     params_hash = hashlib.sha256(json.dumps(request.params, sort_keys=True).encode()).hexdigest()[:12]
     idem_key = f"{request.idempotency_key}:{params_hash}"

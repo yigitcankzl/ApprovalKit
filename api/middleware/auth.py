@@ -86,4 +86,7 @@ async def verify_hmac_signature(request: Request, db: AsyncSession = Depends(get
     if not hmac.compare_digest(expected_hash, provided_hash):
         raise HTTPException(status_code=401, detail="Invalid HMAC signature")
 
+    # Attach agent info to request state for downstream use (action scoping, budget)
+    request.state.agent = agent
+
     return workspace
