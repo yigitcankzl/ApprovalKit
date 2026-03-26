@@ -33,8 +33,11 @@ _PROVIDER_MAP = {
     "stripe":     "stripe",
     "slack":      "sign-in-with-slack",
     "salesforce": "salesforce",
-    "google":     "google-oauth2",
-    "gmail":      "google-oauth2",
+    "google":          "google-oauth2",
+    "gmail":           "google-oauth2",
+    "google-calendar": "google-oauth2",
+    "google-sheets":   "google-oauth2",
+    "google-drive":    "google-oauth2",
     "microsoft":  "windowslive",
     "outlook":    "windowslive",
     "box":        "box",
@@ -316,6 +319,37 @@ async def _execute_google(action: str, params: dict, creds: dict) -> dict:
             if r.status_code != 200:
                 raise RuntimeError(f"Drive read failed: {r.text[:200]}")
             return {"success": True, "action": "read_drive", **r.json()}
+
+        elif action == "append_row":
+            spreadsheet_id = params.get("spreadsheet_id", "")
+            sheet_range = params.get("range", "Sheet1!A1")
+            row = params.get("row", [])
+            if not spreadsheet_id:
+                raise ValueError("append_row requires 'spreadsheet_id' param")
+            r = await c.post(
+                f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/{sheet_range}:append",
+                headers=headers,
+                params={"valueInputOption": "USER_ENTERED"},
+                json={"values": [row] if row and isinstance(row[0], (str, int, float)) else row},
+            )
+            if r.status_code not in (200, 201):
+                raise RuntimeError(f"Sheets append failed: {r.text[:200]}")
+            data = r.json()
+            return {"success": True, "action": "append_row", "updated_range": data.get("updates", {}).get("updatedRange")}
+
+        elif action == "update_cells":
+            spreadsheet_id = params.get("spreadsheet_id", "")
+            sheet_range = params.get("range", "Sheet1!A1")
+            values = params.get("values", [])
+            r = await c.put(
+                f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/{sheet_range}",
+                headers=headers,
+                params={"valueInputOption": "USER_ENTERED"},
+                json={"values": values},
+            )
+            if r.status_code != 200:
+                raise RuntimeError(f"Sheets update failed: {r.text[:200]}")
+            return {"success": True, "action": "update_cells", "updated_cells": r.json().get("updatedCells")}
 
         else:
             raise ValueError(f"Unsupported Google action: {action}")
@@ -730,8 +764,11 @@ _SERVICE_HANDLERS = {
     "stripe":     _execute_stripe,
     "github":     _execute_github,
     "slack":      _execute_slack,
-    "google":     _execute_google,
-    "gmail":      _execute_google,
+    "google":          _execute_google,
+    "gmail":           _execute_google,
+    "google-calendar": _execute_google,
+    "google-sheets":   _execute_google,
+    "google-drive":    _execute_google,
     "microsoft":  _execute_microsoft,
     "outlook":    _execute_microsoft,
     "salesforce": _execute_salesforce,
