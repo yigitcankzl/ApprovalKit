@@ -22,6 +22,7 @@ from loguru import logger
 
 from api.config import get_settings
 from api.services.circuit_breaker import auth0_breaker
+from api.services.encryption import decrypt_secret
 
 settings = get_settings()
 
@@ -353,8 +354,9 @@ class TokenVaultService:
                 provider = _PROVIDER_MAP.get(service)
 
                 # Try Token Exchange first (preferred, RFC 8693)
-                if conn_obj.auth0_refresh_token and provider:
-                    token = await self.get_token_via_exchange(provider, conn_obj.auth0_refresh_token)
+                refresh_tok = decrypt_secret(conn_obj.auth0_refresh_token)
+                if refresh_tok and provider:
+                    token = await self.get_token_via_exchange(provider, refresh_tok)
                     if token:
                         creds = {"api_key": token, "token": token, "access_token": token}
                         logger.info(f"Token Vault: using Token Exchange for {connection}")

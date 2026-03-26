@@ -31,7 +31,9 @@ def encrypt_secret(value: str | None) -> str | None:
         return value
     f = _get_fernet()
     if not f:
-        logger.warning("CREDENTIALS_KEY not set — storing secret in plaintext. Set CREDENTIALS_KEY or HMAC_SECRET for encryption.")
+        if settings.ENVIRONMENT == "production":
+            raise RuntimeError("CREDENTIALS_KEY or HMAC_SECRET must be set in production — refusing to store secrets in plaintext")
+        logger.warning("CREDENTIALS_KEY not set — storing secret in plaintext (dev mode only)")
         return value
     return f.encrypt(value.encode()).decode()
 

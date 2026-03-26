@@ -27,6 +27,7 @@ from api.database import get_db
 from api.models.connection import ServiceConnection
 from api.models.workspace import Workspace
 from api.middleware.workspace import get_current_workspace
+from api.services.encryption import encrypt_secret, decrypt_secret
 
 _auth0_connections_cache: set[str] | None = None
 
@@ -278,7 +279,7 @@ async def oauth_callback(
 
     conn.connected_auth0_user_id = sub
     conn.connected_user_name = name
-    conn.auth0_refresh_token = tokens.get("refresh_token")
+    conn.auth0_refresh_token = encrypt_secret(tokens.get("refresh_token"))
     await db.commit()
 
     return RedirectResponse(url=f"{settings.FRONTEND_URL}/connections?connected={conn.slug}")
@@ -315,7 +316,7 @@ async def get_connect_url(connection_id: str, request: Request, db: AsyncSession
 
     # Save login refresh token on connection (needed for Token Exchange)
     if login_refresh_token:
-        conn.auth0_refresh_token = login_refresh_token
+        conn.auth0_refresh_token = encrypt_secret(login_refresh_token)
         await db.commit()
 
     # Try Connected Accounts API (Token Vault flow) if user is logged in

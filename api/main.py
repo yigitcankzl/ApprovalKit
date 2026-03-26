@@ -75,8 +75,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Signature", "X-Fga-User", "X-User-Sub", "X-User-Token", "X-Refresh-Token"],
 )
 
 app.add_middleware(LimitRequestBodyMiddleware)

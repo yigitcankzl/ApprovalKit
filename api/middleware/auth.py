@@ -77,14 +77,7 @@ async def verify_hmac_signature(request: Request, db: AsyncSession = Depends(get
         hashlib.sha256,
     ).hexdigest()
 
-    # Also try workspace-only key for backwards compatibility
     if not hmac.compare_digest(expected_hash, provided_hash):
-        fallback_hash = hmac.new(
-            workspace.hmac_secret.encode(),
-            message.encode(),
-            hashlib.sha256,
-        ).hexdigest()
-        if not hmac.compare_digest(fallback_hash, provided_hash):
-            raise HTTPException(status_code=401, detail="Invalid HMAC signature")
+        raise HTTPException(status_code=401, detail="Invalid HMAC signature")
 
     return workspace

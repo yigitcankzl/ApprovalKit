@@ -47,8 +47,11 @@ async def submit_approval_request(
     db: AsyncSession = Depends(get_db),
     redis_client: aioredis.Redis = Depends(get_redis),
 ):
-    # Check idempotency
-    cached = await redis_client.get(REDIS_KEY_IDEMPOTENCY.format(key=request.idempotency_key))
+    # Check idempotency (key includes params hash to prevent replay with different params)
+    import hashlib as _hashlib
+    params_hash = _hashlib.sha256(json.dumps(request.params, sort_keys=True).encode()).hexdigest()[:12]
+    idem_key = f"{request.idempotency_key}:{params_hash}"
+    cached = await redis_client.get(REDIS_KEY_IDEMPOTENCY.format(key=idem_key))
     if cached:
         data = json.loads(cached)
         return ApprovalResponse(**data)
@@ -179,7 +182,7 @@ async def submit_approval_request(
         "status": "pending",
         "message": "Approval requested — CIBA notification sent",
     }
-    await redis_client.setex(REDIS_KEY_IDEMPOTENCY.format(key=request.idempotency_key), 86400, json.dumps(response_data))
+    await redis_client.setex(REDIS_KEY_IDEMPOTENCY.format(key=idem_key), 86400, json.dumps(response_data))
 
     response.status_code = 202
     return ApprovalResponse(**response_data)
@@ -311,6 +314,11 @@ async def modify_job_params(
     modified = body.get("params")
     if not modified or not isinstance(modified, dict):
         raise HTTPException(status_code=422, detail="Body must contain 'params' dict")
+
+    # Block forbidden keys (same as ApprovalRequest validator)
+    _forbidden = {"__proto__", "constructor", "$where", "__prototype__"}
+    if _forbidden.intersection(modified.keys()):
+        raise HTTPException(status_code=422, detail="Forbidden param key detected")
 
     job.final_params = modified
 
