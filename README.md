@@ -71,7 +71,9 @@ subject_token={auth0_refresh_token}
 connection={stripe|github|slack|...}
 ```
 
-Supports 20+ providers: Stripe, GitHub, Google, Slack, Salesforce, Microsoft, Notion, Jira, Discord, Dropbox, Box, Figma, Shopify, HubSpot, Linear, and more.
+**15 built-in service handlers** execute actions directly: Stripe, GitHub, Slack, Google (Gmail/Calendar/Drive), Microsoft (Outlook/OneDrive), Salesforce, Notion, Jira, Discord, Linear, HubSpot, Shopify, PayPal, Dropbox, Asana.
+
+**Generic Webhook** — connect any REST API without writing code. Configure URL + method + headers + body template via dashboard. Token Vault renders `{{token}}`, `{{action}}`, `{{param}}` placeholders at execution time.
 
 ### CIBA (Client-Initiated Backchannel Authentication)
 
@@ -148,13 +150,14 @@ SSE live feed via Redis pub/sub shows approval events as they happen. Pending ap
 
 | Layer | Technology |
 |-------|-----------|
-| API | Python 3.11, FastAPI, SQLAlchemy, Pydantic v2 |
-| Worker | Celery 5.4, Redis 7 |
-| Database | PostgreSQL 16 |
-| Frontend | Next.js 14, React 18, Tailwind CSS, TypeScript |
-| Auth | Auth0 Token Vault, CIBA, FGA, nextjs-auth0 v4 |
-| SDK | Python, pip-installable, sync + async |
-| Infrastructure | Docker Compose (6 services) |
+| API | Python 3.11, FastAPI, SQLAlchemy 2.0, Pydantic v2 |
+| Worker | Celery 5.4, Redis 7 (circuit breaker, rate limiting, sessions) |
+| Database | PostgreSQL 16, 8 migrations, Fernet encryption at rest |
+| Frontend | Next.js 14, React 18, Tailwind CSS, TypeScript, dark mode |
+| Auth | Auth0 Token Vault, CIBA, FGA, nextjs-auth0 v4, per-agent HMAC |
+| SDK | Python, pip-installable, sync + async, jitter polling |
+| Execution | 15 built-in handlers + generic webhook (any REST API) |
+| Infrastructure | Docker Compose (6 services), standalone TravelOps demo |
 
 ---
 
@@ -162,13 +165,11 @@ SSE live feed via Redis pub/sub shows approval events as they happen. Pending ap
 
 ```bash
 git clone <repo-url> && cd ApprovalKit
+cp .env.example .env && cp frontend/.env.local.example frontend/.env.local
 docker compose up -d
 
-# Open dashboard — configure Auth0 credentials via UI
-open http://localhost:3000/settings
-
-# Or use .env for headless setup
-cp .env.example .env && cp frontend/.env.local.example frontend/.env.local
+# Open dashboard — first login redirects to /setup wizard
+open http://localhost:3000
 ```
 
 ### Run the demo agent
@@ -213,13 +214,18 @@ The side-by-side comparison shows why human-in-the-loop approval matters:
 1. **Token Vault** — Credentials never stored locally, never reach the agent
 2. **Token Exchange (RFC 8693)** — Standard-compliant federated token retrieval
 3. **Connected Accounts** — Proper Token Vault flow via My Account API
-4. **HMAC-SHA256 Request Signing** — Every agent request signed with timestamp (5-min replay window)
+4. **Per-Agent HMAC Signing** — Composite key (`hmac_secret:agent_api_key`), per-agent isolation
 5. **CIBA Push Notifications** — Human approval via Guardian app (64-char binding message)
 6. **Step-up Authentication** — Automatic model escalation for high-value actions
-7. **Scope Creep Detection** — Alerts on first-time agent:action combinations
-8. **FGA Access Control** — Role-based visibility (admin, approver, viewer)
-9. **Credential Encryption at Rest** — Workspace secrets encrypted with Fernet (AES-128-CBC)
-10. **Multi-tenant Isolation** — Each org has its own Auth0 tenant and credentials
+7. **Scope Creep Detection** — First-time action alerts + 3x amount anomaly detection
+8. **FGA Access Control** — Fail-closed when configured, role-based visibility
+9. **Credential Encryption at Rest** — Fernet (AES-128-CBC), production refuses plaintext
+10. **Multi-tenant Workspace Isolation** — Per-user workspace, X-User-Sub header auth
+11. **Circuit Breaker** — Redis-backed, protects against Auth0 downtime cascade
+12. **PII Masking** — Emails and names masked in audit logs automatically
+13. **Rate Limiting** — Per-agent API key + per-job decision limits
+14. **Refresh Token Encryption** — OAuth tokens encrypted at rest, decrypted only at execution
+15. **Generic Webhook** — Any REST API without handler code, template-based execution
 
 ---
 
@@ -228,27 +234,32 @@ The side-by-side comparison shows why human-in-the-loop approval matters:
 | Page | Description |
 |------|-------------|
 | Dashboard | Real-time stats, SSE live feed, pending approvals, security status |
-| Connections | OAuth connect via Token Vault (20+ providers), auto-detection |
+| Connections | Add Service (15 built-in) + Custom Webhook, inline action edit, OAuth connect |
 | Rules | Approval rules with step-up, expandable cards with Check Rule / Run Live |
-| Approvers | CRUD + Guardian auto-linking + delegation |
-| Audit Log | Filterable event log with binding messages and Token Vault receipts |
-| Consent | Per-service permissions, scopes, recent access, revoke |
-| Agent Demos | 7 pre-built agent scenarios with interactive flow diagrams |
-| Settings | Auth0/FGA credentials via dashboard (no .env needed) |
+| Approvers | CRUD + Guardian auto-linking + delegation + workspace isolation |
+| Audit Log | Filterable event log with PII masking, binding messages, Token Vault receipts |
+| Connect Agent | Per-agent API key generation, SDK code snippets, live testing |
+| Agents | 7 demo agents (backend-served) + My Agents tab with scenarios |
+| Setup | Full-page onboarding wizard (Auth0 creds + connections), no sidebar |
+| Settings | Edit existing workspace credentials (sidebar layout) |
 | Docs | Full SDK reference, API endpoints, approval models |
+
+**Dark mode** supported across all pages (system preference + manual toggle).
 
 ---
 
 ## API Reference
 
-36 endpoints across 7 domains. Full OpenAPI docs at `/docs`.
+40+ endpoints across 8 domains. Full OpenAPI docs at `/docs`.
 
-**Core:** `POST /request`, `GET /status/:id`, `POST /test-request`
-**Rules:** CRUD + `POST /simulate`
-**Approvers:** CRUD + `GET /link-url` + delegation
-**Connections:** CRUD + Connected Accounts flow + OAuth callback
-**Monitoring:** SSE events, audit log, dashboard stats, security status, consent
-**Workspace:** Setup with encrypted credential storage
+**Core:** `POST /request`, `GET /status/:id`, `POST /test-request`, `POST /jobs/:id/decision`
+**Rules:** CRUD + `POST /simulate` (dry-run with risk score)
+**Approvers:** CRUD + `GET /link-url` + delegation (workspace-scoped)
+**Connections:** CRUD + `PUT /:id` (inline edit) + Connected Accounts flow + Generic Webhook
+**Agents:** CRUD + scenarios + regenerate-key + revoke (workspace-scoped)
+**Monitoring:** SSE events, audit log, dashboard stats, CIBA quota, security status, consent
+**Workspace:** Setup + credentials (encrypted), per-user isolation via X-User-Sub
+**Demo:** `GET /demo/agents` catalog + `POST /demo/seed` (workspace-scoped)
 
 ---
 
@@ -287,11 +298,15 @@ async def async_charge(amount, customer):
 
 3. **Connected Accounts flow is different from login flow.** Token Exchange requires tokens stored via `/me/v1/connected-accounts`, not `/authorize`. This distinction is critical and not obvious from documentation.
 
-4. **Management API is a valid fallback.** Not all providers support refresh tokens (GitHub doesn't). Graceful degradation ensures universal compatibility.
+4. **Generic webhook unlocks infinite integrations.** Built-in handlers are great for popular services, but template-based webhook execution means any REST API works without code changes.
 
-5. **Credentials belong in the database, not .env files.** Multi-tenancy requires per-org credential storage with encryption at rest.
+5. **Per-agent isolation matters.** Each agent gets its own API key and HMAC signature. Revoking one agent doesn't affect others. Rate limits are per-agent.
 
-6. **Real-time feedback changes behavior.** SSE live events give immediate visibility into agent actions — fundamentally different from after-the-fact audit logs.
+6. **Multi-tenant from day one.** Per-user workspace isolation via `X-User-Sub` header. New users get empty state, not someone else's data.
+
+7. **Real-time feedback changes behavior.** SSE live events give immediate visibility into agent actions — fundamentally different from after-the-fact audit logs.
+
+8. **Amount anomaly detection catches scope creep.** If an agent suddenly requests 3x the historical average, it's flagged in the audit trail before the human even reviews it.
 
 ---
 
@@ -332,9 +347,9 @@ Our final Token Vault integration has two paths:
 
 **Primary (Token Exchange):** For providers that support refresh tokens (Stripe, Google, Salesforce). The user connects via Connected Accounts flow, Auth0 stores the federated refresh token, and Token Exchange retrieves fresh access tokens at execution time.
 
-**Fallback (Management API):** For providers like GitHub that issue long-lived access tokens without refresh tokens. The Management API reads the token directly from the user's identity profile.
+**Fallback (Management API):** Only when no refresh token exists (legacy connections without Token Vault). If Token Exchange is attempted and fails (expired token), we do **not** fall back — the user must reconnect. This prevents silently downgrading to a less secure path.
 
-This dual approach ensures ApprovalKit works with **any** OAuth provider while using the most secure method available.
+**Generic Webhook:** For services without a built-in handler, the webhook config (URL + headers + body template) is rendered with `{{token}}` and `{{params}}` placeholders at execution time. Zero code needed.
 
 ### The Insight
 

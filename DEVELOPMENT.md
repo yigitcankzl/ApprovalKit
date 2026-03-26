@@ -211,6 +211,39 @@ async def get_workspace_config(workspace_id, db) -> WorkspaceConfig:
     )
 ```
 
+### Phase 9: Security Hardening (37 findings, 30 fixed)
+- 4 security audit rounds with systematic fixes
+- Workspace isolation on every endpoint (X-User-Sub header)
+- FGA fail-closed when configured
+- Per-agent HMAC signing (composite key isolation)
+- Refresh token encryption at rest
+- PII masking in audit logs
+- Circuit breaker Redis-backed (survives restarts)
+- Idempotency key includes params hash
+- Decision endpoint rate limiting
+- CORS explicit method/header allowlist
+
+### Phase 10: Generic Webhook Handler + 13 New Service Handlers
+- 15 total built-in handlers: Stripe, GitHub, Slack, Google, Microsoft, Salesforce, Notion, Jira, Discord, Linear, HubSpot, Shopify, PayPal
+- Generic webhook: URL + method + headers + body template with `{{token}}`/`{{param}}` placeholders
+- Dashboard UI: "Add Service" (15 predefined) + "Custom Webhook" modal
+- Inline action edit: add/remove actions per connection from expanded card
+- Zero-code API integration for any REST endpoint
+
+### Phase 11: Multi-tenant Workspace Isolation
+- Per-user workspace via `owner_auth0_sub` + `X-User-Sub` header
+- New users get empty state, not fallback to other's workspace
+- `/setup` full-page onboarding wizard (no sidebar)
+- `/settings` for editing existing workspace (sidebar)
+- Auth0 session race condition fix (wait for sub before API calls)
+
+### Phase 12: Dark Mode + UI Polish
+- Full dark mode: Tailwind `darkMode: "class"`, system preference detection
+- Flash-free theme (inline script), localStorage persistence
+- All UI primitives dark-aware: Card, Badge, Button, Input, Select
+- Consistent form validation with shared FormError component
+- Global error boundary, responsive breakpoints, content centering
+
 ---
 
 ## Auth0 Integration Summary
@@ -325,20 +358,23 @@ async def get_workspace_config(workspace_id, db) -> WorkspaceConfig:
 
 ---
 
-## Security Features
+## Security Features (37 audited, 30 fixed)
 
 1. **Token Vault** — Credentials never stored locally, never reach the agent
-2. **Token Exchange (RFC 8693)** — Standard-compliant token retrieval
-3. **HMAC-SHA256 Request Signing** — Every agent request is signed with timestamp
-4. **CIBA Push Notifications** — Human approval via Guardian app
+2. **Token Exchange (RFC 8693)** — No Management API fallback when Token Exchange is enabled
+3. **Per-Agent HMAC Signing** — Composite key `hmac_secret:agent_api_key` per agent
+4. **CIBA Push Notifications** — Human approval via Guardian app, circuit breaker on poll
 5. **Step-up Authentication** — Automatic escalation for high-value actions
-6. **Scope Creep Detection** — Alerts when agent accesses new action types
-7. **FGA Access Control** — Role-based visibility (admin, approver, viewer)
-8. **Blackout Windows** — Block approvals during maintenance periods
-9. **Cooldown Limits** — Rate limiting per rule
-10. **Delegation** — Approvers can delegate to others with time bounds
-11. **Credential Encryption at Rest** — Workspace secrets encrypted with Fernet (AES-128-CBC) before DB storage
-12. **Multi-tenant Isolation** — Each workspace has its own Auth0 tenant, FGA store, and credentials
+6. **Scope Creep + Anomaly Detection** — First-time action alerts + 3x amount anomaly
+7. **FGA Fail-Closed** — Denies when configured and header missing
+8. **Workspace Isolation** — Per-user workspace via X-User-Sub, all endpoints scoped
+9. **Refresh Token Encryption** — OAuth tokens encrypted at rest (Fernet)
+10. **PII Masking** — Emails and names masked in audit logs
+11. **Circuit Breaker** — Redis-backed, Auth0 downtime cascade prevention
+12. **Rate Limiting** — Per-agent key + per-job decision limits
+13. **Idempotency** — Params hash prevents replay with different amounts
+14. **CORS** — Explicit method/header allowlist (no wildcards)
+15. **Body Size Limit** — 1MB max request body
 
 ---
 
