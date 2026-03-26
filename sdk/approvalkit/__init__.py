@@ -40,6 +40,7 @@ import asyncio
 import functools
 import hashlib
 import hmac
+import logging
 import inspect
 import json
 import time
@@ -47,6 +48,8 @@ import uuid
 from typing import Callable
 
 import requests
+
+_log = logging.getLogger("approvalkit")
 
 
 class ApprovalDenied(Exception):
@@ -179,30 +182,30 @@ class ApprovalKit:
         Raises ApprovalDenied on rejection/timeout/block.
         """
         self._validate_inputs(connection, action, params)
-        print(f"\n[ApprovalKit] {connection}/{action}")
-        print(f"             params: {json.dumps(params)}")
+        _log.info(f" {connection}/{action}")
+        _log.info(f"params: {json.dumps(params)}")
 
         result = self._request_approval(connection, action, params)
 
         if result["status"] == "pre_approved":
-            print("[ApprovalKit] Pre-approved — Token Vault executing.")
+            _log.info(" Pre-approved — Token Vault executing.")
             return {"status": "pre_approved", "final_params": params}
 
         if result["status"] == "blocked":
-            print("[ApprovalKit] Blocked by policy.")
+            _log.info(" Blocked by policy.")
             raise ApprovalDenied("blocked")
 
         job_id = result["job_id"]
-        print(f"[ApprovalKit] Pending (job={job_id}) — push notification sent.")
+        _log.info(f"Pending (job={job_id}) — push notification sent.")
 
         status, data = self._poll(job_id)
 
         if status == "approved":
             final_params = data.get("final_params") or params
-            print("[ApprovalKit] Approved — Token Vault executed server-side.")
+            _log.info(" Approved — Token Vault executed server-side.")
             return {"status": "approved", "final_params": final_params}
 
-        print(f"[ApprovalKit] {status} — action NOT executed.")
+        _log.info(f"{status} — action NOT executed.")
         raise ApprovalDenied(status, job_id=job_id)
 
     # ------------------------------------------------------------------

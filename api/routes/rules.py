@@ -13,6 +13,7 @@ from api.services.rule_engine import evaluate_conditions, render_binding_message
 from api.middleware.fga import require_rule_read, require_rule_write, require_workspace_admin
 from api.middleware.workspace import get_current_workspace
 from api.models.workspace import Workspace
+from api.utils import parse_time as _parse_time
 
 router = APIRouter(prefix="/api/v1/rules", tags=["rules"])
 
@@ -21,13 +22,6 @@ async def _resolve_workspace_id(
     workspace: Workspace = Depends(get_current_workspace),
 ) -> uuid.UUID:
     return workspace.id
-
-
-def _parse_time(t: str | None) -> time | None:
-    if not t:
-        return None
-    parts = t.split(":")
-    return time(int(parts[0]), int(parts[1]))
 
 
 def _rule_to_response(rule: Rule) -> dict:

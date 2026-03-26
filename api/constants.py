@@ -9,7 +9,20 @@ REDIS_KEY_COOLDOWN = "cooldown:{rule_id}"  # per-rule cooldown counter
 REDIS_KEY_IDEMPOTENCY = "idem:{key}"       # idempotency dedup key
 REDIS_KEY_SSE_CHANNEL = "sse:activity"     # SSE pub/sub channel for live feed
 
+# Forbidden param keys (injection prevention)
+FORBIDDEN_PARAM_KEYS = {"__proto__", "constructor", "$where", "__prototype__"}
+
+# Default notification channels
+DEFAULT_NOTIFY_CHANNELS = ["guardian_push"]
+DEFAULT_URGENT_CHANNELS = ["guardian_push"]
+
 # Limits
-MAX_BODY_SIZE_BYTES = 1 * 1024 * 1024  # 1 MB
-COOLDOWN_WINDOW_SECONDS = 3600          # 1 hour
-CIBA_QUOTA_WINDOW_SECONDS = 3600        # 1 hour
+MAX_BODY_SIZE_BYTES = 1 * 1024 * 1024       # 1 MB
+COOLDOWN_WINDOW_SECONDS = 3600               # 1 hour
+CIBA_QUOTA_WINDOW_SECONDS = 3600             # 1 hour
+SCOPE_CREEP_LOOKBACK = 100                   # historical jobs to check
+ANOMALY_THRESHOLD_MULTIPLIER = 3             # current > avg * N = anomaly
+AUTH_SESSION_TTL_SECONDS = 600               # 10 min Redis TTL for OAuth sessions
+IDEMPOTENCY_TTL_SECONDS = 86400              # 24 hour TTL for idempotency keys
+DECISION_RATE_LIMIT_PER_JOB = 5              # max decisions per job per minute
+DECISION_RATE_WINDOW_SECONDS = 60

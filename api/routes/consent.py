@@ -15,7 +15,7 @@ from api.models.connection import ServiceConnection
 from api.models.rule import Rule, ApprovalModel
 from api.models.approval_job import ApprovalJob
 from api.models.workspace import Workspace
-from api.routes.connections import _SERVICE_SCOPE
+from api.routes.connections import _SERVICE_SCOPE, _DEFAULT_SCOPE
 from api.middleware.workspace import get_current_workspace
 
 router = APIRouter(prefix="/api/v1", tags=["consent"])
@@ -66,7 +66,7 @@ async def get_consent(workspace: Workspace = Depends(get_current_workspace), db:
             "slug": conn.slug,
             "connected_user": conn.connected_user_name,
             "connected_auth0_user_id": conn.connected_auth0_user_id,
-            "oauth_scopes": _SERVICE_SCOPE.get(conn.service.lower(), "openid profile email"),
+            "oauth_scopes": _SERVICE_SCOPE.get(conn.service.lower(), _DEFAULT_SCOPE),
             "actions": conn.actions or [],
             "rules": [
                 {

@@ -1,3 +1,4 @@
+import hashlib
 import json
 import uuid
 from datetime import datetime, timedelta
@@ -49,8 +50,7 @@ async def submit_approval_request(
     redis_client: aioredis.Redis = Depends(get_redis),
 ):
     # Check idempotency (key includes params hash to prevent replay with different params)
-    import hashlib as _hashlib
-    params_hash = _hashlib.sha256(json.dumps(request.params, sort_keys=True).encode()).hexdigest()[:12]
+    params_hash = hashlib.sha256(json.dumps(request.params, sort_keys=True).encode()).hexdigest()[:12]
     idem_key = f"{request.idempotency_key}:{params_hash}"
     cached = await redis_client.get(REDIS_KEY_IDEMPOTENCY.format(key=idem_key))
     if cached:
@@ -316,9 +316,8 @@ async def modify_job_params(
     if not modified or not isinstance(modified, dict):
         raise HTTPException(status_code=422, detail="Body must contain 'params' dict")
 
-    # Block forbidden keys (same as ApprovalRequest validator)
-    _forbidden = {"__proto__", "constructor", "$where", "__prototype__"}
-    if _forbidden.intersection(modified.keys()):
+    from api.constants import FORBIDDEN_PARAM_KEYS
+    if FORBIDDEN_PARAM_KEYS.intersection(modified.keys()):
         raise HTTPException(status_code=422, detail="Forbidden param key detected")
 
     job.final_params = modified

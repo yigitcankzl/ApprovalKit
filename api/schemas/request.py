@@ -1,6 +1,8 @@
 from typing import Any
 from pydantic import BaseModel, Field, field_validator
 
+from api.constants import FORBIDDEN_PARAM_KEYS
+
 
 class ApprovalRequest(BaseModel):
     connection: str = Field(min_length=1, max_length=100)
@@ -12,8 +14,7 @@ class ApprovalRequest(BaseModel):
     @field_validator("params")
     @classmethod
     def no_system_keys(cls, v: dict) -> dict:
-        forbidden = {"__proto__", "constructor", "$where", "__prototype__"}
-        if forbidden.intersection(v.keys()):
+        if FORBIDDEN_PARAM_KEYS.intersection(v.keys()):
             raise ValueError("forbidden param key detected")
         return v
 

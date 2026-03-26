@@ -110,25 +110,8 @@ _AUTH0_CONNECTION = {
     "twitter":    "twitter",
 }
 
-_SERVICE_SCOPE = {
-    "github":     "openid profile email",
-    "stripe":     "openid profile email",
-    "slack":      "openid profile email",
-    "salesforce": "openid profile email",
-    "google":     "openid profile email",
-    "gmail":      "openid profile email",
-    "microsoft":  "openid profile email",
-    "outlook":    "openid profile email",
-    "box":        "openid profile email",
-    "dropbox":    "openid profile email",
-    "discord":    "openid profile email",
-    "figma":      "openid profile email",
-    "notion":     "openid profile email",
-    "jira":       "openid profile email",
-    "hubspot":    "openid profile email",
-    "shopify":    "openid profile email",
-    "linear":     "openid profile email",
-}
+_DEFAULT_SCOPE = "openid profile email"
+_SERVICE_SCOPE: dict[str, str] = {}  # override per-service if needed; falls back to _DEFAULT_SCOPE
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -317,7 +300,7 @@ async def get_connect_url(connection_id: str, request: Request, workspace: Works
     user_token = request.headers.get("X-User-Token")
     login_refresh_token = request.headers.get("X-Refresh-Token")
     callback_url = f"{settings.CALLBACK_BASE_URL}/api/v1/connections/connected-accounts/callback"
-    scope = _SERVICE_SCOPE.get(service, "openid profile email")
+    scope = _SERVICE_SCOPE.get(service, _DEFAULT_SCOPE)
 
     logger.debug(f"connect-url: user_token={'present' if user_token else 'MISSING'} refresh_token={'present' if login_refresh_token else 'MISSING'}")
 

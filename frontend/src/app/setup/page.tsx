@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { FormError } from "@/components/ui/form-error";
-import { CheckCircle2, ArrowRight, Shield, Link2, GitBranch, Copy, Check, Loader2 } from "lucide-react";
+import { CheckCircle2, ArrowRight, Shield, Link2, GitBranch, Copy, Check, Loader2, LogOut } from "lucide-react";
 import { api, setUserSub } from "@/lib/api";
 
 const steps = [
@@ -127,7 +127,16 @@ export default function SetupPage() {
           </div>
           <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Set up your workspace</h1>
           <p className="text-zinc-500 dark:text-zinc-400 mt-1 text-sm">
-            {user?.email && <>Signed in as <strong>{user.email}</strong></>}
+            {user?.email && (
+              <>
+                Signed in as <strong>{user.email}</strong>
+                {" · "}
+                <a href="/auth/logout" className="inline-flex items-center gap-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors">
+                  <LogOut className="h-3 w-3" />
+                  Logout
+                </a>
+              </>
+            )}
           </p>
         </div>
 

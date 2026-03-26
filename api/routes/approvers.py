@@ -14,6 +14,7 @@ from api.models.approver import Approver
 from api.models.workspace import Workspace
 from api.schemas.approver import ApproverCreate, ApproverUpdate, DelegationRequest, ApproverResponse
 from api.middleware.workspace import get_current_workspace
+from api.utils import parse_time as _parse_time
 
 settings = get_settings()
 
@@ -42,12 +43,6 @@ def _approver_to_response(a: Approver) -> dict:
         "created_at": a.created_at.isoformat(),
     }
 
-
-def _parse_time(t: str | None) -> time | None:
-    if not t:
-        return None
-    parts = t.split(":")
-    return time(int(parts[0]), int(parts[1]))
 
 
 @router.post("", response_model=ApproverResponse)

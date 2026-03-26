@@ -48,119 +48,65 @@ async def _get_db_session():
     return async_session()
 
 
+async def _send_ciba(approver, binding_msg: str, rule: Rule, scope: str = "") -> dict:
+    """Shared CIBA initiate → record → poll pattern. Returns {"status", "approver", "token?"}."""
+    actual = _resolve_delegation(approver)
+    ciba_result = await ciba_service.initiate_ciba_request(
+        user_id=actual.auth0_user_id,
+        binding_message=binding_msg,
+        scope=scope or "openid",
+    )
+    await rate_limiter.record_ciba_request()
+    poll_result = await ciba_service.poll_ciba_token(
+        auth_req_id=ciba_result["auth_req_id"],
+        timeout=rule.timeout_seconds,
+    )
+    return {"status": poll_result["status"], "approver": actual, "token": poll_result.get("access_token")}
+
+
 async def _process_any_one(job: ApprovalJob, rule: Rule):
     binding_msg = render_binding_message(rule.context_template, job.params)
-
     for ra in rule.rule_approvers:
-        approver = ra.approver
-        actual_approver = _resolve_delegation(approver)
-
         try:
-            ciba_result = await ciba_service.initiate_ciba_request(
-                user_id=actual_approver.auth0_user_id,
-                binding_message=binding_msg,
-                scope=f"{job.connection}:{job.action}",
-            )
-            await rate_limiter.record_ciba_request()
-
-            poll_result = await ciba_service.poll_ciba_token(
-                auth_req_id=ciba_result["auth_req_id"],
-                timeout=rule.timeout_seconds,
-            )
-
-            if poll_result["status"] == "approved":
-                return {"status": "approved", "approver": actual_approver, "token": poll_result.get("access_token")}
-            elif poll_result["status"] == "rejected":
-                return {"status": "rejected", "approver": actual_approver}
-
+            result = await _send_ciba(ra.approver, binding_msg, rule, f"{job.connection}:{job.action}")
+            if result["status"] in ("approved", "rejected"):
+                return result
         except Exception as e:
-            logger.error(f"CIBA error for approver {actual_approver.name}: {e}")
+            logger.error(f"CIBA error for approver {ra.approver.name}: {e}")
             continue
-
     return {"status": "timeout"}
 
 
 async def _process_specific(job: ApprovalJob, rule: Rule):
     if not rule.rule_approvers:
         return {"status": "blocked"}
-
-    approver = rule.rule_approvers[0].approver
-    actual_approver = _resolve_delegation(approver)
     binding_msg = render_binding_message(rule.context_template, job.params)
-
-    ciba_result = await ciba_service.initiate_ciba_request(
-        user_id=actual_approver.auth0_user_id,
-        binding_message=binding_msg,
-    )
-    await rate_limiter.record_ciba_request()
-
-    poll_result = await ciba_service.poll_ciba_token(
-        auth_req_id=ciba_result["auth_req_id"],
-        timeout=rule.timeout_seconds,
-    )
-
-    if poll_result["status"] == "approved":
-        return {"status": "approved", "approver": actual_approver, "token": poll_result.get("access_token")}
-    elif poll_result["status"] == "rejected":
-        return {"status": "rejected", "approver": actual_approver}
-
-    return {"status": "timeout"}
+    return await _send_ciba(rule.rule_approvers[0].approver, binding_msg, rule)
 
 
 async def _process_sequential(job: ApprovalJob, rule: Rule):
     sorted_approvers = sorted(rule.rule_approvers, key=lambda ra: ra.order)
     binding_msg = render_binding_message(rule.context_template, job.params)
-
     for ra in sorted_approvers:
-        approver = ra.approver
-        actual_approver = _resolve_delegation(approver)
-
-        ciba_result = await ciba_service.initiate_ciba_request(
-            user_id=actual_approver.auth0_user_id,
-            binding_message=binding_msg,
-        )
-        await rate_limiter.record_ciba_request()
-
-        poll_result = await ciba_service.poll_ciba_token(
-            auth_req_id=ciba_result["auth_req_id"],
-            timeout=rule.timeout_seconds,
-        )
-
-        if poll_result["status"] == "rejected":
-            return {"status": "rejected", "approver": actual_approver}
-        elif poll_result["status"] != "approved":
+        result = await _send_ciba(ra.approver, binding_msg, rule)
+        if result["status"] == "rejected":
+            return result
+        if result["status"] != "approved":
             return {"status": "timeout"}
-
-    return {"status": "approved", "approver": sorted_approvers[-1].approver}
+    return {"status": "approved", "approver": _resolve_delegation(sorted_approvers[-1].approver)}
 
 
 async def _process_all_of_n(job: ApprovalJob, rule: Rule):
     binding_msg = render_binding_message(rule.context_template, job.params)
-    results = []
-
+    last = None
     for ra in rule.rule_approvers:
-        approver = ra.approver
-        actual_approver = _resolve_delegation(approver)
-
-        ciba_result = await ciba_service.initiate_ciba_request(
-            user_id=actual_approver.auth0_user_id,
-            binding_message=binding_msg,
-        )
-        await rate_limiter.record_ciba_request()
-
-        poll_result = await ciba_service.poll_ciba_token(
-            auth_req_id=ciba_result["auth_req_id"],
-            timeout=rule.timeout_seconds,
-        )
-
-        if poll_result["status"] == "rejected":
-            return {"status": "rejected", "approver": actual_approver}
-        elif poll_result["status"] != "approved":
+        result = await _send_ciba(ra.approver, binding_msg, rule)
+        if result["status"] == "rejected":
+            return result
+        if result["status"] != "approved":
             return {"status": "timeout"}
-
-        results.append(actual_approver)
-
-    return {"status": "approved", "approver": results[-1] if results else None}
+        last = result["approver"]
+    return {"status": "approved", "approver": last}
 
 
 async def _process_k_of_n(job: ApprovalJob, rule: Rule):
@@ -307,6 +253,14 @@ async def _process_job(job_id: str):
         processor = MODEL_PROCESSORS.get(effective_model)
         if not processor:
             logger.error(f"Unknown approval model: {effective_model}")
+            async with session.begin():
+                job.state = JobState.BLOCKED
+                job.completed_at = datetime.utcnow()
+                session.add(AuditLog(
+                    job_id=job.id, workspace_id=job.workspace_id,
+                    event_type=AuditEventType.BLOCKED,
+                    note=f"Unknown approval model: {effective_model}",
+                ))
             return
 
         approval_result = await processor(job, rule)
