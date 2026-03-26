@@ -21,8 +21,8 @@ async function fetchAPI(path: string, options?: RequestInit) {
     const error = await res.json().catch(() => ({ detail: "Request failed" }));
     const msg = error.detail || `HTTP ${res.status}`;
     // Redirect to setup if workspace not found for this user
-    if (res.status === 404 && msg.includes("No workspace") && typeof window !== "undefined" && !window.location.pathname.startsWith("/settings") && !window.location.pathname.startsWith("/onboarding")) {
-      window.location.href = "/settings";
+    if (res.status === 404 && msg.includes("No workspace") && typeof window !== "undefined" && !window.location.pathname.startsWith("/setup") && !window.location.pathname.startsWith("/settings")) {
+      window.location.href = "/setup";
       return new Promise(() => {}); // never resolves — page is navigating
     }
     throw new Error(msg);
