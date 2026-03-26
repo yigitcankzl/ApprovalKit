@@ -48,6 +48,9 @@ class Rule(Base):
         nullable=True,
     )
     step_up_conditions: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # Structured checklist items the approver must confirm before approving
+    # e.g. [{"id": "amount", "label": "I verified the charge amount"}, ...]
+    approval_checklist: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     priority: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)

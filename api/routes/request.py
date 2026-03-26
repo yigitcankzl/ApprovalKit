@@ -478,6 +478,22 @@ async def submit_web_decision(
     decision = body.get("decision")
     modified_params = body.get("modified_params")
     note = body.get("note") or "Approved via web dashboard"
+    checklist_responses = body.get("checklist")  # {"amount": true, "recipient": true}
+
+    # Validate checklist if rule requires it
+    if decision == "approve" and job.rule_id:
+        from api.models.rule import Rule
+        rule_result = await db.execute(select(Rule).where(Rule.id == job.rule_id))
+        rule = rule_result.scalar_one_or_none()
+        if rule and rule.approval_checklist:
+            required_ids = {item["id"] for item in rule.approval_checklist}
+            confirmed_ids = {k for k, v in (checklist_responses or {}).items() if v}
+            missing = required_ids - confirmed_ids
+            if missing:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Checklist incomplete. Please confirm: {', '.join(missing)}",
+                )
 
     if decision == "approve":
         job.state = JobState.APPROVED
