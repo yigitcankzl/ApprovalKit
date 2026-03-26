@@ -70,7 +70,9 @@ async def verify_hmac_signature(request: Request, db: AsyncSession = Depends(get
         raise HTTPException(status_code=400, detail="Request body must be valid UTF-8")
     message = f"{timestamp_str}.{body_str}"
 
-    # Per-agent signing: use hmac_secret:agent_api_key for isolation
+    # Per-agent HMAC key composition: "hmac_secret:agent_api_key"
+    # This MUST match the SDK's _sign() method in sdk/approvalkit/__init__.py:89-91
+    # If you change this format, update the SDK too.
     sign_key = workspace.hmac_secret
     if agent:
         sign_key = f"{workspace.hmac_secret}:{agent.api_key}"

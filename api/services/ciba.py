@@ -11,6 +11,11 @@ settings = get_settings()
 _CIBA_MSG_ALLOWED = re.compile(r"[^A-Za-z0-9 +\-_.,]")
 
 
+def _backoff(interval: int) -> int:
+    """Double the interval up to CIBA_MAX_POLL_INTERVAL."""
+    return min(interval * 2, settings.CIBA_MAX_POLL_INTERVAL)
+
+
 def _sanitize_binding_message(msg: str, max_len: int = 64) -> str:
     """Strip characters not allowed by Auth0 CIBA binding_message (max 64 chars per spec)."""
     sanitized = _CIBA_MSG_ALLOWED.sub("", msg)
@@ -93,7 +98,7 @@ class CIBAService:
                     auth0_breaker.record_failure()
 
                 if response.status_code == 429:
-                    interval = min(interval * 2, settings.CIBA_MAX_POLL_INTERVAL)
+                    interval = _backoff(interval)
                     await asyncio.sleep(interval)
                     elapsed += interval
                     continue
@@ -104,10 +109,10 @@ class CIBAService:
                 if error == "authorization_pending":
                     await asyncio.sleep(interval)
                     elapsed += interval
-                    interval = min(interval * 2, settings.CIBA_MAX_POLL_INTERVAL)
+                    interval = _backoff(interval)
                     continue
                 elif error == "slow_down":
-                    interval = min(interval * 2, settings.CIBA_MAX_POLL_INTERVAL)
+                    interval = _backoff(interval)
                     await asyncio.sleep(interval)
                     elapsed += interval
                     continue

@@ -41,6 +41,7 @@ import functools
 import hashlib
 import hmac
 import logging
+import random
 import inspect
 import json
 import time
@@ -69,6 +70,7 @@ class ApprovalKit:
         user_id: str = "agent",
         poll_interval: int = 3,
         timeout: int = 300,
+        http_timeout: int = 10,
     ):
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
@@ -76,6 +78,7 @@ class ApprovalKit:
         self.user_id = user_id
         self.poll_interval = poll_interval
         self.timeout = timeout
+        self.http_timeout = http_timeout
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -88,7 +91,8 @@ class ApprovalKit:
         when available, providing per-agent signature isolation.
         """
         ts = str(int(time.time()))
-        # Include api_key in signing material for per-agent isolation
+        # Per-agent HMAC key composition: "hmac_secret:agent_api_key"
+        # This MUST match the backend's verify_hmac_signature in api/middleware/auth.py:72-75
         sign_key = self.hmac_secret
         if self.api_key:
             sign_key = f"{self.hmac_secret}:{self.api_key}"
@@ -129,7 +133,7 @@ class ApprovalKit:
             f"{self.base_url}/api/v1/request",
             data=body,
             headers=self._headers(ts, sig),
-            timeout=10,
+            timeout=self.http_timeout,
         )
 
         if r.status_code == 200:
@@ -158,13 +162,13 @@ class ApprovalKit:
                     "Authorization": f"Bearer {self.api_key}",
                     "X-Signature": f"hmac-sha256={ts}.{sig}",
                 },
-                timeout=10,
+                timeout=self.http_timeout,
             )
             data = r.json()
             status = data.get("status", "pending")
             if status in ("approved", "rejected", "timeout", "blocked"):
                 return status, data
-            time.sleep(self.poll_interval)
+            time.sleep(self.poll_interval + random.uniform(0, 1))
         return "timeout", {}
 
     def _resolve_params(self, fn, params_fn, args, kwargs) -> dict:

@@ -363,8 +363,14 @@ class TokenVaultService:
                         creds = {"api_key": token, "token": token, "access_token": token}
                         logger.info(f"Token Vault: Token Exchange succeeded for {connection}")
                     else:
-                        # Token Exchange failed (expired/revoked) — do NOT fall back
                         logger.warning(f"Token Vault: Token Exchange failed for {connection} — user must reconnect")
+                        return {
+                            "success": False,
+                            "reason": "token_exchange_failed",
+                            "error": f"Token Exchange failed for '{connection}' — refresh token expired or revoked. Reconnect via /connections.",
+                            "connection": connection,
+                            "action": action,
+                        }
 
                 # Management API ONLY when no refresh token exists (legacy connection)
                 if not exchange_attempted and creds is None and conn_obj.connected_auth0_user_id and provider:

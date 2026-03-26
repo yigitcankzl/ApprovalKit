@@ -119,64 +119,29 @@ async def submit_approval_request(
         )
         return response
 
-    # Create approval job
-    required = get_required_approval_count(rule)
-    job = ApprovalJob(
-        id=uuid.uuid4(),
-        idempotency_key=request.idempotency_key,
-        workspace_id=workspace.id,
-        rule_id=rule.id,
-        connection=request.connection,
-        action=request.action,
-        params=request.params,
-        agent_user_id=request.user_id,
-        state=JobState.PENDING,
-        required_count=required,
-        expires_at=datetime.utcnow() + timedelta(seconds=rule.timeout_seconds),
+    # Create approval job (shared helper)
+    job = await _create_pending_job(
+        workspace, rule, request.connection, request.action, request.params,
+        request.user_id, request.idempotency_key, db, redis_client,
     )
-    db.add(job)
 
-    # Scope creep audit
+    # Scope creep audit (only for SDK requests, not test)
     if is_new_action:
-        scope_audit = AuditLog(
-            job_id=job.id,
-            workspace_id=workspace.id,
+        db.add(AuditLog(
+            job_id=job.id, workspace_id=workspace.id,
             event_type=AuditEventType.SCOPE_CREEP,
             note=f"First time agent requests {request.connection}:{request.action}",
-        )
-        db.add(scope_audit)
+        ))
     if scope_creep.get("amount_anomaly"):
-        anomaly_audit = AuditLog(
-            job_id=job.id,
-            workspace_id=workspace.id,
+        db.add(AuditLog(
+            job_id=job.id, workspace_id=workspace.id,
             event_type=AuditEventType.SCOPE_CREEP,
             note=f"Amount anomaly: {scope_creep['anomaly_detail']}",
-        )
-        db.add(anomaly_audit)
+        ))
+    if is_new_action or scope_creep.get("amount_anomaly"):
+        await db.commit()
 
-    audit = AuditLog(
-        job_id=job.id,
-        workspace_id=workspace.id,
-        event_type=AuditEventType.REQUESTED,
-        binding_message=mask_text(render_binding_message(rule.context_template, request.params)),
-    )
-    db.add(audit)
-
-    await db.commit()
     await increment_cooldown(rule, redis_client)
-
-    # Enqueue Celery task
-    from api.worker.tasks import process_approval_job
-    process_approval_job.delay(str(job.id))
-
-    # Publish real-time event
-    await redis_client.publish("approval_events", json.dumps({
-        "type": "requested",
-        "job_id": str(job.id),
-        "connection": request.connection,
-        "action": request.action,
-        "timestamp": datetime.utcnow().isoformat(),
-    }))
 
     response_data = {
         "job_id": str(job.id),
@@ -187,6 +152,49 @@ async def submit_approval_request(
 
     response.status_code = 202
     return ApprovalResponse(**response_data)
+
+
+async def _create_pending_job(
+    workspace: Workspace, rule, connection: str, action: str,
+    params: dict, user_id: str, idempotency_key: str,
+    db: AsyncSession, redis_client: aioredis.Redis,
+) -> ApprovalJob:
+    """Shared: create ApprovalJob, audit log, enqueue Celery task, publish SSE."""
+    required = get_required_approval_count(rule)
+    job = ApprovalJob(
+        id=uuid.uuid4(),
+        idempotency_key=idempotency_key,
+        workspace_id=workspace.id,
+        rule_id=rule.id,
+        connection=connection,
+        action=action,
+        params=params,
+        agent_user_id=user_id,
+        state=JobState.PENDING,
+        required_count=required,
+        expires_at=datetime.utcnow() + timedelta(seconds=rule.timeout_seconds),
+    )
+    db.add(job)
+    audit = AuditLog(
+        job_id=job.id,
+        workspace_id=workspace.id,
+        event_type=AuditEventType.REQUESTED,
+        binding_message=mask_text(render_binding_message(rule.context_template, params)),
+    )
+    db.add(audit)
+    await db.commit()
+
+    from api.worker.tasks import process_approval_job
+    process_approval_job.delay(str(job.id))
+
+    await redis_client.publish("approval_events", json.dumps({
+        "type": "requested",
+        "job_id": str(job.id),
+        "connection": connection,
+        "action": action,
+        "timestamp": datetime.utcnow().isoformat(),
+    }))
+    return job
 
 
 class TestRequest(ApprovalRequest):
@@ -202,64 +210,24 @@ async def dashboard_test_request(
     db: AsyncSession = Depends(get_db),
     redis_client: aioredis.Redis = Depends(get_redis),
 ):
-    """
-    Dashboard-initiated test request — no HMAC required.
-    Triggers the full CIBA → approval → Token Vault flow.
-    """
+    """Dashboard-initiated test request — no HMAC required."""
     if not body.idempotency_key:
         body.idempotency_key = f"test-{uuid.uuid4()}"
 
-    rule = await find_matching_rule(
-        workspace.id, body.connection, body.action, body.params, db
-    )
+    rule = await find_matching_rule(workspace.id, body.connection, body.action, body.params, db)
     if not rule:
         return {"job_id": None, "status": "auto_approved", "message": "No matching rule — would auto-approve"}
-
     if is_in_blackout(rule):
         raise HTTPException(status_code=403, detail="Blackout window active")
 
-    required = get_required_approval_count(rule)
-    job = ApprovalJob(
-        id=uuid.uuid4(),
-        idempotency_key=body.idempotency_key,
-        workspace_id=workspace.id,
-        rule_id=rule.id,
-        connection=body.connection,
-        action=body.action,
-        params=body.params,
-        agent_user_id=body.user_id,
-        state=JobState.PENDING,
-        required_count=required,
-        expires_at=datetime.utcnow() + timedelta(seconds=rule.timeout_seconds),
+    job = await _create_pending_job(
+        workspace, rule, body.connection, body.action, body.params,
+        body.user_id, body.idempotency_key, db, redis_client,
     )
-    db.add(job)
-
-    audit = AuditLog(
-        job_id=job.id,
-        workspace_id=workspace.id,
-        event_type=AuditEventType.REQUESTED,
-        binding_message=render_binding_message(rule.context_template, body.params),
-    )
-    db.add(audit)
-    await db.commit()
-
-    from api.worker.tasks import process_approval_job
-    process_approval_job.delay(str(job.id))
-
-    await redis_client.publish("approval_events", json.dumps({
-        "type": "requested",
-        "job_id": str(job.id),
-        "connection": body.connection,
-        "action": body.action,
-        "timestamp": datetime.utcnow().isoformat(),
-    }))
-
     return {
-        "job_id": str(job.id),
-        "status": "pending",
-        "message": f"Test request sent — CIBA push going to approver(s)",
-        "rule": rule.name,
-        "model": rule.model.value,
+        "job_id": str(job.id), "status": "pending",
+        "message": "Test request sent — CIBA push going to approver(s)",
+        "rule": rule.name, "model": rule.model.value,
     }
 
 

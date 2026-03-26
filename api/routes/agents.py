@@ -43,9 +43,6 @@ class AgentIn(BaseModel):
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-async def _get_workspace(ws: Workspace = Depends(get_current_workspace)) -> Workspace:
-    return ws
-
 
 def _agent_to_dict(agent: RegisteredAgent, include_key: bool = False) -> dict:
     d = {
@@ -77,8 +74,7 @@ def _agent_to_dict(agent: RegisteredAgent, include_key: bool = False) -> dict:
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("")
-async def list_agents(db: AsyncSession = Depends(get_db)):
-    ws = await _get_workspace(db)
+async def list_agents(ws: Workspace = Depends(get_current_workspace), db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(RegisteredAgent)
         .where(RegisteredAgent.workspace_id == ws.id)
@@ -89,8 +85,7 @@ async def list_agents(db: AsyncSession = Depends(get_db)):
 
 
 @router.post("", status_code=201)
-async def create_agent(body: AgentIn, db: AsyncSession = Depends(get_db)):
-    ws = await _get_workspace(db)
+async def create_agent(body: AgentIn, ws: Workspace = Depends(get_current_workspace), db: AsyncSession = Depends(get_db)):
 
     # Validate allowed_connections against existing slugs
     if body.allowed_connections:
@@ -144,7 +139,7 @@ async def _get_agent_for_workspace(agent_id: str, ws: Workspace, db: AsyncSessio
 
 
 @router.post("/{agent_id}/scenarios", status_code=201)
-async def add_scenario(agent_id: str, body: ScenarioIn, ws: Workspace = Depends(_get_workspace), db: AsyncSession = Depends(get_db)):
+async def add_scenario(agent_id: str, body: ScenarioIn, ws: Workspace = Depends(get_current_workspace), db: AsyncSession = Depends(get_db)):
     agent = await _get_agent_for_workspace(agent_id, ws, db)
 
     scenario = AgentScenario(
@@ -160,7 +155,7 @@ async def add_scenario(agent_id: str, body: ScenarioIn, ws: Workspace = Depends(
 
 
 @router.put("/{agent_id}/scenarios/{scenario_id}")
-async def update_scenario(agent_id: str, scenario_id: str, body: ScenarioIn, ws: Workspace = Depends(_get_workspace), db: AsyncSession = Depends(get_db)):
+async def update_scenario(agent_id: str, scenario_id: str, body: ScenarioIn, ws: Workspace = Depends(get_current_workspace), db: AsyncSession = Depends(get_db)):
     """Update an existing scenario on an agent."""
     await _get_agent_for_workspace(agent_id, ws, db)  # verify ownership
     result = await db.execute(
@@ -181,7 +176,7 @@ async def update_scenario(agent_id: str, scenario_id: str, body: ScenarioIn, ws:
 
 
 @router.delete("/{agent_id}/scenarios/{scenario_id}", status_code=204)
-async def delete_scenario(agent_id: str, scenario_id: str, ws: Workspace = Depends(_get_workspace), db: AsyncSession = Depends(get_db)):
+async def delete_scenario(agent_id: str, scenario_id: str, ws: Workspace = Depends(get_current_workspace), db: AsyncSession = Depends(get_db)):
     """Delete a scenario from an agent."""
     await _get_agent_for_workspace(agent_id, ws, db)
     result = await db.execute(
@@ -198,14 +193,14 @@ async def delete_scenario(agent_id: str, scenario_id: str, ws: Workspace = Depen
 
 
 @router.delete("/{agent_id}", status_code=204)
-async def delete_agent(agent_id: str, ws: Workspace = Depends(_get_workspace), db: AsyncSession = Depends(get_db)):
+async def delete_agent(agent_id: str, ws: Workspace = Depends(get_current_workspace), db: AsyncSession = Depends(get_db)):
     agent = await _get_agent_for_workspace(agent_id, ws, db)
     await db.delete(agent)
     await db.commit()
 
 
 @router.post("/{agent_id}/regenerate-key")
-async def regenerate_api_key(agent_id: str, ws: Workspace = Depends(_get_workspace), db: AsyncSession = Depends(get_db)):
+async def regenerate_api_key(agent_id: str, ws: Workspace = Depends(get_current_workspace), db: AsyncSession = Depends(get_db)):
     """Generate a new API key for this agent. Old key stops working immediately."""
     agent = await _get_agent_for_workspace(agent_id, ws, db)
     agent.api_key = f"ak_{secrets.token_urlsafe(32)}"
@@ -214,7 +209,7 @@ async def regenerate_api_key(agent_id: str, ws: Workspace = Depends(_get_workspa
 
 
 @router.post("/{agent_id}/revoke")
-async def revoke_agent(agent_id: str, ws: Workspace = Depends(_get_workspace), db: AsyncSession = Depends(get_db)):
+async def revoke_agent(agent_id: str, ws: Workspace = Depends(get_current_workspace), db: AsyncSession = Depends(get_db)):
     """Disable this agent's API key. Agent can no longer make requests."""
     agent = await _get_agent_for_workspace(agent_id, ws, db)
     agent.is_active = False
