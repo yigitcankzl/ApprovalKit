@@ -226,16 +226,23 @@ async def oauth_callback(
     if not code or not state:
         return RedirectResponse(url=f"{settings.FRONTEND_URL}/connections?error=missing_code")
 
-    connection_id = state
+    # State format: connection_id:workspace_id
+    parts = state.split(":", 1)
+    connection_id = parts[0]
+    workspace_id = parts[1] if len(parts) > 1 else None
 
     try:
         conn_uuid = uuid.UUID(connection_id)
     except ValueError:
         return RedirectResponse(url=f"{settings.FRONTEND_URL}/connections?error=invalid_state")
 
-    result = await db.execute(
-        select(ServiceConnection).where(ServiceConnection.id == conn_uuid)
-    )
+    query = select(ServiceConnection).where(ServiceConnection.id == conn_uuid)
+    if workspace_id:
+        try:
+            query = query.where(ServiceConnection.workspace_id == uuid.UUID(workspace_id))
+        except ValueError:
+            pass
+    result = await db.execute(query)
     conn = result.scalar_one_or_none()
     if not conn:
         return RedirectResponse(url=f"{settings.FRONTEND_URL}/connections?error=connection_not_found")
@@ -286,13 +293,13 @@ async def oauth_callback(
 
 
 @router.get("/{connection_id}/connect-url")
-async def get_connect_url(connection_id: str, request: Request, db: AsyncSession = Depends(get_db)):
+async def get_connect_url(connection_id: str, request: Request, workspace: Workspace = Depends(get_current_workspace), db: AsyncSession = Depends(get_db)):
     """
     Initiates the Connected Accounts flow via Auth0 My Account API.
     If no user token is provided, falls back to standard authorize URL.
     """
     result = await db.execute(
-        select(ServiceConnection).where(ServiceConnection.id == uuid.UUID(connection_id))
+        select(ServiceConnection).where(ServiceConnection.id == uuid.UUID(connection_id), ServiceConnection.workspace_id == workspace.id)
     )
     conn = result.scalar_one_or_none()
     if not conn:
@@ -329,7 +336,7 @@ async def get_connect_url(connection_id: str, request: Request, db: AsyncSession
                     json={
                         "connection": auth0_connection,
                         "redirect_uri": callback_url,
-                        "state": connection_id,
+                        "state": f"{connection_id}:{workspace.id}",
                     },
                 )
                 logger.debug(f"Connected Accounts API: {resp.status_code}")
@@ -362,7 +369,7 @@ async def get_connect_url(connection_id: str, request: Request, db: AsyncSession
         "response_type": "code",
         "scope":         scope,
         "connection":    auth0_connection,
-        "state":         connection_id,
+        "state":         f"{connection_id}:{workspace.id}",
         "redirect_uri":  legacy_callback,
     })
     url = f"https://{settings.AUTH0_DOMAIN}/authorize?{params}"
@@ -400,7 +407,11 @@ async def connected_accounts_callback(
     if not connect_code or not state:
         return RedirectResponse(url=f"{settings.FRONTEND_URL}/connections?error=missing_connect_code")
 
-    connection_id = state
+    # State format: connection_id:workspace_id
+    parts = state.split(":", 1)
+    connection_id = parts[0]
+    workspace_id = parts[1] if len(parts) > 1 else None
+
     import json as _json
     r = await _get_session_redis()
     raw = await r.getdel(f"auth_session:{connection_id}")
@@ -416,9 +427,13 @@ async def connected_accounts_callback(
     except ValueError:
         return RedirectResponse(url=f"{settings.FRONTEND_URL}/connections?error=invalid_state")
 
-    result = await db.execute(
-        select(ServiceConnection).where(ServiceConnection.id == conn_uuid)
-    )
+    query = select(ServiceConnection).where(ServiceConnection.id == conn_uuid)
+    if workspace_id:
+        try:
+            query = query.where(ServiceConnection.workspace_id == uuid.UUID(workspace_id))
+        except ValueError:
+            pass
+    result = await db.execute(query)
     conn = result.scalar_one_or_none()
     if not conn:
         return RedirectResponse(url=f"{settings.FRONTEND_URL}/connections?error=connection_not_found")

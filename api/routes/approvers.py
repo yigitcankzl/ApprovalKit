@@ -221,10 +221,10 @@ async def set_delegation(
     if not approver:
         raise HTTPException(status_code=404, detail="Approver not found")
 
-    delegate_result = await db.execute(select(Approver).where(Approver.id == data.delegate_to))
+    delegate_result = await db.execute(select(Approver).where(Approver.id == data.delegate_to, Approver.workspace_id == ws.id))
     delegate = delegate_result.scalar_one_or_none()
     if not delegate:
-        raise HTTPException(status_code=404, detail="Delegate approver not found")
+        raise HTTPException(status_code=404, detail="Delegate approver not found in your workspace")
 
     approver.delegate_to = data.delegate_to
     approver.delegate_from = datetime.fromisoformat(data.delegate_from)
