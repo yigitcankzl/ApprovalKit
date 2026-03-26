@@ -492,3 +492,78 @@ async def submit_web_decision(
         )
 
     return {"status": decision + "d", "job_id": job_id, "execution": execution_result}
+
+
+@router.post("/jobs/batch-decision")
+async def batch_decision(
+    body: dict,
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    redis_client: aioredis.Redis = Depends(get_redis),
+):
+    """Approve or reject multiple jobs at once.
+
+    Body: {"job_ids": ["id1", "id2", ...], "decision": "approve"|"reject", "note": "..."}
+
+    Returns {"results": [{"job_id": ..., "status": ..., "error": ...}, ...]}.
+    Max 50 jobs per batch.
+    """
+    job_ids = body.get("job_ids", [])
+    decision = body.get("decision", "approve")
+    note = body.get("note", "Batch decision")
+
+    if not job_ids:
+        raise HTTPException(status_code=400, detail="job_ids required")
+    if len(job_ids) > 50:
+        raise HTTPException(status_code=400, detail="Maximum 50 jobs per batch")
+    if decision not in ("approve", "reject"):
+        raise HTTPException(status_code=400, detail="decision must be 'approve' or 'reject'")
+
+    results = []
+    pending_states = {JobState.PENDING, JobState.CIBA_SENT, JobState.WAITING_APPROVAL, JobState.PARTIALLY_APPROVED}
+
+    for jid in job_ids:
+        try:
+            result = await db.execute(
+                select(ApprovalJob).where(
+                    ApprovalJob.id == uuid.UUID(jid),
+                    ApprovalJob.workspace_id == workspace.id,
+                )
+            )
+            job = result.scalar_one_or_none()
+            if not job:
+                results.append({"job_id": jid, "status": "error", "error": "not_found"})
+                continue
+            if job.state not in pending_states:
+                results.append({"job_id": jid, "status": "error", "error": f"invalid_state: {job.state.value}"})
+                continue
+
+            new_state = JobState.APPROVED if decision == "approve" else JobState.REJECTED
+            job.state = new_state
+            job.completed_at = datetime.utcnow()
+
+            event_type = AuditEventType.APPROVED if decision == "approve" else AuditEventType.REJECTED
+            db.add(AuditLog(
+                job_id=job.id, workspace_id=workspace.id,
+                event_type=event_type, note=f"Batch: {note}",
+            ))
+
+            results.append({"job_id": jid, "status": decision + "d"})
+        except Exception as e:
+            results.append({"job_id": jid, "status": "error", "error": str(e)})
+
+    await db.commit()
+
+    approved_count = sum(1 for r in results if r["status"] == "approved")
+    rejected_count = sum(1 for r in results if r["status"] == "rejected")
+    error_count = sum(1 for r in results if r["status"] == "error")
+
+    return {
+        "results": results,
+        "summary": {
+            "total": len(job_ids),
+            "approved": approved_count,
+            "rejected": rejected_count,
+            "errors": error_count,
+        },
+    }
