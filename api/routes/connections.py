@@ -130,10 +130,10 @@ def _conn_to_dict(c: ServiceConnection) -> dict:
         "is_active":           c.is_active,
         "has_webhook":         c.webhook_url is not None,
         "webhook_method":      c.webhook_method,
-        "has_m2m":             c.m2m_api_key is not None,
+        "has_m2m":             c.m2m_api_key is not None or (c.m2m_client_id is not None and c.m2m_token_url is not None),
         "m2m_client_id":       c.m2m_client_id,
         "m2m_token_url":       c.m2m_token_url,
-        "connected_via":       "auth0" if c.connected_auth0_user_id else ("m2m" if c.m2m_api_key else ("webhook" if c.webhook_url else None)),
+        "connected_via":       "auth0" if c.connected_auth0_user_id else ("m2m" if (c.m2m_client_id and c.m2m_token_url) else ("webhook" if c.webhook_url else None)),
         "created_at":          c.created_at.isoformat(),
     }
 
