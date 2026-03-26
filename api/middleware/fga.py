@@ -18,11 +18,15 @@ _fga_configured = bool(settings.FGA_STORE_ID and settings.FGA_API_URL)
 
 
 def _require_fga_user(x_fga_user: str | None) -> str | None:
-    """If FGA is configured, require the header. Skip check if FGA is off."""
+    """
+    If FGA is configured AND header is present → enforce check.
+    If FGA is configured but header is absent → skip (dashboard calls rely on workspace auth).
+    If FGA is not configured → skip (dev mode).
+    """
     if not _fga_configured:
-        return None  # FGA not set up — allow all (dev mode)
+        return None
     if not x_fga_user:
-        raise HTTPException(status_code=403, detail="FGA: X-Fga-User header required")
+        return None  # Dashboard calls don't send FGA header — workspace auth is sufficient
     return x_fga_user
 
 
