@@ -126,11 +126,14 @@ def _conn_to_dict(c: ServiceConnection) -> dict:
         "service":             c.service,
         "actions":             c.actions or [],
         "has_credentials":     c.connected_auth0_user_id is not None,
-        "connected_via":       "auth0" if c.connected_auth0_user_id else ("webhook" if c.webhook_url else None),
         "connected_user_name": c.connected_user_name,
         "is_active":           c.is_active,
         "has_webhook":         c.webhook_url is not None,
         "webhook_method":      c.webhook_method,
+        "has_m2m":             c.m2m_api_key is not None,
+        "m2m_client_id":       c.m2m_client_id,
+        "m2m_token_url":       c.m2m_token_url,
+        "connected_via":       "auth0" if c.connected_auth0_user_id else ("m2m" if c.m2m_api_key else ("webhook" if c.webhook_url else None)),
         "created_at":          c.created_at.isoformat(),
     }
 
@@ -150,6 +153,10 @@ class CreateConnectionRequest(BaseModel):
     webhook_method: str | None = None       # GET/POST/PUT/PATCH/DELETE
     webhook_headers: dict | None = None     # {"Authorization": "Bearer {{token}}"}
     webhook_body_template: dict | None = None  # {"amount": "{{amount}}"}
+    # M2M Credential Vault (optional — for client_credentials APIs like Amadeus, Twilio, AWS)
+    m2m_api_key: str | None = None          # will be encrypted at rest
+    m2m_client_id: str | None = None
+    m2m_token_url: str | None = None
 
 
 @router.post("", status_code=201)
@@ -175,6 +182,9 @@ async def create_connection(body: CreateConnectionRequest, workspace: Workspace 
         webhook_method=body.webhook_method,
         webhook_headers=body.webhook_headers,
         webhook_body_template=body.webhook_body_template,
+        m2m_api_key=encrypt_secret(body.m2m_api_key) if body.m2m_api_key else None,
+        m2m_client_id=body.m2m_client_id,
+        m2m_token_url=body.m2m_token_url,
     )
     db.add(conn)
     await db.commit()

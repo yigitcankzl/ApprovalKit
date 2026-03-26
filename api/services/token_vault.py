@@ -54,6 +54,11 @@ _PROVIDER_MAP = {
     "amazon":     "amazon",
     "paypal":     "paypal",
     "freshbooks": "freshbooks",
+    # M2M Credential Vault providers (not Auth0 Token Vault — use client_credentials)
+    "amadeus":    "amadeus",
+    "twilio":     "twilio",
+    "sendgrid":   "sendgrid",
+    "aws":        "aws",
 }
 
 
@@ -760,6 +765,71 @@ async def _execute_webhook(conn_obj, action: str, params: dict, creds: dict) -> 
         }
 
 
+async def _execute_amadeus(action: str, params: dict, creds: dict) -> dict:
+    """Amadeus Self-Service API handler (M2M credential vault).
+
+    Supports: search_flights, search_hotels.
+    Uses access_token from client_credentials grant (not Auth0 Token Vault).
+    """
+    token = creds.get("access_token") or creds.get("token")
+    if not token:
+        raise ValueError("No Amadeus access token available")
+
+    headers = {"Authorization": f"Bearer {token}"}
+    base = "https://test.api.amadeus.com"
+
+    async with httpx.AsyncClient(base_url=base, timeout=15, headers=headers) as c:
+        if action == "search_flights":
+            origin = params.get("origin", "IST")
+            destination = params.get("destination", "JFK")
+            date = params.get("date", "2026-04-15")
+            adults = params.get("adults", 1)
+            r = await c.get("/v2/shopping/flight-offers", params={
+                "originLocationCode": origin,
+                "destinationLocationCode": destination,
+                "departureDate": date,
+                "adults": adults,
+                "max": params.get("max_results", 5),
+            })
+            if r.status_code != 200:
+                raise RuntimeError(f"Amadeus search_flights failed ({r.status_code}): {r.text[:200]}")
+            data = r.json()
+            offers = [
+                {
+                    "price": float(o["price"]["total"]),
+                    "currency": o["price"]["currency"],
+                    "airline": o.get("validatingAirlineCodes", ["??"])[0],
+                    "segments": len(o["itineraries"][0]["segments"]) if o.get("itineraries") else 0,
+                    "duration": o["itineraries"][0].get("duration", "") if o.get("itineraries") else "",
+                }
+                for o in data.get("data", [])[:5]
+            ]
+            return {"success": True, "action": "search_flights", "offers": offers, "count": len(offers)}
+
+        elif action == "search_hotels":
+            city_code = params.get("city_code", "PAR")
+            r = await c.get("/v1/reference-data/locations/hotels/by-city", params={
+                "cityCode": city_code,
+                "radius": params.get("radius", 5),
+                "radiusUnit": "KM",
+            })
+            if r.status_code != 200:
+                raise RuntimeError(f"Amadeus search_hotels failed ({r.status_code}): {r.text[:200]}")
+            data = r.json()
+            hotels = [
+                {
+                    "name": h.get("name", "Unknown"),
+                    "hotel_id": h.get("hotelId", ""),
+                    "city": city_code,
+                }
+                for h in data.get("data", [])[:10]
+            ]
+            return {"success": True, "action": "search_hotels", "hotels": hotels, "count": len(hotels)}
+
+        else:
+            raise ValueError(f"Unsupported Amadeus action: {action}")
+
+
 _SERVICE_HANDLERS = {
     "stripe":     _execute_stripe,
     "github":     _execute_github,
@@ -779,6 +849,7 @@ _SERVICE_HANDLERS = {
     "hubspot":    _execute_hubspot,
     "shopify":    _execute_shopify,
     "paypal":     _execute_paypal,
+    "amadeus":    _execute_amadeus,
 }
 
 
@@ -864,6 +935,38 @@ class TokenVaultService:
             logger.warning(f"Token Vault Management API fallback failed: {e}")
         return None
 
+    async def get_token_via_m2m(
+        self, token_url: str, client_id: str, client_secret: str,
+    ) -> str | None:
+        """
+        Credential Vault: M2M client_credentials token retrieval.
+
+        For APIs that don't support user-delegated OAuth (Amadeus, Twilio, AWS, etc.).
+        Uses standard OAuth2 client_credentials grant to get a fresh access_token.
+        The API key/secret is stored encrypted in our DB (not in Auth0 Token Vault).
+        """
+        try:
+            async with httpx.AsyncClient(timeout=15) as c:
+                r = await c.post(
+                    token_url,
+                    data={
+                        "grant_type": "client_credentials",
+                        "client_id": client_id,
+                        "client_secret": client_secret,
+                    },
+                    headers={"Content-Type": "application/x-www-form-urlencoded"},
+                )
+                if r.status_code == 200:
+                    data = r.json()
+                    token = data.get("access_token")
+                    logger.info(f"Credential Vault: M2M token retrieved from {token_url}")
+                    return token
+                logger.warning(f"Credential Vault: M2M token request failed ({r.status_code}): {r.text[:200]}")
+                return None
+        except Exception as e:
+            logger.warning(f"Credential Vault: M2M token error for {token_url}: {e}")
+            return None
+
     async def execute_action(
         self,
         connection: str,
@@ -927,6 +1030,17 @@ class TokenVaultService:
                     if token:
                         creds = {"api_key": token, "token": token, "access_token": token}
                         logger.info(f"Token Vault: Management API fallback for {connection} (no refresh token)")
+
+                # Credential Vault: M2M client_credentials (Amadeus, Twilio, AWS, etc.)
+                if creds is None and conn_obj.m2m_token_url and conn_obj.m2m_client_id and conn_obj.m2m_api_key:
+                    m2m_secret = decrypt_secret(conn_obj.m2m_api_key)
+                    if m2m_secret:
+                        token = await self.get_token_via_m2m(
+                            conn_obj.m2m_token_url, conn_obj.m2m_client_id, m2m_secret,
+                        )
+                        if token:
+                            creds = {"api_key": token, "token": token, "access_token": token}
+                            logger.info(f"Credential Vault: M2M token for {connection} (agent never sees raw key)")
 
                 if creds is None:
                     logger.warning(f"Token Vault: no token for '{connection}'")
