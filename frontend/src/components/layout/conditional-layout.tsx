@@ -44,7 +44,7 @@ export function ConditionalLayout({ children }: { children: React.ReactNode }) {
       <>
         <Sidebar collapsed={collapsed} onToggle={toggle} />
         <main className={`${collapsed ? "ml-16" : "ml-64"} min-h-screen p-8 transition-all duration-200`}>
-          <div className="flex items-center justify-center h-40">
+          <div className="max-w-6xl mx-auto flex items-center justify-center h-40">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-zinc-400" />
           </div>
         </main>
@@ -56,7 +56,9 @@ export function ConditionalLayout({ children }: { children: React.ReactNode }) {
     <>
       <Sidebar collapsed={collapsed} onToggle={toggle} />
       <main className={`${collapsed ? "ml-16" : "ml-64"} min-h-screen p-8 transition-all duration-200`}>
-        {children}
+        <div className="max-w-6xl mx-auto">
+          {children}
+        </div>
       </main>
     </>
   );
