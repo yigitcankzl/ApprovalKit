@@ -181,8 +181,9 @@ export default function SetupPage() {
                   <li className="flex gap-2">
                     <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-[10px] font-bold flex items-center justify-center">1</span>
                     <div>
-                      <span><strong>M2M App:</strong> Applications &rarr; Create Application &rarr; Machine to Machine &rarr; Select <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded">Auth0 Management API</code> &rarr; Select scopes: read:users, update:users, read:connections, create:connections &rarr; Authorize</span>
-                      <p className="mt-1 text-green-700 dark:text-green-400 font-medium">Copy from this page: <strong>Client ID</strong> and <strong>Client Secret</strong> (click Reveal) &rarr; paste below as M2M Client ID / Secret</p>
+                      <span><strong>M2M App:</strong> Applications &rarr; Create Application &rarr; Machine to Machine &rarr; When asked &quot;Select an API&quot;, pick <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded">Auth0 Management API</code> &rarr; Click Authorize</span>
+                      <p className="mt-1 text-zinc-500 dark:text-zinc-400">Then on the app page: go to <strong>APIs</strong> tab &rarr; expand Auth0 Management API &rarr; select scopes: read:users, update:users, read:connections, create:connections &rarr; Update</p>
+                      <p className="mt-1 text-green-700 dark:text-green-400 font-medium">Then go to <strong>Settings</strong> tab &rarr; copy <strong>Client ID</strong> and <strong>Client Secret</strong> (click Reveal) &rarr; paste below</p>
                     </div>
                   </li>
                   <li className="flex gap-2">
