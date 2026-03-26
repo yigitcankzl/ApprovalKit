@@ -475,6 +475,58 @@ def check_geo_fence(
     return {"allowed": True, "country": country, "reason": None}
 
 
+async def resolve_agent_delegation(
+    agent_id: str, connection: str, action: str, db: AsyncSession,
+) -> dict:
+    """Resolve agent-to-agent delegation for a given connection/action.
+
+    An agent can delegate authority to sub-agents via its allowed_connections
+    config.  If the requesting agent is listed as a delegate, the parent
+    agent's permissions and budget are used instead.
+
+    Returns {"delegated": bool, "parent_agent_id": str|None, "chain": list[str]}.
+    """
+    from api.models.agent import RegisteredAgent
+
+    result = await db.execute(
+        select(RegisteredAgent).where(RegisteredAgent.id == agent_id)
+    )
+    agent = result.scalar_one_or_none()
+    if not agent:
+        return {"delegated": False, "parent_agent_id": None, "chain": []}
+
+    # Check if this agent has a delegation config
+    config = agent.allowed_connections
+    if not isinstance(config, dict):
+        return {"delegated": False, "parent_agent_id": None, "chain": [agent_id]}
+
+    delegates_to = config.get("_delegates_to")
+    if not delegates_to:
+        return {"delegated": False, "parent_agent_id": None, "chain": [agent_id]}
+
+    # Walk the delegation chain (max depth 5 to prevent cycles)
+    chain = [agent_id]
+    current_id = delegates_to
+    for _ in range(5):
+        chain.append(current_id)
+        parent_result = await db.execute(
+            select(RegisteredAgent).where(
+                RegisteredAgent.id == current_id,
+                RegisteredAgent.is_active.is_(True),
+            )
+        )
+        parent = parent_result.scalar_one_or_none()
+        if not parent:
+            break
+        parent_config = parent.allowed_connections
+        if isinstance(parent_config, dict) and parent_config.get("_delegates_to"):
+            current_id = parent_config["_delegates_to"]
+        else:
+            return {"delegated": True, "parent_agent_id": current_id, "chain": chain}
+
+    return {"delegated": len(chain) > 1, "parent_agent_id": chain[-1] if len(chain) > 1 else None, "chain": chain}
+
+
 def _ip_to_country_hint(ip: str) -> str:
     """Very rough IP-to-country hint for demo. NOT production-accurate."""
     # Common cloud/datacenter ranges — just a demo placeholder
