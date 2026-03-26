@@ -383,6 +383,64 @@ async def record_spending(
     await pipe.execute()
 
 
+def build_escalation_chain(rule: Rule) -> list[dict]:
+    """Build an SLA-based escalation chain from rule configuration.
+
+    Uses rule_approvers ordered by `order` field.  Each tier has an SLA
+    (timeout before escalating to the next tier).  The chain is derived
+    from the rule's timeout_seconds divided equally among tiers, or
+    custom SLA values from step_up_conditions if present.
+
+    Returns a list of dicts:
+    [
+        {"tier": 1, "approver_id": "...", "sla_seconds": 1800, "role": "manager"},
+        {"tier": 2, "approver_id": "...", "sla_seconds": 3600, "role": "director"},
+        {"tier": 3, "approver_id": "...", "sla_seconds": 3600, "role": "vp"},
+    ]
+    """
+    approvers = sorted(rule.rule_approvers, key=lambda ra: ra.order)
+    if not approvers:
+        return []
+
+    # Check for custom SLA chain in step_up_conditions
+    custom_chain = None
+    if rule.step_up_conditions and isinstance(rule.step_up_conditions, list):
+        for item in rule.step_up_conditions:
+            if isinstance(item, dict) and item.get("type") == "escalation_chain":
+                custom_chain = item.get("chain", [])
+                break
+
+    chain: list[dict] = []
+    total_timeout = rule.timeout_seconds or 300
+
+    for i, ra in enumerate(approvers):
+        tier = i + 1
+        if custom_chain and i < len(custom_chain):
+            sla = custom_chain[i].get("sla_seconds", total_timeout // len(approvers))
+            role = custom_chain[i].get("role", f"tier_{tier}")
+        else:
+            sla = total_timeout // len(approvers)
+            role = f"tier_{tier}"
+
+        chain.append({
+            "tier": tier,
+            "approver_id": str(ra.approver_id),
+            "sla_seconds": sla,
+            "role": role,
+        })
+
+    # Final tier gets escalate_to if configured
+    if rule.escalate_to and chain:
+        chain.append({
+            "tier": len(chain) + 1,
+            "approver_id": str(rule.escalate_to),
+            "sla_seconds": total_timeout,
+            "role": "final_escalation",
+        })
+
+    return chain
+
+
 def render_binding_message(template: str | None, params: dict) -> str:
     if not template:
         return f"Approval requested for action with params: {params}"
