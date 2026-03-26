@@ -65,3 +65,107 @@ WEBHOOK_EVENTS = {
     "job.scope_creep",
     "job.budget_exceeded",
 }
+
+
+async def notify_slack(
+    webhook_url: str,
+    title: str,
+    message: str,
+    color: str = "#2196F3",
+    fields: list[dict] | None = None,
+) -> bool:
+    """Send a Slack notification via incoming webhook.
+
+    ``webhook_url`` is a Slack Incoming Webhook URL
+    (https://hooks.slack.com/services/T.../B.../xxx).
+    """
+    attachment = {
+        "color": color,
+        "title": title,
+        "text": message,
+        "ts": int(time.time()),
+    }
+    if fields:
+        attachment["fields"] = fields
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.post(webhook_url, json={"attachments": [attachment]})
+            if r.status_code == 200:
+                logger.info(f"Slack notification sent: {title}")
+                return True
+            logger.warning(f"Slack webhook returned {r.status_code}: {r.text[:100]}")
+    except Exception as e:
+        logger.warning(f"Slack notification failed: {e}")
+    return False
+
+
+async def notify_email(
+    to: str,
+    subject: str,
+    body: str,
+    smtp_host: str = "localhost",
+    smtp_port: int = 587,
+    smtp_user: str = "",
+    smtp_pass: str = "",
+    from_addr: str = "approvalkit@noreply.local",
+) -> bool:
+    """Send an email notification via SMTP.
+
+    For production, configure with a real SMTP provider (SendGrid, SES, etc.).
+    Falls back to logging if SMTP is not configured.
+    """
+    if not smtp_user:
+        logger.info(f"Email notification (no SMTP configured): to={to} subject={subject}")
+        return True  # Log-only mode
+
+    try:
+        import smtplib
+        from email.mime.text import MIMEText
+
+        msg = MIMEText(body)
+        msg["Subject"] = subject
+        msg["From"] = from_addr
+        msg["To"] = to
+
+        with smtplib.SMTP(smtp_host, smtp_port) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_pass)
+            server.send_message(msg)
+        logger.info(f"Email sent: {subject} → {to}")
+        return True
+    except Exception as e:
+        logger.warning(f"Email notification failed: {e}")
+        return False
+
+
+async def notify_approval_requested(
+    job_connection: str,
+    job_action: str,
+    binding_message: str,
+    approver_name: str,
+    slack_webhook_url: str | None = None,
+    email_to: str | None = None,
+):
+    """Send approval notification via available channels (Slack + email)."""
+    title = f"Approval Required: {job_connection}/{job_action}"
+
+    if slack_webhook_url:
+        await notify_slack(
+            webhook_url=slack_webhook_url,
+            title=title,
+            message=binding_message,
+            color="#FF9800",
+            fields=[
+                {"title": "Approver", "value": approver_name, "short": True},
+                {"title": "Action", "value": f"{job_connection}/{job_action}", "short": True},
+            ],
+        )
+
+    if email_to:
+        await notify_email(
+            to=email_to,
+            subject=f"[ApprovalKit] {title}",
+            body=f"An approval is waiting for you.\n\n{binding_message}\n\nApprover: {approver_name}\nAction: {job_connection}/{job_action}\n\nLog in to the dashboard to approve or reject.",
+        )
+
