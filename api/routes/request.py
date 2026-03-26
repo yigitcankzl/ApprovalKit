@@ -15,6 +15,7 @@ from api.models.approval_job import ApprovalJob, AuditLog, AuditEventType, JobSt
 from api.models.connection import ServiceConnection
 from api.constants import REDIS_KEY_IDEMPOTENCY
 from api.middleware.workspace import get_current_workspace
+from api.services.pii import mask_text, mask_params
 from api.schemas.request import ApprovalRequest, ApprovalResponse, JobStatusResponse
 from api.services.rule_engine import (
     find_matching_rule,
@@ -157,7 +158,7 @@ async def submit_approval_request(
         job_id=job.id,
         workspace_id=workspace.id,
         event_type=AuditEventType.REQUESTED,
-        binding_message=render_binding_message(rule.context_template, request.params),
+        binding_message=mask_text(render_binding_message(rule.context_template, request.params)),
     )
     db.add(audit)
 
@@ -326,8 +327,8 @@ async def modify_job_params(
         job_id=job.id,
         workspace_id=workspace.id,
         event_type=AuditEventType.REQUESTED,
-        note=f"params_modified by approver",
-        modified_params=modified,
+        note="params_modified by approver",
+        modified_params=mask_params(modified),
     )
     db.add(audit)
     await db.commit()
@@ -462,8 +463,8 @@ async def submit_web_decision(
         job_id=job.id,
         workspace_id=job.workspace_id,
         event_type=event_type,
-        note=note,
-        modified_params=modified_params,
+        note=mask_text(note) if note else note,
+        modified_params=mask_params(modified_params),
     )
     db.add(audit)
     await db.commit()

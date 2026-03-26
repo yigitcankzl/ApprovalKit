@@ -353,25 +353,28 @@ class TokenVaultService:
                 service = conn_obj.service.lower()
                 provider = _PROVIDER_MAP.get(service)
 
-                # Try Token Exchange first (preferred, RFC 8693)
+                # Try Token Exchange (preferred, RFC 8693)
                 refresh_tok = decrypt_secret(conn_obj.auth0_refresh_token)
-                if refresh_tok and provider:
+                exchange_attempted = bool(refresh_tok and provider)
+
+                if exchange_attempted:
                     token = await self.get_token_via_exchange(provider, refresh_tok)
                     if token:
                         creds = {"api_key": token, "token": token, "access_token": token}
-                        logger.info(f"Token Vault: using Token Exchange for {connection}")
+                        logger.info(f"Token Vault: Token Exchange succeeded for {connection}")
+                    else:
+                        # Token Exchange failed (expired/revoked) — do NOT fall back
+                        logger.warning(f"Token Vault: Token Exchange failed for {connection} — user must reconnect")
 
-                # Fallback to Management API if Token Exchange unavailable
-                if creds is None and conn_obj.connected_auth0_user_id and provider:
+                # Management API ONLY when no refresh token exists (legacy connection)
+                if not exchange_attempted and creds is None and conn_obj.connected_auth0_user_id and provider:
                     token = await self.get_token_from_auth0(provider, conn_obj.connected_auth0_user_id)
                     if token:
                         creds = {"api_key": token, "token": token, "access_token": token}
+                        logger.info(f"Token Vault: Management API fallback for {connection} (no refresh token)")
 
-                if creds is None and conn_obj.connected_auth0_user_id:
-                    logger.warning(
-                        f"Token Vault: no token for '{connection}' — "
-                        f"reconnect via /connections to get refresh token"
-                    )
+                if creds is None:
+                    logger.warning(f"Token Vault: no token for '{connection}'")
 
         if creds is None:
             logger.warning(f"No Auth0 token available for connection '{connection}' (service={service})")

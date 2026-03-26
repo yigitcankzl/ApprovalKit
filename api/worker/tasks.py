@@ -15,6 +15,7 @@ from api.models.rule import Rule, ApprovalModel
 from api.services.ciba import ciba_service
 from api.services.token_vault import token_vault_service
 from api.services.rule_engine import render_binding_message, evaluate_conditions
+from api.services.pii import mask_params
 from api.middleware.rate_limit import rate_limiter
 
 
@@ -350,7 +351,7 @@ async def _process_job(job_id: str):
                     approver_id=approver_obj.id if approver_obj and hasattr(approver_obj, "id") else None,
                     event_type=AuditEventType.APPROVED,
                     note=exec_note,
-                    modified_params=job.final_params if params_changed else None,
+                    modified_params=mask_params(job.final_params) if params_changed else None,
                 )
                 session.add(audit)
                 await _publish("approved", job, exec_note=exec_note or "")
