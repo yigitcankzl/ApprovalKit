@@ -453,9 +453,9 @@ async def connected_accounts_callback(
 
 
 @router.get("/{connection_id}")
-async def get_connection(connection_id: str, db: AsyncSession = Depends(get_db)):
+async def get_connection(connection_id: str, workspace: Workspace = Depends(get_current_workspace), db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(ServiceConnection).where(ServiceConnection.id == uuid.UUID(connection_id))
+        select(ServiceConnection).where(ServiceConnection.id == uuid.UUID(connection_id), ServiceConnection.workspace_id == workspace.id)
     )
     conn = result.scalar_one_or_none()
     if not conn:
@@ -464,10 +464,10 @@ async def get_connection(connection_id: str, db: AsyncSession = Depends(get_db))
 
 
 @router.delete("/{connection_id}/auth", status_code=200)
-async def disconnect_auth(connection_id: str, db: AsyncSession = Depends(get_db)):
+async def disconnect_auth(connection_id: str, workspace: Workspace = Depends(get_current_workspace), db: AsyncSession = Depends(get_db)):
     """Remove the Auth0 Token Vault link from this connection."""
     result = await db.execute(
-        select(ServiceConnection).where(ServiceConnection.id == uuid.UUID(connection_id))
+        select(ServiceConnection).where(ServiceConnection.id == uuid.UUID(connection_id), ServiceConnection.workspace_id == workspace.id)
     )
     conn = result.scalar_one_or_none()
     if not conn:
@@ -481,10 +481,10 @@ async def disconnect_auth(connection_id: str, db: AsyncSession = Depends(get_db)
 
 
 @router.delete("/{connection_id}", status_code=200)
-async def delete_connection(connection_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_connection(connection_id: str, workspace: Workspace = Depends(get_current_workspace), db: AsyncSession = Depends(get_db)):
     """Permanently delete a service connection."""
     result = await db.execute(
-        select(ServiceConnection).where(ServiceConnection.id == uuid.UUID(connection_id))
+        select(ServiceConnection).where(ServiceConnection.id == uuid.UUID(connection_id), ServiceConnection.workspace_id == workspace.id)
     )
     conn = result.scalar_one_or_none()
     if not conn:

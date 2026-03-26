@@ -379,15 +379,15 @@ async def get_job_status(
 
 
 @router.get("/jobs/pending")
-async def get_pending_jobs(db: AsyncSession = Depends(get_db)):
-    """List pending approval jobs for dashboard display."""
+async def get_pending_jobs(workspace: Workspace = Depends(get_current_workspace), db: AsyncSession = Depends(get_db)):
+    """List pending approval jobs — workspace-scoped."""
     pending_states = [
         JobState.PENDING, JobState.CIBA_SENT,
         JobState.WAITING_APPROVAL, JobState.PARTIALLY_APPROVED,
     ]
     result = await db.execute(
         select(ApprovalJob)
-        .where(ApprovalJob.state.in_(pending_states))
+        .where(ApprovalJob.workspace_id == workspace.id, ApprovalJob.state.in_(pending_states))
         .order_by(ApprovalJob.created_at.desc())
         .limit(20)
     )

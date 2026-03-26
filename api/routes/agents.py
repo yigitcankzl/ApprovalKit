@@ -133,14 +133,19 @@ async def create_agent(body: AgentIn, db: AsyncSession = Depends(get_db)):
     return _agent_to_dict(agent, include_key=True)
 
 
-@router.post("/{agent_id}/scenarios", status_code=201)
-async def add_scenario(agent_id: str, body: ScenarioIn, db: AsyncSession = Depends(get_db)):
+async def _get_agent_for_workspace(agent_id: str, ws: Workspace, db: AsyncSession) -> RegisteredAgent:
     result = await db.execute(
-        select(RegisteredAgent).where(RegisteredAgent.id == uuid.UUID(agent_id))
+        select(RegisteredAgent).where(RegisteredAgent.id == uuid.UUID(agent_id), RegisteredAgent.workspace_id == ws.id)
     )
     agent = result.scalar_one_or_none()
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
+    return agent
+
+
+@router.post("/{agent_id}/scenarios", status_code=201)
+async def add_scenario(agent_id: str, body: ScenarioIn, ws: Workspace = Depends(_get_workspace), db: AsyncSession = Depends(get_db)):
+    agent = await _get_agent_for_workspace(agent_id, ws, db)
 
     scenario = AgentScenario(
         agent_id=agent.id,
@@ -155,8 +160,9 @@ async def add_scenario(agent_id: str, body: ScenarioIn, db: AsyncSession = Depen
 
 
 @router.put("/{agent_id}/scenarios/{scenario_id}")
-async def update_scenario(agent_id: str, scenario_id: str, body: ScenarioIn, db: AsyncSession = Depends(get_db)):
+async def update_scenario(agent_id: str, scenario_id: str, body: ScenarioIn, ws: Workspace = Depends(_get_workspace), db: AsyncSession = Depends(get_db)):
     """Update an existing scenario on an agent."""
+    await _get_agent_for_workspace(agent_id, ws, db)  # verify ownership
     result = await db.execute(
         select(AgentScenario).where(
             AgentScenario.id == uuid.UUID(scenario_id),
@@ -175,8 +181,9 @@ async def update_scenario(agent_id: str, scenario_id: str, body: ScenarioIn, db:
 
 
 @router.delete("/{agent_id}/scenarios/{scenario_id}", status_code=204)
-async def delete_scenario(agent_id: str, scenario_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_scenario(agent_id: str, scenario_id: str, ws: Workspace = Depends(_get_workspace), db: AsyncSession = Depends(get_db)):
     """Delete a scenario from an agent."""
+    await _get_agent_for_workspace(agent_id, ws, db)
     result = await db.execute(
         select(AgentScenario).where(
             AgentScenario.id == uuid.UUID(scenario_id),
@@ -191,40 +198,25 @@ async def delete_scenario(agent_id: str, scenario_id: str, db: AsyncSession = De
 
 
 @router.delete("/{agent_id}", status_code=204)
-async def delete_agent(agent_id: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
-        select(RegisteredAgent).where(RegisteredAgent.id == uuid.UUID(agent_id))
-    )
-    agent = result.scalar_one_or_none()
-    if not agent:
-        raise HTTPException(status_code=404, detail="Agent not found")
+async def delete_agent(agent_id: str, ws: Workspace = Depends(_get_workspace), db: AsyncSession = Depends(get_db)):
+    agent = await _get_agent_for_workspace(agent_id, ws, db)
     await db.delete(agent)
     await db.commit()
 
 
 @router.post("/{agent_id}/regenerate-key")
-async def regenerate_api_key(agent_id: str, db: AsyncSession = Depends(get_db)):
+async def regenerate_api_key(agent_id: str, ws: Workspace = Depends(_get_workspace), db: AsyncSession = Depends(get_db)):
     """Generate a new API key for this agent. Old key stops working immediately."""
-    result = await db.execute(
-        select(RegisteredAgent).where(RegisteredAgent.id == uuid.UUID(agent_id))
-    )
-    agent = result.scalar_one_or_none()
-    if not agent:
-        raise HTTPException(status_code=404, detail="Agent not found")
+    agent = await _get_agent_for_workspace(agent_id, ws, db)
     agent.api_key = f"ak_{secrets.token_urlsafe(32)}"
     await db.commit()
     return {"api_key": agent.api_key}
 
 
 @router.post("/{agent_id}/revoke")
-async def revoke_agent(agent_id: str, db: AsyncSession = Depends(get_db)):
+async def revoke_agent(agent_id: str, ws: Workspace = Depends(_get_workspace), db: AsyncSession = Depends(get_db)):
     """Disable this agent's API key. Agent can no longer make requests."""
-    result = await db.execute(
-        select(RegisteredAgent).where(RegisteredAgent.id == uuid.UUID(agent_id))
-    )
-    agent = result.scalar_one_or_none()
-    if not agent:
-        raise HTTPException(status_code=404, detail="Agent not found")
+    agent = await _get_agent_for_workspace(agent_id, ws, db)
     agent.is_active = False
     agent.api_key = None
     await db.commit()
