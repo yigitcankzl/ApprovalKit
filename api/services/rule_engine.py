@@ -441,6 +441,62 @@ def build_escalation_chain(rule: Rule) -> list[dict]:
     return chain
 
 
+def check_geo_fence(
+    client_ip: str | None,
+    allowed_countries: list[str] | None = None,
+    blocked_countries: list[str] | None = None,
+) -> dict:
+    """Check if a request's origin IP falls within allowed/blocked geo regions.
+
+    Returns {"allowed": bool, "country": str|None, "reason": str|None}.
+
+    Uses a lightweight heuristic based on IP ranges for common regions.
+    For production, integrate with MaxMind GeoIP2 or similar.
+    """
+    if not client_ip or (not allowed_countries and not blocked_countries):
+        return {"allowed": True, "country": None, "reason": None}
+
+    # Lightweight IP-to-country mapping (for demo purposes).
+    # Production should use MaxMind GeoIP2 database.
+    country = _ip_to_country_hint(client_ip)
+
+    if blocked_countries and country in blocked_countries:
+        return {
+            "allowed": False,
+            "country": country,
+            "reason": f"Country '{country}' is in blocked list",
+        }
+    if allowed_countries and country not in allowed_countries:
+        return {
+            "allowed": False,
+            "country": country,
+            "reason": f"Country '{country}' is not in allowed list: {', '.join(allowed_countries)}",
+        }
+    return {"allowed": True, "country": country, "reason": None}
+
+
+def _ip_to_country_hint(ip: str) -> str:
+    """Very rough IP-to-country hint for demo. NOT production-accurate."""
+    # Common cloud/datacenter ranges — just a demo placeholder
+    parts = ip.split(".")
+    if len(parts) != 4:
+        return "UNKNOWN"
+    try:
+        first = int(parts[0])
+    except ValueError:
+        return "UNKNOWN"
+    # Rough heuristic (demo only)
+    if first in (3, 52, 54):
+        return "US"  # AWS US ranges
+    if first in (35, 34):
+        return "EU"  # GCP EU ranges
+    if first in (13, 20, 40, 104):
+        return "US"
+    if first in (51, 18):
+        return "AP"  # Asia-Pacific
+    return "UNKNOWN"
+
+
 def render_binding_message(template: str | None, params: dict) -> str:
     if not template:
         return f"Approval requested for action with params: {params}"
