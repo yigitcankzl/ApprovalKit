@@ -63,6 +63,10 @@ function ConnectionsContent() {
   const [infoPopup, setInfoPopup] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  // Add connection modal
+  const [showAdd, setShowAdd] = useState(false);
+  const [addSaving, setAddSaving] = useState<string | null>(null);
+
   // Custom connection modal
   const [showCustom, setShowCustom] = useState(false);
   const [customName, setCustomName] = useState("");
@@ -137,6 +141,38 @@ function ConnectionsContent() {
     }
   };
 
+  const PREDEFINED_SERVICES = [
+    { id: "stripe", name: "Stripe", slug: "stripe-prod", actions: ["charge", "refund", "payout"] },
+    { id: "github", name: "GitHub", slug: "github-main", actions: ["deploy", "rollback", "merge_pr"] },
+    { id: "slack", name: "Slack", slug: "slack", actions: ["send_message", "create_channel"] },
+    { id: "google", name: "Google (Gmail/Calendar)", slug: "google", actions: ["send_email", "create_event", "read_drive"] },
+    { id: "microsoft", name: "Microsoft (Outlook/OneDrive)", slug: "microsoft", actions: ["send_email", "create_event", "upload_file"] },
+    { id: "salesforce", name: "Salesforce", slug: "salesforce", actions: ["create_deal", "update_contact"] },
+    { id: "notion", name: "Notion", slug: "notion", actions: ["create_page", "update_database"] },
+    { id: "jira", name: "Jira", slug: "jira", actions: ["create_issue", "update_issue", "transition"] },
+    { id: "discord", name: "Discord", slug: "discord", actions: ["send_message"] },
+    { id: "linear", name: "Linear", slug: "linear", actions: ["create_issue", "update_status"] },
+    { id: "hubspot", name: "HubSpot", slug: "hubspot", actions: ["create_contact", "create_deal"] },
+    { id: "shopify", name: "Shopify", slug: "shopify", actions: ["create_order", "update_product"] },
+    { id: "paypal", name: "PayPal", slug: "paypal", actions: ["send_payment", "create_invoice"] },
+    { id: "dropbox", name: "Dropbox", slug: "dropbox", actions: ["upload_file", "share_folder"] },
+    { id: "asana", name: "Asana", slug: "asana", actions: ["create_task", "complete_task"] },
+  ];
+
+  const existingSlugs = new Set(connections.map(c => c.slug));
+
+  const handleAddService = async (svc: typeof PREDEFINED_SERVICES[0]) => {
+    setAddSaving(svc.id);
+    try {
+      await api.createConnection({ name: svc.name, service: svc.id, slug: svc.slug, actions: svc.actions });
+      load();
+    } catch (e: any) {
+      setError(e.message || "Failed to add connection");
+    } finally {
+      setAddSaving(null);
+    }
+  };
+
   const handleSaveCustom = async () => {
     if (!customName.trim()) { setCustomError("Name is required."); return; }
     if (!customSlug.trim()) { setCustomError("Slug is required."); return; }
@@ -183,9 +219,14 @@ function ConnectionsContent() {
             Connect services via Auth0 Token Vault — no API keys stored, ever.
           </p>
         </div>
-        <Button onClick={() => setShowCustom(true)}>
-          <Plus className="h-4 w-4 mr-2" /> Custom Connection
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowAdd(true)}>
+            <Plus className="h-4 w-4 mr-2" /> Add Service
+          </Button>
+          <Button onClick={() => setShowCustom(true)}>
+            <Webhook className="h-4 w-4 mr-2" /> Custom Webhook
+          </Button>
+        </div>
       </div>
 
       {successSlug && (
@@ -427,6 +468,54 @@ function ConnectionsContent() {
           </div>
         );
       })()}
+
+      {/* Add Service Modal */}
+      {showAdd && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowAdd(false)}>
+          <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-xl p-6 max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">Add Service Connection</h3>
+              <button onClick={() => setShowAdd(false)} className="text-zinc-400 hover:text-zinc-600"><X className="h-4 w-4" /></button>
+            </div>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
+              Select a service to connect via Auth0 Token Vault. Built-in handlers execute actions automatically after approval.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {PREDEFINED_SERVICES.map(svc => {
+                const exists = existingSlugs.has(svc.slug);
+                return (
+                  <button
+                    key={svc.id}
+                    disabled={exists || addSaving === svc.id}
+                    onClick={() => handleAddService(svc)}
+                    className={`p-3 rounded-lg border text-left transition-colors ${
+                      exists
+                        ? "border-zinc-100 dark:border-zinc-800 opacity-50 cursor-not-allowed"
+                        : "border-zinc-200 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-500"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-sm text-zinc-900 dark:text-zinc-100">{svc.name}</span>
+                      {exists && <Badge variant="default" className="text-[10px]">Added</Badge>}
+                      {addSaving === svc.id && <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-zinc-900 dark:border-zinc-100" />}
+                    </div>
+                    <div className="flex gap-1 mt-1.5 flex-wrap">
+                      {svc.actions.map(a => (
+                        <span key={a} className="text-[10px] bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 px-1.5 py-0.5 rounded">{a}</span>
+                      ))}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-4 pt-3 border-t border-zinc-200 dark:border-zinc-700 text-center">
+              <button onClick={() => { setShowAdd(false); setShowCustom(true); }} className="text-sm text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300">
+                Need a different service? <span className="underline">Add Custom Webhook</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Custom Connection Modal */}
       {showCustom && (
