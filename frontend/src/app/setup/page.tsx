@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { FormError } from "@/components/ui/form-error";
 import { CheckCircle2, ArrowRight, Shield, Link2, GitBranch, Copy, Check, Loader2 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, setUserSub } from "@/lib/api";
 
 const steps = [
   { number: 1, title: "Connect Auth0", icon: Shield },
@@ -57,6 +57,8 @@ export default function SetupPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.push("/auth/login?returnTo=/setup"); return; }
+    // Set user sub before any API call (setup page bypasses ConditionalLayout auth guard)
+    setUserSub(user.sub ?? null);
     api.getWorkspace()
       .then(() => router.replace("/dashboard"))
       .catch(() => setChecking(false));
