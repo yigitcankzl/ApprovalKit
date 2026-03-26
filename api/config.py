@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     # Auto-derived from HMAC_SECRET when empty.
     CREDENTIALS_KEY: str = ""
 
+    # HashiCorp Vault (Credential Vault for M2M API keys)
+    VAULT_URL: str = ""
+    VAULT_TOKEN: str = ""
+
     # Sentry
     SENTRY_DSN: str = ""
     ENVIRONMENT: str = "production"

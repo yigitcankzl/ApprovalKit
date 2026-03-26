@@ -189,6 +189,20 @@ async def create_connection(body: CreateConnectionRequest, workspace: Workspace 
     db.add(conn)
     await db.commit()
     await db.refresh(conn)
+
+    # Store M2M credentials in HashiCorp Vault (if available)
+    if body.m2m_api_key:
+        from api.services.vault import store_m2m_credentials
+        stored_in_vault = store_m2m_credentials(
+            workspace_id=str(workspace.id),
+            slug=body.slug,
+            api_key=body.m2m_api_key,
+            client_id=body.m2m_client_id,
+            token_url=body.m2m_token_url,
+        )
+        if stored_in_vault:
+            logger.info(f"M2M credentials for '{body.slug}' stored in HashiCorp Vault")
+
     return _conn_to_dict(conn)
 
 

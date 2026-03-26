@@ -3,10 +3,14 @@ Token Vault Service
 ===================
 Executes downstream API calls after an approval is granted.
 
-Credentials are NEVER stored locally. All tokens come from Auth0 Token Vault
-via the Token Exchange endpoint (RFC 8693). The refresh_token obtained during
-OAuth connect is exchanged for a fresh external-provider access_token at
-execution time.
+Credential retrieval chain (most secure → fallback):
+1. Auth0 Token Vault (RFC 8693 Token Exchange) — user-delegated OAuth
+2. Auth0 Management API — legacy tenant fallback
+3. HashiCorp Vault (Credential Vault) — M2M API keys with short-lived tokens
+4. Fernet-encrypted DB fields — development fallback
+5. Generic webhook — custom API execution
+
+The agent NEVER sees raw credentials regardless of which path is used.
 
 Grant type: urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token
 
@@ -1032,12 +1036,28 @@ class TokenVaultService:
                         logger.info(f"Token Vault: Management API fallback for {connection} (no refresh token)")
 
                 # Credential Vault: M2M client_credentials (Amadeus, Twilio, AWS, etc.)
-                if creds is None and conn_obj.m2m_token_url and conn_obj.m2m_client_id and conn_obj.m2m_api_key:
-                    m2m_secret = decrypt_secret(conn_obj.m2m_api_key)
-                    if m2m_secret:
-                        token = await self.get_token_via_m2m(
-                            conn_obj.m2m_token_url, conn_obj.m2m_client_id, m2m_secret,
-                        )
+                # Priority: HashiCorp Vault → Fernet-encrypted DB fields
+                if creds is None and conn_obj.m2m_token_url:
+                    from api.services.vault import read_m2m_credentials
+                    vault_creds = read_m2m_credentials(str(conn_obj.workspace_id), conn_obj.slug or connection)
+                    m2m_secret = None
+                    m2m_client = None
+                    m2m_url = conn_obj.m2m_token_url
+
+                    if vault_creds:
+                        # HashiCorp Vault (preferred — short-lived, no DB persistence)
+                        m2m_secret = vault_creds.get("api_key")
+                        m2m_client = vault_creds.get("client_id") or conn_obj.m2m_client_id
+                        m2m_url = vault_creds.get("token_url") or m2m_url
+                        logger.info(f"Credential Vault: M2M credentials from HashiCorp Vault for {connection}")
+                    elif conn_obj.m2m_api_key and conn_obj.m2m_client_id:
+                        # Fernet fallback (dev mode — encrypted in DB)
+                        m2m_secret = decrypt_secret(conn_obj.m2m_api_key)
+                        m2m_client = conn_obj.m2m_client_id
+                        logger.info(f"Credential Vault: M2M credentials from Fernet (DB) for {connection}")
+
+                    if m2m_secret and m2m_client:
+                        token = await self.get_token_via_m2m(m2m_url, m2m_client, m2m_secret)
                         if token:
                             creds = {"api_key": token, "token": token, "access_token": token}
                             logger.info(f"Credential Vault: M2M token for {connection} (agent never sees raw key)")
