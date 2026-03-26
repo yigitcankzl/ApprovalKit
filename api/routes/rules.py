@@ -9,7 +9,11 @@ from api.database import get_db
 from api.models.rule import Rule, RuleApprover, ApprovalModel, TimeoutAction
 from api.models.approver import Approver
 from api.schemas.rule import RuleCreate, RuleUpdate, RuleResponse
-from api.services.rule_engine import evaluate_conditions, render_binding_message
+from api.services.rule_engine import (
+    evaluate_conditions, render_binding_message,
+    is_in_blackout, check_time_window, compute_risk_score,
+    get_required_approval_count, build_escalation_chain,
+)
 from api.middleware.fga import require_rule_read, require_rule_write, require_workspace_admin
 from api.middleware.workspace import get_current_workspace
 from api.models.workspace import Workspace
@@ -218,6 +222,12 @@ async def simulate_rule(
             step_up_triggered = True
             effective_model = matched.step_up_model
 
+    # Full dry-run simulation
+    risk = compute_risk_score(params, rule=matched)
+    time_window = check_time_window(matched)
+    required_count = get_required_approval_count(matched)
+    escalation_chain = build_escalation_chain(matched)
+
     return {
         "matched": True,
         "rule_id": str(matched.id),
@@ -226,12 +236,18 @@ async def simulate_rule(
         "effective_model": effective_model.value if isinstance(effective_model, ApprovalModel) else effective_model,
         "step_up_triggered": step_up_triggered,
         "approvers": approvers,
+        "required_approvals": required_count,
         "timeout_seconds": matched.timeout_seconds,
         "on_timeout": matched.on_timeout.value if isinstance(matched.on_timeout, TimeoutAction) else matched.on_timeout,
         "binding_message": render_binding_message(matched.context_template, params),
         "escalation": str(matched.escalate_to) if matched.escalate_to else None,
+        "escalation_chain": escalation_chain,
+        "risk": risk,
+        "time_window": time_window,
+        "blackout_active": is_in_blackout(matched),
         "blackout": {
             "start": matched.blackout_start.isoformat() if matched.blackout_start else None,
             "end": matched.blackout_end.isoformat() if matched.blackout_end else None,
         },
+        "dry_run": True,
     }
