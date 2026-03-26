@@ -182,26 +182,28 @@ async def create_connection(body: CreateConnectionRequest, workspace: Workspace 
         webhook_method=body.webhook_method,
         webhook_headers=body.webhook_headers,
         webhook_body_template=body.webhook_body_template,
-        m2m_api_key=encrypt_secret(body.m2m_api_key) if body.m2m_api_key else None,
         m2m_client_id=body.m2m_client_id,
         m2m_token_url=body.m2m_token_url,
+        # m2m_api_key NOT stored in DB — only in HashiCorp Vault
     )
     db.add(conn)
     await db.commit()
     await db.refresh(conn)
 
-    # Store M2M credentials in HashiCorp Vault (if available)
+    # Store M2M credentials ONLY in HashiCorp Vault (never in our DB)
     if body.m2m_api_key:
         from api.services.vault import store_m2m_credentials
-        stored_in_vault = store_m2m_credentials(
+        stored = store_m2m_credentials(
             workspace_id=str(workspace.id),
             slug=body.slug,
             api_key=body.m2m_api_key,
             client_id=body.m2m_client_id,
             token_url=body.m2m_token_url,
         )
-        if stored_in_vault:
-            logger.info(f"M2M credentials for '{body.slug}' stored in HashiCorp Vault")
+        if stored:
+            logger.info(f"M2M credentials for '{body.slug}' stored in HashiCorp Vault (not in DB)")
+        else:
+            logger.error(f"Failed to store M2M credentials in Vault for '{body.slug}' — Vault may be unavailable")
 
     return _conn_to_dict(conn)
 

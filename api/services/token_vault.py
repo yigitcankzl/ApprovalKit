@@ -3,14 +3,12 @@ Token Vault Service
 ===================
 Executes downstream API calls after an approval is granted.
 
-Credential retrieval chain (most secure → fallback):
-1. Auth0 Token Vault (RFC 8693 Token Exchange) — user-delegated OAuth
-2. Auth0 Management API — legacy tenant fallback
-3. HashiCorp Vault (Credential Vault) — M2M API keys with short-lived tokens
-4. Fernet-encrypted DB fields — development fallback
-5. Generic webhook — custom API execution
+Credential retrieval chain:
+1. Auth0 Token Vault (RFC 8693 Token Exchange) — user-delegated OAuth (Stripe, GitHub, Gmail)
+2. HashiCorp Vault (Credential Vault) — M2M API keys (Amadeus, Twilio, AWS)
 
-The agent NEVER sees raw credentials regardless of which path is used.
+No credentials are stored in our database. Auth0 manages OAuth tokens,
+HashiCorp Vault manages M2M secrets. The agent NEVER sees raw credentials.
 
 Grant type: urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token
 
@@ -1028,39 +1026,23 @@ class TokenVaultService:
                             "action": action,
                         }
 
-                # Management API ONLY when no refresh token exists (legacy connection)
-                if not exchange_attempted and creds is None and conn_obj.connected_auth0_user_id and provider:
-                    token = await self.get_token_from_auth0(provider, conn_obj.connected_auth0_user_id)
-                    if token:
-                        creds = {"api_key": token, "token": token, "access_token": token}
-                        logger.info(f"Token Vault: Management API fallback for {connection} (no refresh token)")
-
                 # Credential Vault: M2M client_credentials (Amadeus, Twilio, AWS, etc.)
-                # Priority: HashiCorp Vault → Fernet-encrypted DB fields
+                # Credentials stored ONLY in HashiCorp Vault — never in our DB.
                 if creds is None and conn_obj.m2m_token_url:
                     from api.services.vault import read_m2m_credentials
                     vault_creds = read_m2m_credentials(str(conn_obj.workspace_id), conn_obj.slug or connection)
-                    m2m_secret = None
-                    m2m_client = None
-                    m2m_url = conn_obj.m2m_token_url
 
                     if vault_creds:
-                        # HashiCorp Vault (preferred — short-lived, no DB persistence)
                         m2m_secret = vault_creds.get("api_key")
                         m2m_client = vault_creds.get("client_id") or conn_obj.m2m_client_id
-                        m2m_url = vault_creds.get("token_url") or m2m_url
-                        logger.info(f"Credential Vault: M2M credentials from HashiCorp Vault for {connection}")
-                    elif conn_obj.m2m_api_key and conn_obj.m2m_client_id:
-                        # Fernet fallback (dev mode — encrypted in DB)
-                        m2m_secret = decrypt_secret(conn_obj.m2m_api_key)
-                        m2m_client = conn_obj.m2m_client_id
-                        logger.info(f"Credential Vault: M2M credentials from Fernet (DB) for {connection}")
-
-                    if m2m_secret and m2m_client:
-                        token = await self.get_token_via_m2m(m2m_url, m2m_client, m2m_secret)
-                        if token:
-                            creds = {"api_key": token, "token": token, "access_token": token}
-                            logger.info(f"Credential Vault: M2M token for {connection} (agent never sees raw key)")
+                        m2m_url = vault_creds.get("token_url") or conn_obj.m2m_token_url
+                        if m2m_secret and m2m_client:
+                            token = await self.get_token_via_m2m(m2m_url, m2m_client, m2m_secret)
+                            if token:
+                                creds = {"api_key": token, "token": token, "access_token": token}
+                                logger.info(f"Credential Vault: M2M token for {connection} via HashiCorp Vault")
+                    else:
+                        logger.warning(f"Credential Vault: no credentials in Vault for {connection} — store via dashboard")
 
                 if creds is None:
                     logger.warning(f"Token Vault: no token for '{connection}'")
@@ -1078,22 +1060,13 @@ class TokenVaultService:
 
         handler = _SERVICE_HANDLERS.get(service)
 
-        # Fallback: generic webhook execution if no built-in handler
-        if handler is None and db is not None and conn_obj and conn_obj.webhook_url:
-            try:
-                result = await _execute_webhook(conn_obj, action, params, creds)
-                logger.info(f"Webhook executed {service}/{action}: {result}")
-                return result
-            except Exception as e:
-                logger.error(f"Webhook execution failed for {service}/{action}: {e}")
-                return {"success": False, "error": str(e), "connection": connection, "action": action}
-
         if handler is None:
-            logger.warning(f"No handler or webhook for service '{service}'")
+            logger.warning(f"No handler for service '{service}'")
             return {
                 "success": False,
                 "reason": "not_implemented",
-                "error": f"Service '{service}' has no built-in handler and no webhook configured. Supported: {', '.join(_SERVICE_HANDLERS.keys())} + any service with webhook_url.",
+                "error": f"Service '{service}' has no built-in handler. Supported: {', '.join(_SERVICE_HANDLERS.keys())}. "
+                         f"For OAuth APIs: add as Auth0 custom connection. For M2M APIs: store credentials in HashiCorp Vault.",
                 "connection": connection,
                 "action": action,
             }
