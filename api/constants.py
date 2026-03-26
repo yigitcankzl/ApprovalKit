@@ -34,3 +34,7 @@ REDIS_KEY_BUDGET_MONTHLY = "budget:monthly:{agent_id}"
 BUDGET_DAILY_TTL = 86400          # 24 hours
 BUDGET_WEEKLY_TTL = 604800        # 7 days
 BUDGET_MONTHLY_TTL = 2678400      # 31 days
+
+# Webhook
+WEBHOOK_TIMEOUT_SECONDS = 10
+WEBHOOK_MAX_RETRIES = 3
