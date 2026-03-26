@@ -126,9 +126,11 @@ def _conn_to_dict(c: ServiceConnection) -> dict:
         "service":             c.service,
         "actions":             c.actions or [],
         "has_credentials":     c.connected_auth0_user_id is not None,
-        "connected_via":       "auth0" if c.connected_auth0_user_id else None,
+        "connected_via":       "auth0" if c.connected_auth0_user_id else ("webhook" if c.webhook_url else None),
         "connected_user_name": c.connected_user_name,
         "is_active":           c.is_active,
+        "has_webhook":         c.webhook_url is not None,
+        "webhook_method":      c.webhook_method,
         "created_at":          c.created_at.isoformat(),
     }
 
@@ -143,6 +145,11 @@ class CreateConnectionRequest(BaseModel):
     service: str
     slug: str
     actions: List[str] = []
+    # Generic webhook config (optional — for custom services)
+    webhook_url: str | None = None
+    webhook_method: str | None = None       # GET/POST/PUT/PATCH/DELETE
+    webhook_headers: dict | None = None     # {"Authorization": "Bearer {{token}}"}
+    webhook_body_template: dict | None = None  # {"amount": "{{amount}}"}
 
 
 @router.post("", status_code=201)
@@ -164,6 +171,10 @@ async def create_connection(body: CreateConnectionRequest, workspace: Workspace 
         slug=body.slug,
         token_vault_connection_id=body.service,
         actions=body.actions,
+        webhook_url=body.webhook_url,
+        webhook_method=body.webhook_method,
+        webhook_headers=body.webhook_headers,
+        webhook_body_template=body.webhook_body_template,
     )
     db.add(conn)
     await db.commit()

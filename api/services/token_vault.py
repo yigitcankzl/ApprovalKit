@@ -656,6 +656,76 @@ async def _execute_paypal(action: str, params: dict, creds: dict) -> dict:
             raise ValueError(f"Unsupported PayPal action: {action}")
 
 
+import re as _re
+
+def _render_template(template, token: str, params: dict) -> any:
+    """
+    Replace {{token}} and {{param_name}} placeholders in a template value.
+    Works on strings, dicts, and lists recursively.
+    """
+    if isinstance(template, str):
+        result = template.replace("{{token}}", token)
+        for key, val in params.items():
+            result = result.replace(f"{{{{{key}}}}}", str(val))
+        return result
+    if isinstance(template, dict):
+        return {k: _render_template(v, token, params) for k, v in template.items()}
+    if isinstance(template, list):
+        return [_render_template(item, token, params) for item in template]
+    return template
+
+
+async def _execute_webhook(conn_obj, action: str, params: dict, creds: dict) -> dict:
+    """
+    Generic webhook handler — executes any API using config from the connection record.
+    Template variables: {{token}}, {{action}}, and any {{param_name}} from request params.
+    """
+    token = creds.get("access_token") or creds.get("token") or creds.get("api_key", "")
+    url = _render_template(conn_obj.webhook_url, token, {**params, "action": action})
+    method = (conn_obj.webhook_method or "POST").upper()
+
+    # Render headers
+    raw_headers = conn_obj.webhook_headers or {}
+    headers = _render_template(raw_headers, token, {**params, "action": action})
+    if "Content-Type" not in headers:
+        headers["Content-Type"] = "application/json"
+
+    # Render body
+    body = None
+    if conn_obj.webhook_body_template:
+        body = _render_template(conn_obj.webhook_body_template, token, {**params, "action": action})
+    elif method in ("POST", "PUT", "PATCH"):
+        body = params  # send raw params as body if no template
+
+    logger.info(f"Webhook: {method} {url[:80]}...")
+
+    async with httpx.AsyncClient(timeout=30) as c:
+        if method == "GET":
+            r = await c.get(url, headers=headers, params=body if isinstance(body, dict) else None)
+        elif method == "DELETE":
+            r = await c.delete(url, headers=headers)
+        else:
+            r = await c.request(method, url, headers=headers, json=body)
+
+        response_data = None
+        try:
+            response_data = r.json()
+        except Exception:
+            response_data = r.text[:500]
+
+        if r.status_code >= 400:
+            raise RuntimeError(f"Webhook returned {r.status_code}: {str(response_data)[:200]}")
+
+        return {
+            "success": True,
+            "action": action,
+            "method": method,
+            "status_code": r.status_code,
+            "response": response_data,
+            "via": "generic_webhook",
+        }
+
+
 _SERVICE_HANDLERS = {
     "stripe":     _execute_stripe,
     "github":     _execute_github,
@@ -836,12 +906,23 @@ class TokenVaultService:
             }
 
         handler = _SERVICE_HANDLERS.get(service)
+
+        # Fallback: generic webhook execution if no built-in handler
+        if handler is None and db is not None and conn_obj and conn_obj.webhook_url:
+            try:
+                result = await _execute_webhook(conn_obj, action, params, creds)
+                logger.info(f"Webhook executed {service}/{action}: {result}")
+                return result
+            except Exception as e:
+                logger.error(f"Webhook execution failed for {service}/{action}: {e}")
+                return {"success": False, "error": str(e), "connection": connection, "action": action}
+
         if handler is None:
-            logger.warning(f"No execution handler for service '{service}' — token retrieved but action not implemented")
+            logger.warning(f"No handler or webhook for service '{service}'")
             return {
                 "success": False,
                 "reason": "not_implemented",
-                "error": f"Service '{service}' does not have an execution handler yet. Supported: {', '.join(_SERVICE_HANDLERS.keys())}",
+                "error": f"Service '{service}' has no built-in handler and no webhook configured. Supported: {', '.join(_SERVICE_HANDLERS.keys())} + any service with webhook_url.",
                 "connection": connection,
                 "action": action,
             }

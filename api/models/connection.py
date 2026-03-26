@@ -23,6 +23,11 @@ class ServiceConnection(Base):
     connected_auth0_user_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
     connected_user_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     auth0_refresh_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Generic webhook execution config (for custom/unsupported services)
+    webhook_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    webhook_method: Mapped[str | None] = mapped_column(String(10), nullable=True)  # GET/POST/PUT/PATCH/DELETE
+    webhook_headers: Mapped[dict | None] = mapped_column(JSONB, nullable=True)     # {"Authorization": "Bearer {{token}}"}
+    webhook_body_template: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # {"amount": "{{amount}}"}
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
