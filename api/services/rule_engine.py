@@ -115,6 +115,27 @@ def is_in_blackout(rule: Rule) -> bool:
         return now >= start or now <= end
 
 
+def check_time_window(rule: Rule) -> dict:
+    """Check if current time is within the rule's allowed approval window.
+
+    Uses blackout_start/blackout_end as "approval window" if present.
+    Returns {"in_window": bool, "blackout": bool, "next_open": str|None}.
+
+    If the rule has no window configured, always returns in_window=True.
+    """
+    if not rule.blackout_start or not rule.blackout_end:
+        return {"in_window": True, "blackout": False, "next_open": None}
+
+    now = datetime.utcnow().time()
+    in_blackout = is_in_blackout(rule)
+
+    next_open = None
+    if in_blackout:
+        next_open = rule.blackout_end.strftime("%H:%M UTC")
+
+    return {"in_window": not in_blackout, "blackout": in_blackout, "next_open": next_open}
+
+
 async def check_cooldown(rule: Rule, redis_client: aioredis.Redis) -> bool:
     if not rule.cooldown_max:
         return True
