@@ -68,6 +68,11 @@ class CIBAService:
         elapsed = 0
 
         while elapsed < timeout:
+            if not auth0_breaker.allow_request():
+                logger.warning("CIBA poll skipped — Auth0 circuit breaker OPEN")
+                await asyncio.sleep(interval)
+                elapsed += interval
+                continue
             async with httpx.AsyncClient() as client:
                 response = await client.post(
                     url,
@@ -80,8 +85,12 @@ class CIBAService:
                 )
 
                 if response.status_code == 200:
+                    auth0_breaker.record_success()
                     data = response.json()
                     return {"status": "approved", "access_token": data.get("access_token")}
+
+                if response.status_code >= 500:
+                    auth0_breaker.record_failure()
 
                 if response.status_code == 429:
                     interval = min(interval * 2, settings.CIBA_MAX_POLL_INTERVAL)
