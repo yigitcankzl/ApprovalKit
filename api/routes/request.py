@@ -28,6 +28,8 @@ from api.services.rule_engine import (
     increment_cooldown,
     render_binding_message,
     compute_risk_score,
+    check_budget,
+    record_spending,
 )
 
 router = APIRouter(prefix="/api/v1", tags=["approval"])
@@ -89,6 +91,37 @@ async def submit_approval_request(
         params=request.params,
     )
     is_new_action = scope_creep["is_new_action"]
+
+    # Budget check (per-agent spending limits)
+    agent = getattr(request_obj, "state", None) and request_obj.state.agent if hasattr(request_obj, "state") else None
+    if not agent:
+        # Try from request.state set by auth middleware
+        from starlette.requests import Request as StarletteRequest
+        # agent may be on the raw request object — check via scope
+    amount_val = None
+    for k in ("amount", "amount_usd", "total"):
+        raw = request.params.get(k)
+        if raw is not None:
+            try:
+                amount_val = float(raw)
+            except (TypeError, ValueError):
+                pass
+            break
+
+    if amount_val and amount_val > 0:
+        budget_limits = {"daily": 50000, "weekly": 200000, "monthly": 500000}  # defaults
+        budget_result = await check_budget(
+            agent_id=request.user_id,
+            amount=amount_val,
+            limits=budget_limits,
+            redis_client=redis_client,
+        )
+        if not budget_result["allowed"]:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Budget exceeded: {budget_result['exceeded']} limit reached. "
+                       f"Spent: ${budget_result['spent'][budget_result['exceeded']]:,.0f}",
+            )
 
     # Find matching rule
     rule = await find_matching_rule(

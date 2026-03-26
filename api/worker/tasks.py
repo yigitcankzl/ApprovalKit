@@ -294,6 +294,27 @@ async def _process_job(job_id: str):
                 else:
                     exec_note = f"execution_failed: {exec_result.get('error', 'unknown')}"
                 logger.info(f"Token Vault result for job {job_id}: {exec_result}")
+
+                # Record spending for budget tracking
+                if exec_result.get("success"):
+                    from api.services.rule_engine import record_spending
+                    spend_amount = None
+                    for k in ("amount", "amount_usd", "total"):
+                        raw = (job.final_params or job.params).get(k)
+                        if raw is not None:
+                            try:
+                                spend_amount = float(raw)
+                            except (TypeError, ValueError):
+                                pass
+                            break
+                    if spend_amount and spend_amount > 0:
+                        try:
+                            _settings = get_settings()
+                            _r = aioredis.from_url(_settings.REDIS_URL, decode_responses=True)
+                            await record_spending(job.agent_user_id, spend_amount, _r)
+                            await _r.aclose()
+                        except Exception as e:
+                            logger.warning(f"Budget record failed: {e}")
                 # Record modified params in audit if they differ from original
                 params_changed = (
                     job.final_params is not None
