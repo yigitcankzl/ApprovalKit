@@ -27,6 +27,7 @@ from api.services.rule_engine import (
     get_required_approval_count,
     increment_cooldown,
     render_binding_message,
+    compute_risk_score,
 )
 
 router = APIRouter(prefix="/api/v1", tags=["approval"])
@@ -143,10 +144,14 @@ async def submit_approval_request(
 
     await increment_cooldown(rule, redis_client)
 
+    # Compute risk score
+    risk = compute_risk_score(request.params, scope_creep=scope_creep, rule=rule)
+
     response_data = {
         "job_id": str(job.id),
         "status": "pending",
         "message": "Approval requested — CIBA notification sent",
+        "risk": risk,
     }
     await redis_client.setex(REDIS_KEY_IDEMPOTENCY.format(key=idem_key), 86400, json.dumps(response_data))
 

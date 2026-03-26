@@ -234,6 +234,87 @@ def get_required_approval_count(rule: Rule) -> int:
     return 1
 
 
+def compute_risk_score(
+    params: dict,
+    scope_creep: dict | None = None,
+    rule: Rule | None = None,
+) -> dict:
+    """Compute a risk score (0-100) and classification for a request.
+
+    Factors:
+    - Amount (higher = riskier)
+    - Scope creep signals (new action, amount anomaly)
+    - Approval model complexity (sequential > all_of_n > k_of_n > any_one)
+    - Step-up presence (adds risk if step-up conditions exist)
+
+    Returns {"score": int, "level": "low"|"medium"|"high"|"critical", "factors": [...]}.
+    """
+    score = 0
+    factors: list[str] = []
+
+    # Factor 1: Amount-based risk
+    amount = None
+    for key in ("amount", "amount_usd", "total", "price"):
+        raw = _resolve_field(params, key) if params else None
+        if raw is not None:
+            try:
+                amount = float(raw)
+            except (TypeError, ValueError):
+                pass
+            break
+
+    if amount is not None:
+        if amount >= 10000:
+            score += 40
+            factors.append(f"high_amount: ${amount:,.0f}")
+        elif amount >= 5000:
+            score += 30
+            factors.append(f"elevated_amount: ${amount:,.0f}")
+        elif amount >= 1000:
+            score += 20
+            factors.append(f"moderate_amount: ${amount:,.0f}")
+        elif amount >= 100:
+            score += 10
+            factors.append(f"standard_amount: ${amount:,.0f}")
+
+    # Factor 2: Scope creep signals
+    if scope_creep:
+        if scope_creep.get("is_new_action"):
+            score += 20
+            factors.append("new_action_type")
+        if scope_creep.get("amount_anomaly"):
+            score += 25
+            factors.append("amount_anomaly")
+
+    # Factor 3: Approval model complexity
+    if rule:
+        model = str(rule.model).lower() if rule.model else ""
+        model_risk = {
+            "sequential": 15, "all_of_n": 12, "k_of_n": 10,
+            "specific": 5, "any_one": 3,
+        }
+        bonus = model_risk.get(model, 0)
+        if bonus:
+            score += bonus
+            factors.append(f"approval_model: {model}")
+        if rule.step_up_conditions:
+            score += 10
+            factors.append("step_up_eligible")
+
+    score = min(score, 100)
+
+    if score >= 75:
+        level = "critical"
+    elif score >= 50:
+        level = "high"
+    elif score >= 25:
+        level = "medium"
+    else:
+        level = "low"
+
+    return {"score": score, "level": level, "factors": factors}
+
+
 def render_binding_message(template: str | None, params: dict) -> str:
     if not template:
         return f"Approval requested for action with params: {params}"
