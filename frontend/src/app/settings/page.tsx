@@ -106,14 +106,21 @@ export default function SettingsPage() {
               <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-xs font-bold flex items-center justify-center">1</span>
               <div>
                 <p className="font-medium">Create an M2M Application</p>
-                <p className="text-zinc-500 dark:text-zinc-400 mt-0.5">Auth0 Dashboard &rarr; Applications &rarr; Create Application &rarr; Machine to Machine. Authorize it for the <code className="text-xs bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded">Auth0 Management API</code> with scopes: <code className="text-xs bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded">read:users update:users read:connections create:connections</code>. Copy the Client ID and Client Secret.</p>
+                <p className="text-zinc-500 dark:text-zinc-400 mt-0.5">Auth0 Dashboard &rarr; Applications &rarr; Create Application &rarr; Machine to Machine &rarr; Select <code className="text-xs bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded">Auth0 Management API</code> &rarr; Select scopes: read:users, update:users, read:connections, create:connections &rarr; Authorize</p>
+                <p className="text-green-700 dark:text-green-400 text-xs font-medium mt-1">Copy from the app page: <strong>Client ID</strong> and <strong>Client Secret</strong> (click Reveal) &rarr; paste below as M2M credentials</p>
               </div>
             </li>
             <li className="flex gap-3">
               <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-xs font-bold flex items-center justify-center">2</span>
               <div>
                 <p className="font-medium">Create a Web Application</p>
-                <p className="text-zinc-500 dark:text-zinc-400 mt-0.5">Applications &rarr; Create Application &rarr; Regular Web Application. Under Settings &rarr; Allowed Callback URLs add <code className="text-xs bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded">http://localhost:3000/auth/callback</code>. Under Advanced &rarr; Grant Types enable <code className="text-xs bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded">CIBA</code> and <code className="text-xs bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded">Token Exchange</code>.</p>
+                <p className="text-zinc-500 dark:text-zinc-400 mt-0.5">Applications &rarr; Create Application &rarr; Regular Web Application. In Settings tab:</p>
+                <ul className="text-zinc-500 dark:text-zinc-400 mt-1 ml-3 space-y-0.5 list-disc text-xs">
+                  <li>Allowed Callback URLs: <code className="bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded">http://localhost:3000/auth/callback</code></li>
+                  <li>Allowed Logout URLs: <code className="bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded">http://localhost:3000</code></li>
+                  <li>Advanced Settings &rarr; Grant Types &rarr; Enable <strong>CIBA</strong> + <strong>Token Exchange</strong></li>
+                </ul>
+                <p className="text-green-700 dark:text-green-400 text-xs font-medium mt-1">Copy from this app page: <strong>Client ID</strong> and <strong>Client Secret</strong> &rarr; paste below as Web App credentials</p>
               </div>
             </li>
             <li className="flex gap-3">

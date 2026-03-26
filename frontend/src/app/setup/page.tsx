@@ -180,19 +180,34 @@ export default function SetupPage() {
                 <ol className="mt-3 space-y-3 text-xs text-zinc-600 dark:text-zinc-400 ml-6">
                   <li className="flex gap-2">
                     <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-[10px] font-bold flex items-center justify-center">1</span>
-                    <span><strong>M2M App:</strong> Applications &rarr; Create &rarr; Machine to Machine &rarr; Authorize for <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded">Auth0 Management API</code> (scopes: read:users, update:users, read:connections, create:connections)</span>
+                    <div>
+                      <span><strong>M2M App:</strong> Applications &rarr; Create Application &rarr; Machine to Machine &rarr; Select <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded">Auth0 Management API</code> &rarr; Select scopes: read:users, update:users, read:connections, create:connections &rarr; Authorize</span>
+                      <p className="mt-1 text-green-700 dark:text-green-400 font-medium">Copy from this page: <strong>Client ID</strong> and <strong>Client Secret</strong> (click Reveal) &rarr; paste below as M2M Client ID / Secret</p>
+                    </div>
                   </li>
                   <li className="flex gap-2">
                     <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-[10px] font-bold flex items-center justify-center">2</span>
-                    <span><strong>Web App:</strong> Applications &rarr; Create &rarr; Regular Web App &rarr; Callback URL: <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded">http://localhost:3000/auth/callback</code> &rarr; Advanced &rarr; Grant Types &rarr; Enable <strong>CIBA</strong> + <strong>Token Exchange</strong></span>
+                    <div>
+                      <span><strong>Web App:</strong> Applications &rarr; Create Application &rarr; Regular Web Application &rarr; Settings tab:</span>
+                      <ul className="mt-1 ml-3 space-y-0.5 list-disc">
+                        <li>Allowed Callback URLs: <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded">http://localhost:3000/auth/callback</code></li>
+                        <li>Allowed Logout URLs: <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded">http://localhost:3000</code></li>
+                        <li>Advanced Settings &rarr; Grant Types &rarr; Enable <strong>CIBA</strong> + <strong>Token Exchange</strong></li>
+                      </ul>
+                      <p className="mt-1 text-green-700 dark:text-green-400 font-medium">Copy from this page: <strong>Client ID</strong> and <strong>Client Secret</strong> &rarr; paste below as Web App Client ID / Secret</p>
+                    </div>
                   </li>
                   <li className="flex gap-2">
                     <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-[10px] font-bold flex items-center justify-center">3</span>
-                    <span><strong>Token Vault:</strong> Authentication &rarr; Social &rarr; each connection &rarr; Advanced &rarr; Enable Token Vault</span>
+                    <span><strong>Token Vault:</strong> Authentication &rarr; Social &rarr; select a connection (e.g. GitHub, Stripe) &rarr; Advanced &rarr; Enable Token Vault toggle</span>
                   </li>
                   <li className="flex gap-2">
                     <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-[10px] font-bold flex items-center justify-center">4</span>
-                    <span><strong>Guardian:</strong> Security &rarr; MFA &rarr; Push via Auth0 Guardian &rarr; Enable</span>
+                    <span><strong>Guardian:</strong> Security &rarr; Multi-factor Auth &rarr; Push via Auth0 Guardian &rarr; Enable</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-zinc-200 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 text-[10px] font-bold flex items-center justify-center">5</span>
+                    <span><strong>Domain:</strong> Settings &rarr; General (or look at your browser URL: <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded">dev-xxx.us.auth0.com</code>) &rarr; paste below as Auth0 Domain</span>
                   </li>
                 </ol>
               </details>
