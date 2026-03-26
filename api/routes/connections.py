@@ -203,10 +203,10 @@ async def create_connection(body: CreateConnectionRequest, workspace: Workspace 
         if stored:
             logger.info(f"M2M credentials for '{body.slug}' stored in HashiCorp Vault")
         else:
-            # Vault unavailable — store encrypted in DB as fallback
-            conn.m2m_api_key = encrypt_secret(body.m2m_api_key)
-            await db.commit()
-            logger.info(f"M2M credentials for '{body.slug}' stored in DB (Fernet encrypted, Vault unavailable)")
+            raise HTTPException(
+                status_code=503,
+                detail="HashiCorp Vault is unavailable. M2M credentials cannot be stored. Start Vault and try again.",
+            )
 
     return _conn_to_dict(conn)
 
