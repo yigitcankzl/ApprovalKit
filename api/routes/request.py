@@ -260,10 +260,13 @@ async def dashboard_test_request(
 
 
 @router.get("/test-status/{job_id}")
-async def dashboard_test_status(job_id: str, db: AsyncSession = Depends(get_db)):
-    """Dashboard job status polling — no HMAC required."""
+async def dashboard_test_status(job_id: str, workspace: Workspace = Depends(get_current_workspace), db: AsyncSession = Depends(get_db)):
+    """Dashboard job status polling — workspace-scoped."""
     result = await db.execute(
-        select(ApprovalJob).where(ApprovalJob.id == uuid.UUID(job_id))
+        select(ApprovalJob).where(
+            ApprovalJob.id == uuid.UUID(job_id),
+            ApprovalJob.workspace_id == workspace.id,
+        )
     )
     job = result.scalar_one_or_none()
     if not job:
@@ -414,12 +417,16 @@ async def get_pending_jobs(db: AsyncSession = Depends(get_db)):
 async def submit_web_decision(
     job_id: str,
     body: dict,
+    workspace: Workspace = Depends(get_current_workspace),
     db: AsyncSession = Depends(get_db),
     redis_client: aioredis.Redis = Depends(get_redis),
 ):
-    """Web-based approve/reject for dashboard approvers (demo endpoint)."""
+    """Web-based approve/reject — workspace-scoped."""
     result = await db.execute(
-        select(ApprovalJob).where(ApprovalJob.id == uuid.UUID(job_id))
+        select(ApprovalJob).where(
+            ApprovalJob.id == uuid.UUID(job_id),
+            ApprovalJob.workspace_id == workspace.id,
+        )
     )
     job = result.scalar_one_or_none()
     if not job:
