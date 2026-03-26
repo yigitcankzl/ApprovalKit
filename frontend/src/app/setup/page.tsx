@@ -181,9 +181,11 @@ export default function SetupPage() {
                   <li className="flex gap-2">
                     <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-[10px] font-bold flex items-center justify-center">1</span>
                     <div>
-                      <span><strong>M2M App:</strong> Applications &rarr; Create Application &rarr; Machine to Machine &rarr; When asked &quot;Select an API&quot;, pick <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded">Auth0 Management API</code> &rarr; Click Authorize</span>
-                      <p className="mt-1 text-zinc-500 dark:text-zinc-400">Then on the app page: go to <strong>APIs</strong> tab &rarr; expand Auth0 Management API &rarr; select scopes: read:users, update:users, read:connections, create:connections &rarr; Update</p>
-                      <p className="mt-1 text-green-700 dark:text-green-400 font-medium">Then go to <strong>Settings</strong> tab &rarr; copy <strong>Client ID</strong> and <strong>Client Secret</strong> (click Reveal) &rarr; paste below</p>
+                      <span><strong>M2M App:</strong> Applications &rarr; Create Application &rarr; Machine to Machine</span>
+                      <p className="mt-1 text-zinc-500 dark:text-zinc-400">A popup will ask <strong>&quot;Select an API&quot;</strong> &rarr; pick <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded">Auth0 Management API</code>. A permissions list appears below &mdash; check these boxes:</p>
+                      <p className="mt-1 font-mono text-zinc-600 dark:text-zinc-300">read:users &nbsp; update:users &nbsp; read:connections &nbsp; create:connections</p>
+                      <p className="mt-1 text-zinc-500 dark:text-zinc-400">Then click <strong>Authorize</strong>.</p>
+                      <p className="mt-1 text-green-700 dark:text-green-400 font-medium">On the next page: copy <strong>Client ID</strong> and <strong>Client Secret</strong> (click Reveal) &rarr; paste below</p>
                     </div>
                   </li>
                   <li className="flex gap-2">

@@ -106,9 +106,8 @@ export default function SettingsPage() {
               <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-xs font-bold flex items-center justify-center">1</span>
               <div>
                 <p className="font-medium">Create an M2M Application</p>
-                <p className="text-zinc-500 dark:text-zinc-400 mt-0.5">Auth0 Dashboard &rarr; Applications &rarr; Create Application &rarr; Machine to Machine &rarr; When asked &quot;Select an API&quot;, pick <code className="text-xs bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded">Auth0 Management API</code> &rarr; Authorize</p>
-                <p className="text-zinc-500 dark:text-zinc-400 text-xs mt-1">Then: <strong>APIs</strong> tab &rarr; expand Auth0 Management API &rarr; select scopes: read:users, update:users, read:connections, create:connections &rarr; Update</p>
-                <p className="text-green-700 dark:text-green-400 text-xs font-medium mt-1"><strong>Settings</strong> tab &rarr; copy <strong>Client ID</strong> + <strong>Client Secret</strong> (click Reveal) &rarr; paste below</p>
+                <p className="text-zinc-500 dark:text-zinc-400 mt-0.5">Auth0 Dashboard &rarr; Applications &rarr; Create Application &rarr; Machine to Machine. A popup asks &quot;Select an API&quot; &rarr; pick <code className="text-xs bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded">Auth0 Management API</code>. Check permissions: <code className="text-xs bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded">read:users update:users read:connections create:connections</code> &rarr; Authorize</p>
+                <p className="text-green-700 dark:text-green-400 text-xs font-medium mt-1">On the next page: copy <strong>Client ID</strong> + <strong>Client Secret</strong> (click Reveal) &rarr; paste below</p>
               </div>
             </li>
             <li className="flex gap-3">
