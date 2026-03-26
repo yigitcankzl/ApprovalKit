@@ -357,10 +357,45 @@ function ConnectionsContent() {
                       </div>
                       <div>
                         <p className="text-xs text-zinc-400 uppercase tracking-wide mb-1">Actions</p>
-                        <div className="flex gap-1 flex-wrap">
+                        <div className="flex gap-1 flex-wrap items-center">
                           {conn.actions.map((a) => (
-                            <code key={a} className="text-xs bg-zinc-800 text-zinc-100 px-2 py-0.5 rounded">{a}</code>
+                            <span key={a} className="inline-flex items-center gap-1 text-xs bg-zinc-800 text-zinc-100 pl-2 pr-1 py-0.5 rounded">
+                              {a}
+                              <button
+                                onClick={async () => {
+                                  const updated = conn.actions.filter(x => x !== a);
+                                  try {
+                                    await api.updateConnection(conn.id, { actions: updated });
+                                    load();
+                                  } catch {}
+                                }}
+                                className="hover:text-red-400 ml-0.5"
+                                title={`Remove ${a}`}
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </span>
                           ))}
+                          <form
+                            onSubmit={async (e) => {
+                              e.preventDefault();
+                              const input = (e.target as HTMLFormElement).elements.namedItem("newAction") as HTMLInputElement;
+                              const val = input.value.trim().toLowerCase().replace(/[^a-z0-9_]/g, "_");
+                              if (!val || conn.actions.includes(val)) { input.value = ""; return; }
+                              try {
+                                await api.updateConnection(conn.id, { actions: [...conn.actions, val] });
+                                input.value = "";
+                                load();
+                              } catch {}
+                            }}
+                            className="inline-flex"
+                          >
+                            <input
+                              name="newAction"
+                              placeholder="+ add action"
+                              className="w-24 text-xs bg-transparent border border-dashed border-zinc-300 dark:border-zinc-600 rounded px-2 py-0.5 text-zinc-600 dark:text-zinc-400 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-500"
+                            />
+                          </form>
                         </div>
                       </div>
                       <div>

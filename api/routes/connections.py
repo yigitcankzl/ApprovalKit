@@ -489,6 +489,43 @@ async def disconnect_auth(connection_id: str, workspace: Workspace = Depends(get
     return {"status": "disconnected", "connection": conn.name}
 
 
+class UpdateConnectionRequest(BaseModel):
+    name: str | None = None
+    actions: List[str] | None = None
+    webhook_url: str | None = None
+    webhook_method: str | None = None
+    webhook_headers: dict | None = None
+    webhook_body_template: dict | None = None
+
+
+@router.put("/{connection_id}")
+async def update_connection(connection_id: str, body: UpdateConnectionRequest, workspace: Workspace = Depends(get_current_workspace), db: AsyncSession = Depends(get_db)):
+    """Update a connection — name, actions, webhook config."""
+    result = await db.execute(
+        select(ServiceConnection).where(ServiceConnection.id == uuid.UUID(connection_id), ServiceConnection.workspace_id == workspace.id)
+    )
+    conn = result.scalar_one_or_none()
+    if not conn:
+        raise HTTPException(status_code=404, detail="Connection not found")
+
+    if body.name is not None:
+        conn.name = body.name
+    if body.actions is not None:
+        conn.actions = body.actions
+    if body.webhook_url is not None:
+        conn.webhook_url = body.webhook_url
+    if body.webhook_method is not None:
+        conn.webhook_method = body.webhook_method
+    if body.webhook_headers is not None:
+        conn.webhook_headers = body.webhook_headers
+    if body.webhook_body_template is not None:
+        conn.webhook_body_template = body.webhook_body_template
+
+    await db.commit()
+    await db.refresh(conn)
+    return _conn_to_dict(conn)
+
+
 @router.delete("/{connection_id}", status_code=200)
 async def delete_connection(connection_id: str, workspace: Workspace = Depends(get_current_workspace), db: AsyncSession = Depends(get_db)):
     """Permanently delete a service connection."""
