@@ -167,38 +167,76 @@ export default function SetupPage() {
             <CardHeader>
               <CardTitle>Connect Auth0</CardTitle>
               <CardDescription>
-                Enter your Auth0 tenant credentials. Token Vault and CIBA must be enabled.
+                Follow the steps below in your Auth0 Dashboard, then paste the credentials.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
+
+              {/* Setup guide */}
+              <details className="group" open>
+                <summary className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 cursor-pointer hover:text-zinc-900 dark:hover:text-zinc-100 flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-blue-600" /> How to get these credentials
+                </summary>
+                <ol className="mt-3 space-y-3 text-xs text-zinc-600 dark:text-zinc-400 ml-6">
+                  <li className="flex gap-2">
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-[10px] font-bold flex items-center justify-center">1</span>
+                    <span><strong>M2M App:</strong> Applications &rarr; Create &rarr; Machine to Machine &rarr; Authorize for <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded">Auth0 Management API</code> (scopes: read:users, update:users, read:connections, create:connections)</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-[10px] font-bold flex items-center justify-center">2</span>
+                    <span><strong>Web App:</strong> Applications &rarr; Create &rarr; Regular Web App &rarr; Callback URL: <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded">http://localhost:3000/auth/callback</code> &rarr; Advanced &rarr; Grant Types &rarr; Enable <strong>CIBA</strong> + <strong>Token Exchange</strong></span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-[10px] font-bold flex items-center justify-center">3</span>
+                    <span><strong>Token Vault:</strong> Authentication &rarr; Social &rarr; each connection &rarr; Advanced &rarr; Enable Token Vault</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-[10px] font-bold flex items-center justify-center">4</span>
+                    <span><strong>Guardian:</strong> Security &rarr; MFA &rarr; Push via Auth0 Guardian &rarr; Enable</span>
+                  </li>
+                </ol>
+              </details>
+
+              <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4">
                 <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Auth0 Domain *</label>
-                <Input placeholder="your-tenant.us.auth0.com" value={tenant} onChange={(e) => setTenant(e.target.value)} className="mt-1" />
+                <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-1">Settings &rarr; General &rarr; Domain</p>
+                <Input placeholder="your-tenant.us.auth0.com" value={tenant} onChange={(e) => setTenant(e.target.value)} />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">M2M Client ID</label>
-                  <Input placeholder="Machine-to-Machine app" value={m2mClientId} onChange={(e) => setM2mClientId(e.target.value)} className="mt-1 font-mono text-xs" />
+
+              <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4">
+                <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-2">M2M Application (Step 1)</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">M2M Client ID</label>
+                    <Input placeholder="From M2M app Settings tab" value={m2mClientId} onChange={(e) => setM2mClientId(e.target.value)} className="mt-1 font-mono text-xs" />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">M2M Client Secret</label>
+                    <Input type="password" placeholder="Click Reveal in Auth0" value={m2mClientSecret} onChange={(e) => setM2mClientSecret(e.target.value)} className="mt-1 font-mono text-xs" />
+                  </div>
                 </div>
-                <div>
-                  <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">M2M Client Secret</label>
-                  <Input type="password" value={m2mClientSecret} onChange={(e) => setM2mClientSecret(e.target.value)} className="mt-1 font-mono text-xs" />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Web App Client ID</label>
-                  <Input placeholder="Regular Web Application" value={webClientId} onChange={(e) => setWebClientId(e.target.value)} className="mt-1 font-mono text-xs" />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Web App Client Secret</label>
-                  <Input type="password" value={webClientSecret} onChange={(e) => setWebClientSecret(e.target.value)} className="mt-1 font-mono text-xs" />
+              </div>
+
+              <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4">
+                <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-2">Web Application (Step 2)</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Web App Client ID</label>
+                    <Input placeholder="From Web app Settings tab" value={webClientId} onChange={(e) => setWebClientId(e.target.value)} className="mt-1 font-mono text-xs" />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Web App Client Secret</label>
+                    <Input type="password" placeholder="Click Reveal in Auth0" value={webClientSecret} onChange={(e) => setWebClientSecret(e.target.value)} className="mt-1 font-mono text-xs" />
+                  </div>
                 </div>
               </div>
 
               <details className="group">
                 <summary className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide cursor-pointer hover:text-zinc-700 dark:hover:text-zinc-300">
-                  FGA (Optional)
+                  FGA — Fine-Grained Authorization (Optional)
                 </summary>
-                <div className="grid grid-cols-3 gap-3 mt-3">
+                <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1 mb-3">Without FGA, all authenticated users get full access. Add FGA for role-based permissions.</p>
+                <div className="grid grid-cols-3 gap-3">
                   <div>
                     <label className="text-xs text-zinc-600 dark:text-zinc-400">Store ID</label>
                     <Input placeholder="01KMG6..." value={fgaStoreId} onChange={(e) => setFgaStoreId(e.target.value)} className="mt-1 font-mono text-xs" />
