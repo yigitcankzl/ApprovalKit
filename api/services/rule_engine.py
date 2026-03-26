@@ -222,7 +222,27 @@ async def check_scope_creep(
                     amount_anomaly = True
                     anomaly_detail = f"Amount ${current_amount:.0f} is {current_amount/avg:.1f}x the historical avg ${avg:.0f}"
 
-    return {"is_new_action": is_new, "amount_anomaly": amount_anomaly, "anomaly_detail": anomaly_detail}
+    # Statistical anomaly detection (z-score based, more robust than simple multiplier)
+    z_score_anomaly = False
+    z_score_detail = None
+    if current_amount is not None and past_amounts and len(past_amounts) >= 5:
+        import math
+        avg = sum(past_amounts) / len(past_amounts)
+        variance = sum((x - avg) ** 2 for x in past_amounts) / len(past_amounts)
+        std_dev = math.sqrt(variance) if variance > 0 else 0
+        if std_dev > 0:
+            z_score = (current_amount - avg) / std_dev
+            if z_score > 2.5:
+                z_score_anomaly = True
+                z_score_detail = f"Z-score {z_score:.1f} (amount ${current_amount:,.0f} vs avg ${avg:,.0f} ± ${std_dev:,.0f})"
+
+    return {
+        "is_new_action": is_new,
+        "amount_anomaly": amount_anomaly,
+        "anomaly_detail": anomaly_detail,
+        "z_score_anomaly": z_score_anomaly,
+        "z_score_detail": z_score_detail,
+    }
 
 
 async def find_matching_rule(
