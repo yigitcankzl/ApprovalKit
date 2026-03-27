@@ -141,8 +141,8 @@ export default function LoginPage() {
               <div className="flex items-start gap-3">
                 <div className="w-6 h-6 rounded-full bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">3</div>
                 <div className="flex-1">
-                  <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Enter Your Credentials</h3>
-                  <p className="text-xs text-zinc-500 mt-1">Your tenant name is in the top-left of the Auth0 Dashboard.</p>
+                  <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Enter Web App Credentials</h3>
+                  <p className="text-xs text-zinc-500 mt-1">Tenant name is in the top-left of your Auth0 Dashboard. Client ID and Secret are in your Regular Web Application settings.</p>
                 </div>
               </div>
 
