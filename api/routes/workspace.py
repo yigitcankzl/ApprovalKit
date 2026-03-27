@@ -73,7 +73,7 @@ async def setup_workspace(body: WorkspaceSetupRequest, request: Request, db: Asy
     """
     user_sub = request.headers.get("X-User-Sub", "").strip()
 
-    # Try to find workspace for this user first
+    # Find workspace owned by this user (each user gets their own workspace)
     existing = None
     if user_sub:
         result = await db.execute(
@@ -81,13 +81,6 @@ async def setup_workspace(body: WorkspaceSetupRequest, request: Request, db: Asy
                 Workspace.owner_auth0_sub == user_sub,
                 Workspace.is_active.is_(True),
             ).limit(1)
-        )
-        existing = result.scalar_one_or_none()
-
-    # Fallback: first active workspace (backwards compat)
-    if not existing:
-        result = await db.execute(
-            select(Workspace).where(Workspace.is_active.is_(True)).limit(1)
         )
         existing = result.scalar_one_or_none()
 
