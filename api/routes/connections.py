@@ -36,6 +36,8 @@ settings = get_settings()
 _auth0_connections_cache: dict[str, set[str]] = {}
 
 
+_token_vault_status: dict[str, bool] = {}  # service → is_token_vault_enabled
+
 async def _get_auth0_configured_connections(ws_config: WorkspaceConfig, workspace_id: str = "") -> dict[str, str]:
     """Fetch configured social connections from Auth0 Management API.
 
@@ -87,13 +89,19 @@ async def _get_auth0_configured_connections(ws_config: WorkspaceConfig, workspac
                 return {}
 
             result: dict[str, str] = {}
+            global _token_vault_status
             for c in conns_resp.json():
                 name = c["name"]
                 strategy = c.get("strategy", "")
 
+                # Check Token Vault purpose
+                options = c.get("options", {})
+                has_tv = bool(options.get("purpose") in ("token_vault", "login_and_token_vault"))
+
                 # Try strategy mapping first
                 service = _strategy_to_service.get(strategy)
                 if service:
+                    _token_vault_status[service] = has_tv
                     result[service] = name
                     if service == "google":
                         result["gmail"] = name
@@ -286,6 +294,7 @@ async def list_connections(workspace: Workspace = Depends(get_current_workspace)
         service = c.service.lower()
         d["is_auth0_configured"] = service in auth0_conns
         d["auth0_connection_name"] = auth0_conns.get(service, "")
+        d["is_token_vault_enabled"] = _token_vault_status.get(service, False)
         out.append(d)
     return out
 
@@ -419,6 +428,14 @@ async def get_connect_url(connection_id: str, request: Request, workspace: Works
             status_code=400,
             detail=f"Service '{service}' is not configured in Auth0 tenant ({login_domain}). "
                    f"Add it under Authentication → Social in your Auth0 Dashboard.",
+        )
+
+    # Require Token Vault to be enabled
+    if not _token_vault_status.get(service, False):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Token Vault is not enabled for '{service}'. "
+                   f"Auth0 Dashboard → Social → {auth0_connection} → Purpose → select 'Connected Accounts for Token Vault'.",
         )
     user_token = request.headers.get("X-User-Token")
     login_refresh_token = request.headers.get("X-Refresh-Token")
