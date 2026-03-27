@@ -251,6 +251,39 @@ function ScenarioButton({ scenario, onRun, running }: {
   );
 }
 
+// ── Typing Indicator ──────────────────────────────────────────────────────────
+
+function TypingIndicator() {
+  return (
+    <div className="flex justify-start mb-3">
+      <div className="flex items-center gap-1.5 ml-1">
+        <Bot className="h-3 w-3 text-blue-500" />
+        <div className="flex items-center gap-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl rounded-bl-md px-4 py-2.5">
+          <div className="flex gap-1">
+            <div className="w-2 h-2 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+            <div className="w-2 h-2 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+            <div className="w-2 h-2 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Suggestion Chip ───────────────────────────────────────────────────────────
+
+function SuggestionChip({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors whitespace-nowrap"
+    >
+      <Zap className="h-3 w-3" />
+      {label}
+    </button>
+  );
+}
+
 // ── Main AgentChat Component ──────────────────────────────────────────────────
 
 let _msgId = 0;
@@ -258,29 +291,38 @@ function msgId() { return `msg-${++_msgId}-${Date.now()}`; }
 
 export function AgentChat({ agent }: { agent: DemoAgent }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showScenarios, setShowScenarios] = useState(false);
   const [runningScenario, setRunningScenario] = useState<number | null>(null);
   const [deciding, setDeciding] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Auto-scroll to bottom
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, isTyping]);
 
   // Cleanup
   useEffect(() => {
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, []);
 
-  // Initial welcome message
+  // Initial welcome + fetch suggestions
   useEffect(() => {
     setMessages([{
       id: msgId(),
       type: "agent",
-      text: `Welcome! I'm the ${agent.title}.\n\n${agent.description}\n\nSelect a scenario below to see the approval flow in action.`,
+      text: `Hello! I'm the ${agent.title}.\n\n${agent.description}\n\nType a message or pick a suggestion below to get started.`,
       timestamp: new Date(),
     }]);
+    api.getAgentSuggestions(agent.id)
+      .then((data: { suggestions: string[] }) => setSuggestions(data.suggestions))
+      .catch(() => {});
   }, [agent.id]);
 
   const addMsg = (type: MsgType, text: string, meta?: ChatMessage["meta"]) => {
@@ -297,37 +339,16 @@ export function AgentChat({ agent }: { agent: DemoAgent }) {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
   };
 
-  const handleRunScenario = async (index: number) => {
-    const scenario = agent.scenarios[index];
-    if (!scenario) return;
-
-    setRunningScenario(index);
-
-    // User message
-    addMsg("user", scenario.title);
-
-    // Processing
-    await sleep(400);
-    addMsg("agent", `Processing: ${scenario.description}`);
-
-    await sleep(600);
-    addMsg("system", `Submitting to ApprovalKit: ${scenario.connection} / ${scenario.action}`);
+  // ── Execute action through ApprovalKit ──────────────────────────────
+  const executeAction = async (action: { connection: string; action: string; params: Record<string, unknown> }) => {
+    addMsg("system", `Submitting to ApprovalKit: ${action.connection} / ${action.action}`);
 
     try {
-      const res = await api.sendTestRequest({
-        connection: scenario.connection,
-        action: scenario.action,
-        params: scenario.params,
-      });
+      const res = await api.sendTestRequest(action);
 
       if (res.status === "auto_approved") {
         await sleep(500);
-        if (scenario.badge === "success") {
-          addMsg("result", `Auto-approved! No rule matched for this request.\n\nAction executed successfully via Token Vault.`);
-        } else {
-          addMsg("error", `No matching rule found. Click "Setup Demo" on the Agents page first to create the required rules, approvers, and connections.`);
-        }
-        setRunningScenario(null);
+        addMsg("result", `Auto-approved! Action executed via Token Vault.\n\n${action.connection} / ${action.action} completed successfully.`);
         return;
       }
 
@@ -335,8 +356,8 @@ export function AgentChat({ agent }: { agent: DemoAgent }) {
         await sleep(300);
         addMsg("system", "Rule matched - approval request created");
 
-        await sleep(500);
-        const approvalMsgId = addMsg("approval", `Waiting for approval...\n\nConnection: ${scenario.connection}\nAction: ${scenario.action}`, {
+        await sleep(400);
+        const approvalMsgId = addMsg("approval", `Waiting for approval...\n\nConnection: ${action.connection}\nAction: ${action.action}`, {
           jobId: res.job_id,
           status: "pending",
           rule: res.rule_name,
@@ -355,7 +376,7 @@ export function AgentChat({ agent }: { agent: DemoAgent }) {
               updateMsg(approvalMsgId, { meta: { status: s.status } });
               await sleep(300);
               if (s.status === "approved") {
-                addMsg("result", `Approved! Action executed via Token Vault.\n\nThe ${scenario.connection} / ${scenario.action} was completed successfully.`);
+                addMsg("result", `Approved! Action executed via Token Vault.`);
               } else if (s.status === "rejected") {
                 addMsg("error", `Request was rejected by the approver.`);
               } else if (s.status === "timeout") {
@@ -363,23 +384,92 @@ export function AgentChat({ agent }: { agent: DemoAgent }) {
               } else {
                 addMsg("error", `Request was blocked.`);
               }
-              setRunningScenario(null);
+              setIsProcessing(false);
             }
           } catch {}
-          if (++attempts > 90) { stopPoll(); setRunningScenario(null); }
+          if (++attempts > 90) { stopPoll(); setIsProcessing(false); }
         }, 2000);
+        return; // Don't clear processing yet - poll will handle it
       }
     } catch (e: any) {
-      addMsg("error", `Failed to submit request: ${e.message}`);
-      setRunningScenario(null);
+      addMsg("error", `Failed: ${e.message}`);
     }
+    setIsProcessing(false);
+  };
+
+  // ── Handle user chat message ────────────────────────────────────────
+  const handleSendMessage = async (text: string) => {
+    if (!text.trim() || isProcessing) return;
+
+    const userText = text.trim();
+    setInput("");
+    setIsProcessing(true);
+
+    // Show user message
+    addMsg("user", userText);
+
+    // Show typing indicator
+    setIsTyping(true);
+    await sleep(600 + Math.random() * 400);
+
+    try {
+      // Call chat engine
+      const res = await api.chatWithAgent(agent.id, userText, agent.title);
+
+      setIsTyping(false);
+
+      // Show agent response
+      addMsg("agent", res.response);
+
+      // Update suggestions
+      if (res.suggestions?.length > 0) {
+        setSuggestions(res.suggestions);
+      }
+
+      // If there's an action, execute it
+      if (res.type === "action" && res.action) {
+        await sleep(500);
+        await executeAction(res.action);
+        return;
+      }
+    } catch {
+      setIsTyping(false);
+      addMsg("error", "Failed to process message. Please try again.");
+    }
+
+    setIsProcessing(false);
+  };
+
+  // ── Handle scenario button ──────────────────────────────────────────
+  const handleRunScenario = async (index: number) => {
+    const scenario = agent.scenarios[index];
+    if (!scenario) return;
+
+    setRunningScenario(index);
+    setIsProcessing(true);
+
+    addMsg("user", scenario.title);
+
+    setIsTyping(true);
+    await sleep(500);
+    setIsTyping(false);
+
+    addMsg("agent", `Processing: ${scenario.description}`);
+
+    await sleep(400);
+    await executeAction({
+      connection: scenario.connection,
+      action: scenario.action,
+      params: scenario.params,
+    });
+
+    setRunningScenario(null);
   };
 
   const handleApprove = async (jobId: string) => {
     setDeciding(true);
     try {
       await api.submitDecision(jobId, { decision: "approve" });
-      // Poll will pick up the change
     } catch {}
     setDeciding(false);
   };
@@ -395,12 +485,21 @@ export function AgentChat({ agent }: { agent: DemoAgent }) {
   const handleReset = () => {
     stopPoll();
     setRunningScenario(null);
+    setIsProcessing(false);
+    setIsTyping(false);
     setMessages([{
       id: msgId(),
       type: "agent",
-      text: `Welcome! I'm the ${agent.title}.\n\n${agent.description}\n\nSelect a scenario below to see the approval flow in action.`,
+      text: `Hello! I'm the ${agent.title}.\n\n${agent.description}\n\nType a message or pick a suggestion below to get started.`,
       timestamp: new Date(),
     }]);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage(input);
+    }
   };
 
   return (
@@ -416,33 +515,80 @@ export function AgentChat({ agent }: { agent: DemoAgent }) {
             deciding={deciding}
           />
         ))}
+        {isTyping && <TypingIndicator />}
         <div ref={chatEndRef} />
       </div>
 
-      {/* Scenarios panel */}
-      <div className="border-t border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900/50 p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <Zap className="h-3.5 w-3.5 text-zinc-400" />
-            <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Scenarios</span>
+      {/* Suggestion chips */}
+      {suggestions.length > 0 && messages.length <= 3 && (
+        <div className="px-4 pb-2">
+          <div className="flex flex-wrap gap-2">
+            {suggestions.map((s, i) => (
+              <SuggestionChip key={i} label={s} onClick={() => handleSendMessage(s)} />
+            ))}
           </div>
+        </div>
+      )}
+
+      {/* Input area */}
+      <div className="border-t border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-3">
+        <div className="flex items-center gap-2">
+          <div className="flex-1 relative">
+            <input
+              ref={inputRef}
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={isProcessing ? "Processing..." : `Message ${agent.title}...`}
+              disabled={isProcessing}
+              className="w-full rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-4 py-2.5 text-sm text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 transition-colors"
+            />
+          </div>
+          <Button
+            size="sm"
+            onClick={() => handleSendMessage(input)}
+            disabled={!input.trim() || isProcessing}
+            className="h-10 w-10 p-0 rounded-xl shrink-0"
+          >
+            {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          </Button>
+          <button
+            onClick={() => setShowScenarios(v => !v)}
+            className={`h-10 w-10 flex items-center justify-center rounded-xl border transition-colors shrink-0 ${
+              showScenarios
+                ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 border-zinc-900 dark:border-zinc-100"
+                : "border-zinc-200 dark:border-zinc-700 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:border-zinc-300 dark:hover:border-zinc-600"
+            }`}
+            title="Toggle scenarios"
+          >
+            <Zap className="h-4 w-4" />
+          </button>
           <button
             onClick={handleReset}
-            className="flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+            className="h-10 w-10 flex items-center justify-center rounded-xl border border-zinc-200 dark:border-zinc-700 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors shrink-0"
+            title="Reset chat"
           >
-            <RefreshCw className="h-3 w-3" /> Reset
+            <RefreshCw className="h-4 w-4" />
           </button>
         </div>
-        <div className="space-y-2 max-h-64 overflow-y-auto">
-          {agent.scenarios.map((scenario, i) => (
-            <ScenarioButton
-              key={i}
-              scenario={scenario}
-              onRun={() => handleRunScenario(i)}
-              running={runningScenario === i}
-            />
-          ))}
-        </div>
+
+        {/* Collapsible scenarios panel */}
+        {showScenarios && (
+          <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+            <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Quick Scenarios</p>
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {agent.scenarios.map((scenario, i) => (
+                <ScenarioButton
+                  key={i}
+                  scenario={scenario}
+                  onRun={() => handleRunScenario(i)}
+                  running={runningScenario === i}
+                />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

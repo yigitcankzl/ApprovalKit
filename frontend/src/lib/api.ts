@@ -117,6 +117,15 @@ export const api = {
   },
   clearDemoData: () => fetchAPI("/api/v1/demo/seed", { method: "DELETE" }),
 
+  // Agent Chat
+  chatWithAgent: (agentId: string, message: string, agentTitle: string = "") =>
+    fetchAPI(`/api/v1/demo/agents/${agentId}/chat`, {
+      method: "POST",
+      body: JSON.stringify({ message, agent_title: agentTitle }),
+    }),
+  getAgentSuggestions: (agentId: string) =>
+    fetchAPI(`/api/v1/demo/agents/${agentId}/suggestions`),
+
   // Credentials
   getCredentials: () => fetchAPI("/api/v1/workspace/credentials"),
 
