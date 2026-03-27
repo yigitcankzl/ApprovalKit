@@ -45,18 +45,25 @@ async def chat_with_agent(
     req: ChatRequest,
     workspace: Workspace = Depends(get_current_workspace),
 ):
-    # Read AI API key: Vault first, then Fernet fallback
+    # Read AI API key + provider: Vault first, then Fernet fallback
     api_key = ""
+    provider = "gemini"
     if workspace.ai_api_key_encrypted == "vault":
         vault_data = read_secret(str(workspace.id), _AI_KEY_SLUG)
         if vault_data:
             api_key = vault_data.get("api_key", "")
+            provider = vault_data.get("provider", "gemini")
     elif workspace.ai_api_key_encrypted:
-        api_key = decrypt_secret(workspace.ai_api_key_encrypted) or ""
+        decrypted = decrypt_secret(workspace.ai_api_key_encrypted) or ""
+        if ":" in decrypted:
+            provider, api_key = decrypted.split(":", 1)
+        else:
+            api_key = decrypted
 
     result = process_message(
         agent_id, req.message, req.agent_title, req.session_id,
-        api_key=api_key, workspace_id=str(workspace.owner_auth0_sub or workspace.id),
+        api_key=api_key, provider=provider,
+        workspace_id=str(workspace.owner_auth0_sub or workspace.id),
     )
     return ChatResponse(**result)
 

@@ -15,3 +15,4 @@ cryptography==46.0.5
 python-dotenv==1.0.1
 hvac==2.3.0
 google-genai>=1.0.0
+openai>=1.0.0

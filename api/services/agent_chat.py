@@ -991,9 +991,18 @@ def _build_gemini_contents(history: list[dict]) -> list[dict]:
 
 # ── Main Processing ──────────────────────────────────────────────────────────
 
-def process_message(agent_id: str, message: str, agent_title: str = "", session_id: str = "", api_key: str = "", workspace_id: str = "") -> dict:
-    """Agentic loop: Gemini thinks → calls tool → backend executes → result fed back → Gemini responds.
+_PROVIDER_CONFIG = {
+    "gemini": {"type": "gemini", "model": "models/gemini-2.0-flash"},
+    "groq": {"type": "openai", "base_url": "https://api.groq.com/openai/v1", "model": "llama-3.3-70b-versatile"},
+    "openrouter": {"type": "openai", "base_url": "https://openrouter.ai/api/v1", "model": "meta-llama/llama-3.3-70b-instruct:free"},
+    "mistral": {"type": "openai", "base_url": "https://api.mistral.ai/v1", "model": "mistral-small-latest"},
+}
 
+
+def process_message(agent_id: str, message: str, agent_title: str = "", session_id: str = "", api_key: str = "", provider: str = "gemini", workspace_id: str = "") -> dict:
+    """Agentic loop: LLM thinks → calls tool → backend executes → result fed back → LLM responds.
+
+    Supports multiple providers: Gemini, Groq, OpenRouter, Mistral.
     The LLM never just "suggests" an action — it executes it server-side and
     responds with full knowledge of the outcome.
 
@@ -1017,6 +1026,15 @@ def process_message(agent_id: str, message: str, agent_title: str = "", session_
 
     system_prompt = AGENT_PROMPTS.get(agent_id, f"You are a helpful AI assistant called {agent_title}.")
     tools = AGENT_TOOLS.get(agent_id, [])
+
+    pconfig = _PROVIDER_CONFIG.get(provider, _PROVIDER_CONFIG["gemini"])
+
+    # Route to provider-specific implementation
+    if pconfig["type"] == "openai":
+        return _process_openai_compatible(
+            agent_id, message, session_id, api_key, workspace_id,
+            system_prompt, tools, history, pconfig,
+        )
 
     try:
         from google import genai
@@ -1159,8 +1177,122 @@ def process_message(agent_id: str, message: str, agent_title: str = "", session_
         return _fallback_response(agent_id, message, session_id, error=str(e))
 
 
+def _process_openai_compatible(
+    agent_id: str, message: str, session_id: str, api_key: str, workspace_id: str,
+    system_prompt: str, tools: list, history: list, pconfig: dict,
+) -> dict:
+    """Agentic loop for OpenAI-compatible providers (Groq, OpenRouter, Mistral)."""
+    MAX_TOOL_ROUNDS = 5
+
+    try:
+        from openai import OpenAI
+
+        client = OpenAI(api_key=api_key, base_url=pconfig["base_url"])
+        model = pconfig["model"]
+
+        # Convert tools to OpenAI format
+        openai_tools = []
+        for t in tools:
+            openai_tools.append({
+                "type": "function",
+                "function": {
+                    "name": t["name"],
+                    "description": t["description"],
+                    "parameters": t["input_schema"],
+                },
+            })
+
+        # Build messages from history
+        messages = [{"role": "system", "content": system_prompt}]
+        for msg in history[-MAX_HISTORY:]:
+            role = msg["role"]
+            if role == "model":
+                role = "assistant"
+            messages.append({"role": role, "content": msg.get("content", "")})
+        messages.append({"role": "user", "content": message})
+
+        # Agentic loop
+        all_text_parts = []
+        all_actions = []
+
+        for _round in range(MAX_TOOL_ROUNDS):
+            response = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                tools=openai_tools if openai_tools else None,
+                temperature=0.7,
+            )
+
+            choice = response.choices[0]
+            msg = choice.message
+
+            # Collect text
+            if msg.content:
+                all_text_parts.append(msg.content)
+
+            # Check for tool calls
+            if not msg.tool_calls:
+                break
+
+            # Add assistant message with tool calls to messages
+            messages.append(msg.model_dump())
+
+            # Execute each tool call
+            for tc in msg.tool_calls:
+                import json as _json
+                tool_args = _json.loads(tc.function.arguments) if tc.function.arguments else {}
+
+                logger.info(f"Agent {agent_id} calling tool: {tc.function.name}({tool_args})")
+
+                result = _execute_tool(agent_id, tc.function.name, tool_args, workspace_id)
+                all_actions.append({"tool": tc.function.name, "args": tool_args, "result": result})
+
+                logger.info(f"Tool result: {result.get('status', 'error')} — {result.get('message', result.get('error', ''))}")
+
+                # Add tool result to messages
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc.id,
+                    "content": _json.dumps(result),
+                })
+
+        response_text = "\n".join(all_text_parts).strip()
+
+        # Update session history
+        history.append({"role": "user", "content": message})
+        history.append({"role": "model", "content": response_text or "Done."})
+
+        if len(history) > MAX_HISTORY * 2:
+            _sessions[f"{agent_id}:{session_id}"] = history[-MAX_HISTORY:]
+
+        suggestions = AGENT_SUGGESTIONS.get(agent_id, [])[:3]
+
+        action = None
+        if all_actions:
+            last_ok = next((a for a in reversed(all_actions) if a["result"].get("success")), None)
+            if last_ok:
+                mapped = _map_tool_to_action(agent_id, last_ok["tool"], last_ok["args"])
+                if mapped:
+                    action = {**mapped, "job_id": last_ok["result"].get("job_id"), "status": last_ok["result"].get("status"), "executed": True}
+
+        return {
+            "response": response_text or "Done.",
+            "action": action,
+            "actions_taken": len(all_actions),
+            "suggestions": suggestions,
+            "type": "action" if all_actions else "chat",
+            "session_id": session_id,
+        }
+
+    except ImportError:
+        return _fallback_response(agent_id, message, session_id, error="openai package not installed")
+    except Exception as e:
+        logger.error(f"OpenAI-compatible API error ({pconfig.get('base_url', '')}): {e}")
+        return _fallback_response(agent_id, message, session_id, error=str(e))
+
+
 def _fallback_response(agent_id: str, message: str, session_id: str, error: str = "") -> dict:
-    """Fallback when Gemini API is unavailable."""
+    """Fallback when AI API is unavailable."""
     if error:
         resp = f"AI error: {error}\n\nPlease check your Gemini API key and try again."
     else:

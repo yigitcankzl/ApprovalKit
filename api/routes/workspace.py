@@ -229,6 +229,15 @@ _AI_KEY_SLUG = "_ai_api_key"
 
 class AIKeyRequest(BaseModel):
     api_key: str
+    provider: str = "gemini"  # gemini | groq | openrouter | mistral
+
+
+SUPPORTED_PROVIDERS = {
+    "gemini": {"name": "Google Gemini", "url": "https://aistudio.google.com/apikey"},
+    "groq": {"name": "Groq", "url": "https://console.groq.com/keys"},
+    "openrouter": {"name": "OpenRouter", "url": "https://openrouter.ai/keys"},
+    "mistral": {"name": "Mistral", "url": "https://console.mistral.ai/api-keys"},
+}
 
 
 @router.post("/ai-key")
@@ -237,22 +246,22 @@ async def save_ai_api_key(
     workspace: Workspace = Depends(get_current_workspace),
     db: AsyncSession = Depends(get_db),
 ):
-    """Store the user's AI API key. Primary: HashiCorp Vault. Fallback: Fernet in DB."""
+    """Store the user's AI API key + provider. Primary: HashiCorp Vault. Fallback: Fernet in DB."""
     if not body.api_key or len(body.api_key) < 10:
         raise HTTPException(status_code=422, detail="Invalid API key")
+    if body.provider not in SUPPORTED_PROVIDERS:
+        raise HTTPException(status_code=422, detail=f"Unsupported provider. Supported: {', '.join(SUPPORTED_PROVIDERS.keys())}")
 
     ws_id = str(workspace.id)
-    stored_in_vault = store_secret(ws_id, _AI_KEY_SLUG, {"api_key": body.api_key})
+    stored_in_vault = store_secret(ws_id, _AI_KEY_SLUG, {"api_key": body.api_key, "provider": body.provider})
 
     if stored_in_vault:
-        # Vault succeeded — clear any DB fallback and mark as vault-stored
         workspace.ai_api_key_encrypted = "vault"
     else:
-        # Vault unavailable — fall back to Fernet encryption in DB
-        workspace.ai_api_key_encrypted = encrypt_secret(body.api_key)
+        workspace.ai_api_key_encrypted = encrypt_secret(f"{body.provider}:{body.api_key}")
 
     await db.commit()
-    return {"status": "saved", "has_ai_api_key": True, "storage": "vault" if stored_in_vault else "encrypted_db"}
+    return {"status": "saved", "has_ai_api_key": True, "provider": body.provider, "storage": "vault" if stored_in_vault else "encrypted_db"}
 
 
 @router.delete("/ai-key")
@@ -274,5 +283,15 @@ async def ai_api_key_status(
 ):
     """Check if an AI API key is configured (never returns the key itself)."""
     has_key = bool(workspace.ai_api_key_encrypted)
-    storage = "vault" if workspace.ai_api_key_encrypted == "vault" else "encrypted_db" if has_key else None
-    return {"has_ai_api_key": has_key, "storage": storage, "vault_available": is_vault_available()}
+    provider = None
+    if has_key and workspace.ai_api_key_encrypted == "vault":
+        vault_data = read_secret(str(workspace.id), _AI_KEY_SLUG)
+        if vault_data:
+            provider = vault_data.get("provider", "gemini")
+    elif has_key:
+        decrypted = decrypt_secret(workspace.ai_api_key_encrypted) or ""
+        if ":" in decrypted:
+            provider = decrypted.split(":", 1)[0]
+        else:
+            provider = "gemini"
+    return {"has_ai_api_key": has_key, "provider": provider, "providers": list(SUPPORTED_PROVIDERS.keys())}

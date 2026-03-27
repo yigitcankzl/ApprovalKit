@@ -130,8 +130,8 @@ export const api = {
     fetchAPI(`/api/v1/demo/agents/${agentId}/session/${sessionId}`, { method: "DELETE" }),
 
   // AI API Key (encrypted server-side)
-  saveAIKey: (apiKey: string) =>
-    fetchAPI("/api/v1/workspace/ai-key", { method: "POST", body: JSON.stringify({ api_key: apiKey }) }),
+  saveAIKey: (apiKey: string, provider: string = "gemini") =>
+    fetchAPI("/api/v1/workspace/ai-key", { method: "POST", body: JSON.stringify({ api_key: apiKey, provider }) }),
   deleteAIKey: () =>
     fetchAPI("/api/v1/workspace/ai-key", { method: "DELETE" }),
   getAIKeyStatus: () =>

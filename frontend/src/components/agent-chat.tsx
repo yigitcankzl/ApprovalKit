@@ -291,6 +291,8 @@ export function AgentChat({ agent }: { agent: DemoAgent }) {
   const [sessionId, setSessionId] = useState("");
   const [hasAIKey, setHasAIKey] = useState(false);
   const [keyInput, setKeyInput] = useState("");
+  const [selectedProvider, setSelectedProvider] = useState("groq");
+  const [currentProvider, setCurrentProvider] = useState("");
   const [showKeyInput, setShowKeyInput] = useState(false);
   const [savingKey, setSavingKey] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -319,7 +321,10 @@ export function AgentChat({ agent }: { agent: DemoAgent }) {
       .then((data: { suggestions: string[] }) => setSuggestions(data.suggestions))
       .catch(() => {});
     api.getAIKeyStatus()
-      .then((data: { has_ai_api_key: boolean }) => setHasAIKey(data.has_ai_api_key))
+      .then((data: { has_ai_api_key: boolean; provider?: string }) => {
+        setHasAIKey(data.has_ai_api_key);
+        if (data.provider) setCurrentProvider(data.provider);
+      })
       .catch(() => {});
   }, [agent.id]);
 
@@ -607,13 +612,16 @@ export function AgentChat({ agent }: { agent: DemoAgent }) {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
-                  <span className="text-xs text-green-700 dark:text-green-400 font-medium">Gemini API key configured</span>
+                  <span className="text-xs text-green-700 dark:text-green-400 font-medium">
+                    {currentProvider === "groq" ? "Groq" : currentProvider === "openrouter" ? "OpenRouter" : currentProvider === "mistral" ? "Mistral" : "Gemini"} API key configured
+                  </span>
                   <span className="text-[10px] text-zinc-400">(encrypted on server)</span>
                 </div>
                 <button
                   onClick={async () => {
                     await api.deleteAIKey();
                     setHasAIKey(false);
+                    setCurrentProvider("");
                   }}
                   className="text-xs text-red-500 hover:text-red-600"
                 >
@@ -622,13 +630,36 @@ export function AgentChat({ agent }: { agent: DemoAgent }) {
               </div>
             ) : (
               <>
+                {/* Provider selector */}
+                <div className="flex gap-1.5 mb-2">
+                  {[
+                    { id: "groq", label: "Groq", hint: "Free, fast" },
+                    { id: "gemini", label: "Gemini", hint: "Google" },
+                    { id: "openrouter", label: "OpenRouter", hint: "Free models" },
+                    { id: "mistral", label: "Mistral", hint: "Free tier" },
+                  ].map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => setSelectedProvider(p.id)}
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                        selectedProvider === p.id
+                          ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900"
+                          : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                      }`}
+                    >
+                      {p.label}
+                      <span className="text-[9px] opacity-60 ml-1">{p.hint}</span>
+                    </button>
+                  ))}
+                </div>
+
                 <div className="flex items-center gap-2">
                   <div className="flex-1">
                     <input
                       type="password"
                       value={keyInput}
                       onChange={(e) => setKeyInput(e.target.value)}
-                      placeholder="Paste your Gemini API key..."
+                      placeholder={`Paste your ${selectedProvider === "groq" ? "Groq" : selectedProvider === "openrouter" ? "OpenRouter" : selectedProvider === "mistral" ? "Mistral" : "Gemini"} API key...`}
                       className="w-full rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-3 py-2 text-xs text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
@@ -638,8 +669,9 @@ export function AgentChat({ agent }: { agent: DemoAgent }) {
                     onClick={async () => {
                       setSavingKey(true);
                       try {
-                        await api.saveAIKey(keyInput.trim());
+                        await api.saveAIKey(keyInput.trim(), selectedProvider);
                         setHasAIKey(true);
+                        setCurrentProvider(selectedProvider);
                         setKeyInput("");
                       } catch {}
                       setSavingKey(false);
@@ -650,7 +682,11 @@ export function AgentChat({ agent }: { agent: DemoAgent }) {
                   </Button>
                 </div>
                 <p className="text-[10px] text-zinc-400 mt-1.5">
-                  Free key from <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">aistudio.google.com/apikey</a> — encrypted and stored on the server, never in your browser.
+                  {selectedProvider === "groq" && <>Free key from <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">console.groq.com/keys</a> — 30 req/min, Llama 3.3 70B</>}
+                  {selectedProvider === "gemini" && <>Free key from <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">aistudio.google.com/apikey</a></>}
+                  {selectedProvider === "openrouter" && <>Free key from <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">openrouter.ai/keys</a> — free models available</>}
+                  {selectedProvider === "mistral" && <>Free key from <a href="https://console.mistral.ai/api-keys" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">console.mistral.ai/api-keys</a></>}
+                  {" — encrypted and stored on the server."}
                 </p>
               </>
             )}
