@@ -132,13 +132,14 @@ async def setup_workspace(body: WorkspaceSetupRequest, request: Request, db: Asy
             "credentials_updated": True,
         }
 
-    # Validate Auth0 connection
-    valid = await _validate_auth0(domain, m2m_id, m2m_secret)
-    if not valid:
-        raise HTTPException(
-            status_code=400,
-            detail="Could not connect to Auth0 with provided credentials.",
-        )
+    # Validate Auth0 connection — skip if using default .env credentials (no M2M provided)
+    if body.auth0_m2m_client_id and body.auth0_m2m_client_secret:
+        valid = await _validate_auth0(domain, m2m_id, m2m_secret)
+        if not valid:
+            raise HTTPException(
+                status_code=400,
+                detail="Could not connect to Auth0 with provided M2M credentials.",
+            )
 
     # Generate secrets — plaintext shown to user ONCE, never stored
     api_key = secrets.token_urlsafe(32)
