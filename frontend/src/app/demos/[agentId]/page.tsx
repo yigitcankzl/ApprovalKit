@@ -15,7 +15,7 @@ import {
   DoorOpen, ClipboardList, UserCheck, Headphones, Lock, Clock,
   Stethoscope, Pill, Microscope, BookOpen, Award, Coins,
   FileSignature, ShieldCheck, Lightbulb, Wrench, UserSearch,
-  MessageSquare, FileText, Zap, TreePine, ExternalLink,
+  MessageSquare, FileText, Zap, TreePine, ExternalLink, Trash2,
 } from "lucide-react";
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -62,6 +62,8 @@ export default function DemoAgentPage() {
   const [connections, setConnections] = useState<ConnectionStatus[]>([]);
   const [allConnected, setAllConnected] = useState(false);
   const [checkingConns, setCheckingConns] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
     api.getDemoAgents()
@@ -132,6 +134,18 @@ export default function DemoAgentPage() {
     setSettingUp(false);
   };
 
+  const handleReset = async () => {
+    setResetting(true);
+    try {
+      await api.clearDemoData();
+      setSetupDone(false);
+      setConnections([]);
+      setAllConnected(false);
+      setShowResetConfirm(false);
+    } catch {}
+    setResetting(false);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
@@ -187,6 +201,15 @@ export default function DemoAgentPage() {
             <StepBadge num={1} label="Setup" active={step === 1} done={step > 1} />
             <StepBadge num={2} label="Connect" active={step === 2} done={step > 2} />
             <StepBadge num={3} label="Chat" active={step === 3} done={false} />
+            {setupDone && (
+              <button
+                onClick={() => setShowResetConfirm(true)}
+                className="ml-1 p-1.5 rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                title="Reset demo"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -329,6 +352,60 @@ export default function DemoAgentPage() {
           <AgentChat agent={agent} />
         )}
       </div>
+
+      {/* Reset confirmation modal */}
+      {showResetConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowResetConfirm(false)}>
+          <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-xl p-6 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-red-100 dark:bg-red-950/30 rounded-lg">
+                <AlertTriangle className="h-5 w-5 text-red-500" />
+              </div>
+              <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">Reset Demo?</h3>
+            </div>
+
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
+              This will permanently delete all demo data for <strong>all agents</strong> in your workspace:
+            </p>
+
+            <ul className="text-sm text-zinc-500 dark:text-zinc-400 space-y-1.5 mb-5 ml-1">
+              <li className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                All demo <strong>connections</strong> (OAuth links will be removed)
+              </li>
+              <li className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                All demo <strong>approvers</strong>
+              </li>
+              <li className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                All demo <strong>approval rules</strong>
+              </li>
+            </ul>
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowResetConfirm(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                onClick={handleReset}
+                disabled={resetting}
+              >
+                {resetting ? (
+                  <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Deleting...</>
+                ) : (
+                  <><Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete All</>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
