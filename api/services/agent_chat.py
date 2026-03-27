@@ -1,845 +1,1022 @@
 """
-Agent Chat Engine
-=================
-Intent-based conversational engine for demo agents.
-Each agent defines intents (patterns + parameter extraction) that map
-user messages to ApprovalKit actions.
+Agent Chat Engine (Gemini API)
+==============================
+LLM-powered conversational engine for demo agents.
+Each agent has a system prompt and tools that map to ApprovalKit actions.
+Gemini decides when to call an action based on the conversation.
+
+API key is provided per-request by the user (no server-side key needed).
 
 Flow:
   1. User types message
-  2. Engine matches intent via keyword/regex patterns
-  3. Extracts parameters from the message
-  4. Returns a structured response with action to execute
-  5. Frontend sends the action to POST /api/v1/test-request
+  2. Engine sends message + history to Gemini with agent-specific tools
+  3. Gemini responds with text and/or function calls
+  4. Function calls are mapped to ApprovalKit actions
+  5. Frontend executes the action via POST /api/v1/test-request
 """
 
-import re
+import uuid
+import json
 from typing import Any
 
-# ── Helpers ────────────────────────────────────────────────────────────────────
-
-def _extract_amount(text: str) -> float | None:
-    """Extract dollar amount from text."""
-    m = re.search(r'\$\s?([\d,]+(?:\.\d+)?)', text)
-    if m:
-        return float(m.group(1).replace(',', ''))
-    m = re.search(r'(\d[\d,]*(?:\.\d+)?)\s*(?:dollar|usd|dolar)', text, re.I)
-    if m:
-        return float(m.group(1).replace(',', ''))
-    return None
+from loguru import logger
 
 
-def _extract_email(text: str) -> str | None:
-    m = re.search(r'[\w.+-]+@[\w-]+\.[\w.]+', text)
-    return m.group(0) if m else None
+# ── Session Storage ───────────────────────────────────────────────────────────
+
+_sessions: dict[str, list[dict]] = {}
+MAX_HISTORY = 30
 
 
-def _extract_number(text: str) -> int | None:
-    m = re.search(r'\b(\d+)\b', text)
-    return int(m.group(1)) if m else None
+def clear_session(session_key: str):
+    _sessions.pop(session_key, None)
 
 
-def _extract_percentage(text: str) -> int | None:
-    m = re.search(r'(\d+)\s*%', text)
-    return int(m.group(1)) if m else None
+# ── Agent System Prompts ──────────────────────────────────────────────────────
+
+_CORE_BEHAVIOR = """
+CRITICAL BEHAVIOR RULES:
+1. You are an AUTONOMOUS agent. The user describes situations, problems, or context — YOU decide what actions to take.
+2. NEVER ask the user "should I do X?" or "would you like me to X?" — Just DO IT. You are the expert.
+3. When you identify a situation that requires action, IMMEDIATELY use the appropriate tool. Don't describe what you would do — do it.
+4. If multiple actions are needed, execute them in the right order. Explain what you're doing and why as you go.
+5. The user is NOT the approver. They are reporting a situation to you. The approval comes from a different person via the ApprovalKit system.
+6. Keep responses short and action-oriented. No walls of text.
+7. If you truly need information to proceed (like a name or ID you can't infer), ask ONE specific question. Otherwise, use reasonable defaults.
+"""
+
+AGENT_PROMPTS: dict[str, str] = {
+    "expense": _CORE_BEHAVIOR + """
+You are the company's AI Expense Management Agent. Employees come to you with situations — broken equipment, upcoming trips, team events, supply needs — and you handle the expense process autonomously.
+
+Your capabilities: Submit expense requests, notify teams via Slack.
+
+Approval rules (you enforce these automatically):
+- Under $500: Auto-approved
+- $500–$4,999: Manager approval required
+- $5,000+: Manager + CFO must both approve
+- Manager can reduce amounts (partial approval)
+
+EXAMPLES of how you should behave:
+- User says "My laptop screen cracked" → You submit a $2,000 equipment expense for a replacement laptop. Don't ask "do you want me to submit an expense?"
+- User says "We hit our Q1 targets" → You submit a team celebration dinner expense (~$800).
+- User says "I need to attend AWS re:Invent" → You submit a travel expense covering flights, hotel, registration (~$5,000+).
+- User says "We're out of printer paper" → You submit a $50 office supplies expense.
+
+Always tell the user: what you're submitting, the amount, which approval flow applies, and who needs to approve.""",
+
+    "release_manager": _CORE_BEHAVIOR + """
+You are the team's AI Release Manager. Engineers come to you with deployment needs, issues, and release requests — you handle CI/CD operations autonomously.
+
+Your capabilities: Deploy to staging/production, rollback, send Slack notifications.
+
+Approval rules:
+- Staging: Auto-approved
+- Production: Maintainer approval required
+- Hotfix: On-call engineer approval (2-min timeout)
+- Rollback: Lead engineer approval (2-min timeout)
+
+EXAMPLES:
+- User says "The new feature is ready for testing" → You deploy to staging immediately.
+- User says "QA passed, let's go live" → You deploy to production (triggers maintainer approval).
+- User says "Users are seeing 500 errors since the last deploy" → You IMMEDIATELY initiate a rollback. This is urgent — don't ask questions.
+- User says "There's a critical payment bug in prod" → You deploy a hotfix with emergency flag.
+
+For incidents, act fast. For routine deploys, confirm the target environment.""",
+
+    "security_incident": _CORE_BEHAVIOR + """
+You are the AI Security Incident Response Agent. When someone reports a security issue, you act IMMEDIATELY. Every second counts.
+
+Your capabilities: Log alerts to #security, lock repositories, revoke production tokens.
+
+Approval rules:
+- Alert logging: Auto (immediate)
+- Lock repo: Security Lead approval
+- Revoke all tokens: CTO + Security Lead (both must approve)
+
+EXAMPLES:
+- User says "We're seeing unusual API traffic from a single IP" → Log a medium alert immediately.
+- User says "Someone pushed suspicious code to the main repo" → Log a HIGH alert AND lock the repository. Do both.
+- User says "We think there's been a data breach" → FULL LOCKDOWN: Log CRITICAL alert, lock all repos, AND revoke all production tokens. Execute all three actions in sequence.
+- User says "Employee's GitHub account was compromised" → Lock the repo immediately, log an alert.
+
+NEVER hesitate during an incident. Act first, investigate later. Always explain the severity level and what you're doing.""",
+
+    "account_takeover": _CORE_BEHAVIOR + """
+You are the AI Account Takeover Response Agent. Customer service reps come to you when users report suspicious activity on their accounts. You handle the full response: freeze, investigate, compensate.
+
+Your capabilities: Freeze accounts, issue permanent bans, issue compensation credits, send security notifications.
+
+Approval rules:
+- Freeze: Security team approval
+- Permanent ban: Security + Legal (both must approve)
+- Compensation under $100: Auto-approved
+- Compensation $100+: CS Manager approval
+
+EXAMPLES:
+- User says "Customer john@example.com says he didn't make those purchases" → IMMEDIATELY freeze the account. Then send a security notification to the customer. Then suggest compensation.
+- User says "We caught a bot doing credential stuffing" → Freeze the bot's account AND initiate a permanent ban.
+- User says "The customer from the takeover case wants to be compensated" → Issue a $50 goodwill credit automatically (under $100).
+- User says "A VIP customer lost $500 due to the breach" → Issue a $150 compensation credit (needs CS Manager approval).
+
+Always prioritize: 1) Freeze (stop the bleeding) 2) Notify (inform the victim) 3) Compensate (make it right).""",
+
+    "recruitment": _CORE_BEHAVIOR + """
+You are the AI Recruitment Agent for HR. Hiring managers and HR staff tell you about candidates and hiring decisions — you execute the paperwork and system access autonomously.
+
+Your capabilities: Send emails (invites, offers, terminations), add to GitHub org, post Slack announcements.
+
+Approval rules:
+- Interview invites: Auto
+- Offer letters: HR Manager approval
+- Salary $180k+: HR Manager + CFO
+- Terminations: HR Manager + CEO
+- GitHub member: IT Manager
+- GitHub admin: IT Manager + CTO
+
+EXAMPLES:
+- User says "We want to bring Sarah Chen in for a frontend interview next Thursday" → Send an interview invitation email immediately.
+- User says "We've decided to hire the candidate for the Senior Engineer role at $160k" → Send the offer letter (HR Manager will need to approve).
+- User says "The new hire starts Monday, username is schen on GitHub" → Add them to the GitHub org as member.
+- User says "We need to let go of the underperforming engineer in the backend team" → Send termination notice (HR + CEO must both approve). Handle this with appropriate gravity.
+- User says "John got promoted to Staff Engineer, bump him to $210k" → Send offer letter with new salary (HR + CFO must both approve since $180k+).""",
+
+    "access_provisioning": _CORE_BEHAVIOR + """
+You are the AI Access Provisioning Agent for IT. When people join, change roles, or leave — you handle all system access changes autonomously.
+
+Your capabilities: Grant access (standard/admin/financial), revoke access (offboarding), send Slack notifications.
+
+Approval rules:
+- Standard (member): IT Manager approval
+- Admin: CTO approval
+- Financial systems: CFO + CTO (both)
+- Offboarding revoke: HR Manager approval
+
+EXAMPLES:
+- User says "New developer starting Monday, username jsmith" → Grant standard GitHub access immediately (IT Manager will approve).
+- User says "Sarah needs admin access, she's now the team lead" → Grant admin privileges (CTO will approve).
+- User says "The new accountant needs access to our billing systems" → Grant financial system access (CFO + CTO must both approve). Explain the elevated approval.
+- User says "Mike left the company today" → Revoke ALL access immediately. This is an offboarding — cover every system.
+- User says "The intern's contract ended" → Revoke access with offboarding reason.""",
+
+    "patient_data": _CORE_BEHAVIOR + """
+You are the AI Patient Data Sharing Agent for a hospital. Doctors and staff come to you when they need to share patient records. You handle HIPAA-compliant data sharing autonomously.
+
+Your capabilities: Share patient records (own doctor/external clinic/insurance/research), send notifications.
+
+Approval rules:
+- Own doctor: Auto-approved
+- External clinic: Doctor approval
+- Insurance: Patient consent + Doctor (both)
+- Research: Ethics Board + Chief Doctor (both)
+
+EXAMPLES:
+- User says "Dr. Smith needs the latest labs for patient P-1234" → Share with own doctor (auto-approved). Confirm the scope.
+- User says "Patient P-1234 is being referred to City General for cardiology" → Share records with external clinic (doctor approval needed).
+- User says "BlueCross is requesting records for patient P-1234's claim" → Share with insurance (patient consent + doctor approval needed). Explain the dual consent requirement.
+- User says "Stanford wants anonymized cardiac data for their study" → Share for research (Ethics Board + Chief Doctor must both approve).
+
+ALWAYS state: patient ID, what data is being shared, with whom, and why. HIPAA compliance is non-negotiable.""",
+
+    "prescription_refill": _CORE_BEHAVIOR + """
+You are the AI Prescription Refill Agent for a clinic pharmacy. Pharmacy staff and nurses come to you with refill requests, dosage changes, and new prescriptions. You process them autonomously.
+
+Your capabilities: Process refills (routine/controlled/dosage change/new), notify pharmacy.
+
+Approval rules:
+- Routine refills (non-controlled): Auto-approved
+- Controlled substances (Schedule II-V): Doctor approval
+- Dosage changes: Doctor + Pharmacist (both)
+- New prescriptions: Doctor approval
+
+EXAMPLES:
+- User says "Patient P-5678 needs their blood pressure medication refilled" → Process routine Lisinopril 10mg refill (auto-approved).
+- User says "Patient P-9012 is requesting their ADHD medication" → Process Adderall refill as controlled substance (doctor must approve). Flag the controlled status clearly.
+- User says "Dr. Lee wants to increase P-3456's Metformin from 500mg to 1000mg" → Process as dosage change (doctor + pharmacist must both approve).
+- User says "New patient needs antibiotics for a sinus infection" → Process new Amoxicillin 500mg prescription (doctor must approve).
+
+ALWAYS verify: patient ID, medication name, dosage. Flag controlled substances prominently.""",
+
+    "gdpr_request": _CORE_BEHAVIOR + """
+You are the AI GDPR Compliance Agent. The privacy team comes to you with data subject requests — deletions, access requests, cross-border transfers. You execute them while ensuring regulatory compliance.
+
+Your capabilities: Process deletions (single/bulk), process cross-border transfers, send compliance emails.
+
+Approval rules:
+- Single user deletion: Privacy Officer approval
+- Bulk deletion (10+ users): CTO + Privacy Officer (both)
+- Cross-border transfer: Legal + Privacy Officer (both)
+
+EXAMPLES:
+- User says "We got a deletion request from user@example.com" → Process a single user data deletion (Privacy Officer will approve). State the 30-day GDPR deadline.
+- User says "We need to purge 25 inactive accounts from before 2020" → Process a bulk deletion (CTO + Privacy Officer must both approve since 10+ users).
+- User says "Our US analytics partner needs access to EU user data" → Process cross-border transfer (Legal + Privacy must both approve). Explain the legal basis requirement.
+- User says "A customer in Germany wants all their data deleted" → Process GDPR Article 17 deletion. Log it, process it, send confirmation.
+
+ALWAYS state: which systems are affected, the legal basis, and the regulatory deadline.""",
+
+    "api_key_rotation": _CORE_BEHAVIOR + """
+You are the AI API Key Rotation Agent for DevOps/Security. When engineers report key issues, expiry alerts, or security concerns — you handle credential rotation autonomously.
+
+Your capabilities: Rotate individual keys (scheduled/emergency), rotate third-party keys, rotate ALL keys (nuclear option), send Slack notifications.
+
+Approval rules:
+- Scheduled rotation: Auto-approved
+- Emergency (compromised): Security Lead approval
+- Third-party keys: CTO approval
+- Full rotation (all keys): CTO + Security Lead (both)
+
+EXAMPLES:
+- User says "The Stripe key is due for its 90-day rotation" → Execute scheduled rotation (auto-approved). Mention zero-downtime strategy.
+- User says "I think our GitHub token was exposed in a public gist" → EMERGENCY rotation immediately (Security Lead will approve). Act fast.
+- User says "SendGrid sent us a security advisory to rotate keys" → Rotate third-party key (CTO will approve since it's third-party).
+- User says "We had a full infrastructure breach" → ROTATE ALL KEYS. Nuclear option (CTO + Security Lead must both approve). Explain the blast radius.
+
+For emergencies, act IMMEDIATELY. Explain the rotation strategy (zero-downtime, blue-green) for non-emergency rotations.""",
+}
+
+# ── Agent Tools (Claude tool_use) ─────────────────────────────────────────────
+
+AGENT_TOOLS: dict[str, list[dict]] = {
+    "expense": [
+        {
+            "name": "submit_expense",
+            "description": "Submit an expense request for approval through ApprovalKit. Use this whenever the user wants to submit, request, or claim an expense.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "amount_usd": {"type": "number", "description": "Expense amount in USD"},
+                    "category": {"type": "string", "enum": ["office_supplies", "equipment", "travel", "team_event", "software", "training"], "description": "Expense category"},
+                    "description": {"type": "string", "description": "Brief description of the expense"},
+                },
+                "required": ["amount_usd", "category", "description"],
+            },
+        },
+        {
+            "name": "notify_slack",
+            "description": "Send a notification to a Slack channel about an expense.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "channel": {"type": "string", "description": "Slack channel (e.g. #finance, #general)"},
+                    "message": {"type": "string", "description": "Message to post"},
+                },
+                "required": ["channel", "message"],
+            },
+        },
+    ],
+
+    "release_manager": [
+        {
+            "name": "deploy",
+            "description": "Deploy code to an environment. Use this when the user wants to deploy, release, or ship code.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "ref": {"type": "string", "description": "Git ref to deploy (branch, tag, or commit)"},
+                    "environment": {"type": "string", "enum": ["staging", "production"], "description": "Target environment"},
+                    "service": {"type": "string", "description": "Service to deploy (e.g. api, web, worker)"},
+                    "is_hotfix": {"type": "boolean", "description": "Whether this is an emergency hotfix"},
+                },
+                "required": ["ref", "environment", "service"],
+            },
+        },
+        {
+            "name": "rollback",
+            "description": "Rollback a production deployment to a previous version.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "environment": {"type": "string", "enum": ["staging", "production"]},
+                    "target_version": {"type": "string", "description": "Version to rollback to"},
+                    "reason": {"type": "string", "description": "Reason for rollback"},
+                },
+                "required": ["environment", "target_version", "reason"],
+            },
+        },
+        {
+            "name": "notify_slack",
+            "description": "Send deployment notification to Slack.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "channel": {"type": "string"},
+                    "message": {"type": "string"},
+                },
+                "required": ["channel", "message"],
+            },
+        },
+    ],
+
+    "security_incident": [
+        {
+            "name": "log_alert",
+            "description": "Log a security alert to the #security Slack channel. Use for any security observation or warning.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "severity": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
+                    "message": {"type": "string", "description": "Alert description"},
+                },
+                "required": ["severity", "message"],
+            },
+        },
+        {
+            "name": "lock_repo",
+            "description": "Lock a GitHub repository to prevent unauthorized changes. Requires Security Lead approval.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "repo": {"type": "string", "description": "Repository name (e.g. acme/api)"},
+                    "reason": {"type": "string", "description": "Reason for locking"},
+                },
+                "required": ["repo", "reason"],
+            },
+        },
+        {
+            "name": "revoke_tokens",
+            "description": "Revoke all production access tokens. CRITICAL operation requiring CTO + Security Lead approval.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "scope": {"type": "string", "enum": ["production", "staging", "all"], "description": "Scope of token revocation"},
+                    "reason": {"type": "string", "description": "Reason for revocation"},
+                },
+                "required": ["scope", "reason"],
+            },
+        },
+    ],
+
+    "account_takeover": [
+        {
+            "name": "freeze_account",
+            "description": "Freeze a compromised user account. Requires security team approval.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "account_email": {"type": "string", "description": "Email of the account to freeze"},
+                    "reason": {"type": "string"},
+                },
+                "required": ["account_email", "reason"],
+            },
+        },
+        {
+            "name": "ban_account",
+            "description": "Permanently ban an account. Requires Security + Legal approval.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "account_email": {"type": "string"},
+                    "reason": {"type": "string"},
+                    "evidence": {"type": "string", "description": "Summary of evidence for the ban"},
+                },
+                "required": ["account_email", "reason", "evidence"],
+            },
+        },
+        {
+            "name": "issue_credit",
+            "description": "Issue a compensation credit to an affected customer.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "account_email": {"type": "string"},
+                    "amount_usd": {"type": "number"},
+                    "reason": {"type": "string"},
+                },
+                "required": ["account_email", "amount_usd", "reason"],
+            },
+        },
+        {
+            "name": "send_notification",
+            "description": "Send a security notification email to the affected user.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "recipient": {"type": "string"},
+                    "subject": {"type": "string"},
+                    "type": {"type": "string", "enum": ["account_compromised", "account_restored", "security_alert"]},
+                },
+                "required": ["recipient", "subject", "type"],
+            },
+        },
+    ],
+
+    "recruitment": [
+        {
+            "name": "send_email",
+            "description": "Send an HR email (interview invite, offer letter, termination notice).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "recipient": {"type": "string", "description": "Recipient email"},
+                    "subject": {"type": "string"},
+                    "type": {"type": "string", "enum": ["invite", "offer_letter", "termination", "onboarding"]},
+                    "salary_usd": {"type": "number", "description": "Annual salary (for offer letters)"},
+                    "body_preview": {"type": "string", "description": "Brief preview of email content"},
+                },
+                "required": ["recipient", "subject", "type"],
+            },
+        },
+        {
+            "name": "add_to_github",
+            "description": "Add a new employee to the GitHub organization.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "username": {"type": "string", "description": "GitHub username"},
+                    "org": {"type": "string", "description": "GitHub org name"},
+                    "role": {"type": "string", "enum": ["member", "admin"]},
+                },
+                "required": ["username", "org", "role"],
+            },
+        },
+        {
+            "name": "notify_slack",
+            "description": "Post an HR announcement to Slack.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "channel": {"type": "string"},
+                    "message": {"type": "string"},
+                },
+                "required": ["channel", "message"],
+            },
+        },
+    ],
+
+    "access_provisioning": [
+        {
+            "name": "grant_access",
+            "description": "Grant system access to a user (GitHub org, admin privileges, etc.).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "username": {"type": "string"},
+                    "org": {"type": "string"},
+                    "role": {"type": "string", "enum": ["member", "admin"]},
+                    "system": {"type": "string", "enum": ["github", "aws", "financial", "all"]},
+                },
+                "required": ["username", "org", "role"],
+            },
+        },
+        {
+            "name": "revoke_access",
+            "description": "Revoke all system access for a departing employee (offboarding).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "username": {"type": "string"},
+                    "org": {"type": "string"},
+                    "reason": {"type": "string", "enum": ["offboarding", "security", "role_change"]},
+                },
+                "required": ["username", "org", "reason"],
+            },
+        },
+        {
+            "name": "notify_slack",
+            "description": "Send an access change notification to Slack.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "channel": {"type": "string"},
+                    "message": {"type": "string"},
+                },
+                "required": ["channel", "message"],
+            },
+        },
+    ],
+
+    "patient_data": [
+        {
+            "name": "share_records",
+            "description": "Share patient medical records with an authorized recipient.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "patient_id": {"type": "string", "description": "Patient identifier"},
+                    "recipient_type": {"type": "string", "enum": ["own_doctor", "external_clinic", "insurance", "research"]},
+                    "recipient_name": {"type": "string"},
+                    "purpose": {"type": "string"},
+                    "data_scope": {"type": "string", "enum": ["full_record", "summary", "specific_test", "anonymized"]},
+                },
+                "required": ["patient_id", "recipient_type", "recipient_name", "purpose"],
+            },
+        },
+        {
+            "name": "send_notification",
+            "description": "Send a data sharing notification email.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "recipient": {"type": "string"},
+                    "subject": {"type": "string"},
+                    "type": {"type": "string", "enum": ["consent_request", "data_shared", "access_granted"]},
+                },
+                "required": ["recipient", "subject", "type"],
+            },
+        },
+    ],
+
+    "prescription_refill": [
+        {
+            "name": "process_refill",
+            "description": "Process a prescription refill request.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "patient_id": {"type": "string"},
+                    "medication": {"type": "string", "description": "Medication name"},
+                    "dosage": {"type": "string", "description": "Dosage (e.g. 10mg, 500mg)"},
+                    "is_controlled": {"type": "boolean", "description": "Whether this is a controlled substance"},
+                    "is_dosage_change": {"type": "boolean", "description": "Whether this involves a dosage change"},
+                    "is_new_prescription": {"type": "boolean", "description": "Whether this is a new prescription"},
+                },
+                "required": ["patient_id", "medication", "dosage"],
+            },
+        },
+        {
+            "name": "notify_pharmacy",
+            "description": "Send a notification to the pharmacy.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "pharmacy_name": {"type": "string"},
+                    "message": {"type": "string"},
+                },
+                "required": ["pharmacy_name", "message"],
+            },
+        },
+    ],
+
+    "gdpr_request": [
+        {
+            "name": "process_deletion",
+            "description": "Process a data deletion (right to be forgotten) request.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "subject_email": {"type": "string", "description": "Email of the data subject"},
+                    "scope": {"type": "string", "enum": ["full", "partial", "specific_service"]},
+                    "systems": {"type": "string", "description": "Comma-separated list of systems to delete from"},
+                    "is_bulk": {"type": "boolean", "description": "Whether this is a bulk deletion (10+ users)"},
+                },
+                "required": ["subject_email", "scope"],
+            },
+        },
+        {
+            "name": "process_transfer",
+            "description": "Process a cross-border data transfer request.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "subject_email": {"type": "string"},
+                    "destination_country": {"type": "string"},
+                    "purpose": {"type": "string"},
+                    "legal_basis": {"type": "string", "enum": ["consent", "contract", "legitimate_interest", "adequacy_decision"]},
+                },
+                "required": ["subject_email", "destination_country", "purpose", "legal_basis"],
+            },
+        },
+        {
+            "name": "send_compliance_email",
+            "description": "Send a GDPR compliance notification email.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "recipient": {"type": "string"},
+                    "subject": {"type": "string"},
+                    "type": {"type": "string", "enum": ["request_received", "deletion_complete", "transfer_notice"]},
+                },
+                "required": ["recipient", "subject", "type"],
+            },
+        },
+    ],
+
+    "api_key_rotation": [
+        {
+            "name": "rotate_key",
+            "description": "Rotate an API key for a specific service.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "service": {"type": "string", "description": "Service name (e.g. stripe, github, aws, sendgrid)"},
+                    "urgency": {"type": "string", "enum": ["scheduled", "emergency", "compromised"]},
+                    "reason": {"type": "string"},
+                    "is_third_party": {"type": "boolean", "description": "Whether this is a third-party key"},
+                },
+                "required": ["service", "urgency", "reason"],
+            },
+        },
+        {
+            "name": "rotate_all_keys",
+            "description": "Rotate ALL API keys simultaneously. Nuclear option requiring CTO + Security Lead.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "reason": {"type": "string"},
+                    "scope": {"type": "string", "enum": ["production", "staging", "all"]},
+                },
+                "required": ["reason", "scope"],
+            },
+        },
+        {
+            "name": "notify_slack",
+            "description": "Send a rotation notification to Slack.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "channel": {"type": "string"},
+                    "message": {"type": "string"},
+                },
+                "required": ["channel", "message"],
+            },
+        },
+    ],
+}
+
+# ── Tool → ApprovalKit Action Mapping ─────────────────────────────────────────
+
+_TOOL_ACTION_MAP: dict[str, dict[str, dict]] = {
+    "expense": {
+        "submit_expense": {"connection": "stripe-prod", "action": "charge",
+                           "param_map": lambda p: {"type": "expense", "amount_usd": p["amount_usd"],
+                                                   "category": p["category"], "description": p["description"],
+                                                   "customer": "employee@company.com"}},
+        "notify_slack": {"connection": "slack-prod", "action": "send_message",
+                         "param_map": lambda p: p},
+    },
+    "release_manager": {
+        "deploy": {"connection": "github-main", "action": "deploy",
+                   "param_map": lambda p: {"ref": p["ref"], "environment": p["environment"],
+                                           "service": p.get("service", "api"),
+                                           "type": "hotfix" if p.get("is_hotfix") else "deploy"}},
+        "rollback": {"connection": "github-main", "action": "rollback",
+                     "param_map": lambda p: {"env": p["environment"], "version": p["target_version"],
+                                             "reason": p["reason"]}},
+        "notify_slack": {"connection": "slack-prod", "action": "send_message",
+                         "param_map": lambda p: p},
+    },
+    "security_incident": {
+        "log_alert": {"connection": "slack-prod", "action": "send_message",
+                      "param_map": lambda p: {"channel": "#security",
+                                              "message": f"[{p['severity'].upper()}] {p['message']}"}},
+        "lock_repo": {"connection": "github-prod", "action": "lock_repo",
+                      "param_map": lambda p: p},
+        "revoke_tokens": {"connection": "github-prod", "action": "revoke_tokens",
+                          "param_map": lambda p: p},
+    },
+    "account_takeover": {
+        "freeze_account": {"connection": "salesforce-prod", "action": "update_case",
+                           "param_map": lambda p: {"type": "account_freeze", "email": p["account_email"],
+                                                   "reason": p["reason"]}},
+        "ban_account": {"connection": "salesforce-prod", "action": "update_case",
+                        "param_map": lambda p: {"type": "permanent_ban", "email": p["account_email"],
+                                                "reason": p["reason"], "evidence": p.get("evidence", "")}},
+        "issue_credit": {"connection": "stripe-prod", "action": "credit",
+                         "param_map": lambda p: {"amount_usd": p["amount_usd"], "customer": p["account_email"],
+                                                 "reason": p["reason"]}},
+        "send_notification": {"connection": "gmail-prod", "action": "send_email",
+                              "param_map": lambda p: {"recipient": p["recipient"], "subject": p["subject"],
+                                                      "type": p["type"]}},
+    },
+    "recruitment": {
+        "send_email": {"connection": "gmail-prod", "action": "send_email",
+                       "param_map": lambda p: {k: v for k, v in p.items() if v is not None}},
+        "add_to_github": {"connection": "github-prod", "action": "add_member",
+                          "param_map": lambda p: p},
+        "notify_slack": {"connection": "slack-prod", "action": "send_message",
+                         "param_map": lambda p: p},
+    },
+    "access_provisioning": {
+        "grant_access": {"connection": "github-prod", "action": "add_member",
+                         "param_map": lambda p: {"username": p["username"], "org": p["org"],
+                                                 "role": p["role"],
+                                                 "system": p.get("system", "github")}},
+        "revoke_access": {"connection": "github-prod", "action": "remove_member",
+                          "param_map": lambda p: p},
+        "notify_slack": {"connection": "slack-prod", "action": "send_message",
+                         "param_map": lambda p: p},
+    },
+    "patient_data": {
+        "share_records": {"connection": "google-drive-prod", "action": "share",
+                          "param_map": lambda p: p},
+        "send_notification": {"connection": "gmail-prod", "action": "send_email",
+                              "param_map": lambda p: {"recipient": p["recipient"], "subject": p["subject"],
+                                                      "type": p["type"]}},
+    },
+    "prescription_refill": {
+        "process_refill": {"connection": "gmail-prod", "action": "send_email",
+                           "param_map": lambda p: {"type": "controlled_refill" if p.get("is_controlled") else
+                                                   "dosage_change" if p.get("is_dosage_change") else
+                                                   "new_prescription" if p.get("is_new_prescription") else
+                                                   "routine_refill",
+                                                   "patient_id": p["patient_id"],
+                                                   "medication": p["medication"], "dosage": p["dosage"],
+                                                   "recipient": "pharmacy@clinic.com",
+                                                   "subject": f"Rx Refill: {p['medication']} {p['dosage']}"}},
+        "notify_pharmacy": {"connection": "slack-prod", "action": "send_message",
+                            "param_map": lambda p: {"channel": "#pharmacy",
+                                                    "message": p["message"]}},
+    },
+    "gdpr_request": {
+        "process_deletion": {"connection": "github-prod", "action": "deploy",
+                             "param_map": lambda p: {"type": "gdpr_deletion", "env": "production",
+                                                     "subject_email": p["subject_email"],
+                                                     "scope": p["scope"],
+                                                     "is_bulk": p.get("is_bulk", False),
+                                                     "migration_name": f"delete_user_data_{p['subject_email'].split('@')[0]}"}},
+        "process_transfer": {"connection": "gmail-prod", "action": "send_email",
+                             "param_map": lambda p: {"type": "cross_border_transfer",
+                                                     "recipient": p["subject_email"],
+                                                     "subject": f"Data Transfer to {p['destination_country']}",
+                                                     "destination": p["destination_country"],
+                                                     "legal_basis": p["legal_basis"]}},
+        "send_compliance_email": {"connection": "gmail-prod", "action": "send_email",
+                                  "param_map": lambda p: {"recipient": p["recipient"], "subject": p["subject"],
+                                                          "type": p["type"]}},
+    },
+    "api_key_rotation": {
+        "rotate_key": {"connection": "github-prod", "action": "deploy",
+                       "param_map": lambda p: {"type": "key_rotation", "env": "production",
+                                               "service": p["service"], "urgency": p["urgency"],
+                                               "reason": p["reason"],
+                                               "is_third_party": p.get("is_third_party", False),
+                                               "migration_name": f"rotate_{p['service']}_key"}},
+        "rotate_all_keys": {"connection": "github-prod", "action": "deploy",
+                            "param_map": lambda p: {"type": "key_rotation", "env": "production",
+                                                    "urgency": "emergency", "scope": p["scope"],
+                                                    "reason": p["reason"],
+                                                    "migration_name": "rotate_all_keys"}},
+        "notify_slack": {"connection": "slack-prod", "action": "send_message",
+                         "param_map": lambda p: p},
+    },
+}
 
 
-def _extract_name(text: str, after_keyword: str) -> str | None:
-    """Extract a name/phrase after a keyword."""
-    m = re.search(rf'{after_keyword}\s+(.+?)(?:\s+for|\s+to|\s+from|\s*$)', text, re.I)
-    return m.group(1).strip() if m else None
+def _map_tool_to_action(agent_id: str, tool_name: str, tool_input: dict) -> dict | None:
+    """Map a Claude tool call to an ApprovalKit action."""
+    agent_tools = _TOOL_ACTION_MAP.get(agent_id, {})
+    tool_def = agent_tools.get(tool_name)
+    if not tool_def:
+        return None
+    try:
+        params = tool_def["param_map"](tool_input)
+        return {
+            "connection": tool_def["connection"],
+            "action": tool_def["action"],
+            "params": params,
+        }
+    except Exception as e:
+        logger.error(f"Tool mapping error: {agent_id}/{tool_name}: {e}")
+        return None
 
 
-def _kw_match(text: str, keywords: list[str]) -> bool:
-    """Check if any keyword appears in text (case-insensitive)."""
-    lower = text.lower()
-    return any(k.lower() in lower for k in keywords)
+# ── Suggestions ───────────────────────────────────────────────────────────────
+
+AGENT_SUGGESTIONS: dict[str, list[str]] = {
+    "expense": [
+        "I need a second monitor for my home office setup",
+        "Our team is planning an offsite dinner for 12 people next Friday",
+        "I'm attending KubeCon in Paris next month, need to book flights and hotel",
+        "We ran out of whiteboard markers and Post-it notes",
+        "My keyboard stopped working, I need a replacement",
+    ],
+    "release_manager": [
+        "Feature branch feature/user-profiles is ready, can we get it on staging?",
+        "Staging looks good after two days of QA, let's push v2.5.0 to prod",
+        "We're getting timeout errors on the checkout page since this morning's deploy",
+        "There's a broken migration in prod, payments table is missing a column",
+        "The latest release broke the search feature, we need to revert",
+    ],
+    "security_incident": [
+        "Our monitoring flagged 200+ failed login attempts from the same IP range",
+        "A commit appeared on main from a developer who's been on vacation for a week",
+        "CloudTrail shows someone accessed the production S3 bucket at 3am",
+        "We got an email from a researcher about an XSS vulnerability in our app",
+        "Dependabot flagged a critical CVE in one of our production dependencies",
+    ],
+    "account_takeover": [
+        "Customer alice@gmail.com called saying she sees orders she didn't place",
+        "We noticed 50 accounts logged in from the same IP within one minute",
+        "The customer from ticket #4821 is asking when their account will be restored",
+        "A user reported that their email and password were changed without their knowledge",
+        "Our fraud detection flagged three accounts making identical $999 purchases",
+    ],
+    "recruitment": [
+        "We liked the React developer from the portfolio review, let's schedule a call",
+        "The backend candidate accepted verbally, salary agreed at $165k, start date March 15",
+        "We need to make a competitive offer for the ML engineer — market rate is around $200k",
+        "Jake in the QA team has been consistently missing deadlines for 3 months now",
+        "New hire Maria starts next Monday, she needs access to our GitHub repos",
+    ],
+    "access_provisioning": [
+        "We have a new junior developer joining the mobile team next week",
+        "Lisa got promoted to engineering manager, she'll need broader repo access",
+        "Finance team is onboarding a new analyst who needs the reporting tools",
+        "Tom from the backend team accepted an offer at another company, last day is Friday",
+        "The external contractor's project wrapped up, we should clean up their access",
+    ],
+    "patient_data": [
+        "Dr. Wilson is covering for Dr. Smith today and needs access to his patients",
+        "We're referring patient P-2847 to the cardiology department at Mount Sinai",
+        "Aetna Insurance sent a records request for patient P-1156, claim #AC-29481",
+        "The Johns Hopkins research team needs de-identified data from our cardiac ward",
+        "Patient P-3390's family is asking for copies of the recent MRI results",
+    ],
+    "prescription_refill": [
+        "Mrs. Johnson called, she's running low on her Lisinopril 10mg",
+        "Patient P-4422 is here for their monthly Adderall 20mg pickup",
+        "Dr. Patel reviewed the labs and wants to adjust the Metformin dosage for P-2891",
+        "Walk-in patient with strep throat, Dr. Kim wants to prescribe Amoxicillin 500mg",
+        "Patient P-1837 is asking about switching from brand to generic for their statin",
+    ],
+    "gdpr_request": [
+        "We received a 'right to be forgotten' email from a user in Berlin",
+        "After the acquisition, legal wants to clean up 30 duplicate user accounts",
+        "Marketing wants to send EU user analytics to our Mixpanel instance in the US",
+        "A former employee is requesting an export of all their personal data we hold",
+        "The French DPA sent us a notice about a complaint from one of our users",
+    ],
+    "api_key_rotation": [
+        "Our monitoring shows the Stripe production key is 87 days old",
+        "Someone accidentally pushed a .env file to a public repo on GitHub",
+        "We got a security bulletin from Twilio recommending all customers rotate keys",
+        "After the security audit, the recommendation is to rotate all production credentials",
+        "The shared API key with our payment processor expires in 3 days",
+    ],
+}
 
 
-# ── Intent Definition ──────────────────────────────────────────────────────────
+# ── Gemini Helpers ────────────────────────────────────────────────────────────
 
-class Intent:
-    def __init__(self, name: str, keywords: list[str], connection: str, action: str,
-                 param_builder, response_template: str, priority: int = 0):
-        self.name = name
-        self.keywords = keywords
-        self.connection = connection
-        self.action = action
-        self.param_builder = param_builder  # fn(text) -> dict | None
-        self.response_template = response_template
-        self.priority = priority
+def _convert_schema_for_gemini(schema: dict) -> dict:
+    """Convert our JSON Schema tool definitions to Gemini-compatible format.
 
-
-# ── Agent Chat Definitions ─────────────────────────────────────────────────────
-
-def _build_agent_intents() -> dict[str, list[Intent]]:
-    """Build intent lists for all 36 agents."""
-    agents: dict[str, list[Intent]] = {}
-
-    # ── Invoice Agent ────────────────────────────────────────────────────
-    agents["invoice"] = [
-        Intent("legal_collection", ["legal", "collection", "hukuki", "dava", "sue"],
-               "gmail-prod", "send_email",
-               lambda t: {"type": "legal_collection", "customer": _extract_email(t) or "delinquent@example.com",
-                          "amount_usd": _extract_amount(t) or 15000, "subject": "Final Notice"},
-               "Initiating legal collection process for {customer}. Amount: ${amount_usd}. This requires CFO + Legal approval.", 10),
-        Intent("send_invoice", ["invoice", "fatura", "bill", "send invoice", "create invoice"],
-               "stripe-prod", "charge",
-               lambda t: {"type": "invoice", "amount_usd": _extract_amount(t) or 500,
-                          "customer": _extract_email(t) or "client@example.com",
-                          "description": "Invoice " + (t[:50] if len(t) > 10 else "Services rendered")},
-               "Creating invoice for {customer}. Amount: ${amount_usd}.", 0),
-        Intent("overdue_reminder", ["overdue", "reminder", "hatirlatma", "gecikmi", "late payment"],
-               "gmail-prod", "send_email",
-               lambda t: {"type": "overdue_reminder", "recipient": _extract_email(t) or "debtor@example.com",
-                          "subject": "Payment Overdue Reminder"},
-               "Sending overdue payment reminder to {recipient}. This auto-processes.", 5),
-    ]
-
-    # ── Expense Agent ────────────────────────────────────────────────────
-    agents["expense"] = [
-        Intent("submit_expense", ["expense", "harcama", "reimburse", "buy", "purchase", "satin al"],
-               "stripe-prod", "charge",
-               lambda t: {
-                   "type": "expense",
-                   "amount_usd": _extract_amount(t) or 100,
-                   "category": "equipment" if _kw_match(t, ["laptop", "computer", "ekipman", "equipment", "monitor"]) else
-                              "team_event" if _kw_match(t, ["team", "offsite", "event", "dinner"]) else
-                              "travel" if _kw_match(t, ["travel", "flight", "hotel", "seyahat"]) else "office_supplies",
-                   "description": t[:80],
-               },
-               "Submitting expense request: {description}\nAmount: ${amount_usd} | Category: {category}", 0),
-    ]
-
-    # ── Subscription Manager ─────────────────────────────────────────────
-    agents["subscription"] = [
-        Intent("bulk_cancel", ["bulk cancel", "toplu iptal", "mass cancel", "cancel all"],
-               "stripe-prod", "subscription",
-               lambda t: {"type": "bulk_cancel", "count": _extract_number(t) or 50, "reason": "Product sunset"},
-               "Processing bulk cancellation of {count} subscriptions. This requires CFO + Manager approval.", 10),
-        Intent("enterprise", ["enterprise", "kurumsal", "custom plan", "ozel fiyat"],
-               "stripe-prod", "subscription",
-               lambda t: {"type": "enterprise_pricing", "customer": _extract_email(t) or "enterprise@bigcorp.com",
-                          "amount_usd": _extract_amount(t) or 5000},
-               "Creating enterprise pricing for {customer}: ${amount_usd}/mo. CEO approval required.", 5),
-        Intent("upgrade", ["upgrade", "yukselt", "switch to", "change plan"],
-               "stripe-prod", "subscription",
-               lambda t: {"type": "upgrade", "customer": _extract_email(t) or "user@example.com",
-                          "plan": "pro", "amount_usd": 29},
-               "Upgrading {customer} to Pro plan (${amount_usd}/mo). Auto-approved.", 0),
-    ]
-
-    # ── Vendor Payment Agent ─────────────────────────────────────────────
-    agents["vendor_payment"] = [
-        Intent("pay_vendor", ["pay", "ode", "vendor", "tedarikci", "supplier"],
-               "stripe-prod", "vendor_payment",
-               lambda t: {
-                   "amount_usd": _extract_amount(t) or 1000,
-                   "vendor_name": _extract_name(t, "(?:pay|to)") or "Vendor Co",
-                   "invoice_id": "INV-" + str(hash(t))[:6].upper(),
-                   "is_new_vendor": _kw_match(t, ["new vendor", "yeni", "first time", "ilk"]),
-               },
-               "Processing payment of ${amount_usd} to {vendor_name}. Invoice: {invoice_id}", 0),
-    ]
-
-    # ── Churn Prevention Agent ───────────────────────────────────────────
-    agents["churn_prevention"] = [
-        Intent("enterprise_custom", ["enterprise custom", "kurumsal ozel", "custom pricing"],
-               "stripe-prod", "credit",
-               lambda t: {"type": "enterprise_custom", "customer": _extract_email(t) or "vip@enterprise.com",
-                          "amount_usd": _extract_amount(t) or 50000},
-               "Creating enterprise custom pricing for {customer}: ${amount_usd}/yr. CEO + CFO required.", 10),
-        Intent("custom_package", ["custom package", "ozel paket", "bespoke", "special offer"],
-               "stripe-prod", "credit",
-               lambda t: {"type": "custom_package", "customer": _extract_email(t) or "vip@example.com",
-                          "description": "Custom retention package"},
-               "Creating custom retention package for {customer}. CEO approval required.", 5),
-        Intent("offer_discount", ["discount", "indirim", "retention", "offer", "teklif"],
-               "stripe-prod", "credit",
-               lambda t: {"discount_pct": _extract_percentage(t) or 10,
-                          "customer": _extract_email(t) or "leaving@example.com",
-                          "reason": "Retention offer"},
-               "Offering {discount_pct}% retention discount to {customer}.", 0),
-    ]
-
-    # ── Carbon Credit Agent ──────────────────────────────────────────────
-    agents["carbon_credit"] = [
-        Intent("forward_contract", ["forward", "contract", "sozlesme", "long-term", "anla"],
-               "stripe-prod", "charge",
-               lambda t: {"type": "carbon_forward", "amount_usd": _extract_amount(t) or 150000,
-                          "years": _extract_number(t) or 3, "annual_tons": 1000},
-               "Signing {years}-year forward contract for ${amount_usd}. CFO + Sustainability required.", 10),
-        Intent("purchase_credits", ["carbon", "credit", "kredi", "offset", "purchase", "buy", "satin"],
-               "stripe-prod", "charge",
-               lambda t: {
-                   "type": "carbon_credit",
-                   "amount_usd": _extract_amount(t) or 5000,
-                   "quantity": (_extract_amount(t) or 5000) // 50,
-                   "price_per_ton": 50,
-               },
-               "Purchasing {quantity} carbon credits at $50/ton (${amount_usd} total).", 0),
-    ]
-
-    # ── Release Manager Agent ────────────────────────────────────────────
-    agents["release_manager"] = [
-        Intent("rollback", ["rollback", "geri al", "revert"],
-               "github-main", "rollback",
-               lambda t: {"env": "production", "version": "v2.4.8", "reason": t[:60]},
-               "Rolling back production to {version}. Reason: {reason}. 2-min timeout.", 10),
-        Intent("hotfix", ["hotfix", "acil", "emergency deploy", "urgent"],
-               "github-main", "deploy",
-               lambda t: {"type": "hotfix", "ref": "hotfix/urgent", "environment": "production", "service": "api"},
-               "Deploying hotfix to production. On-call engineer approval needed.", 5),
-        Intent("deploy", ["deploy", "release", "ship", "yayinla", "cikart"],
-               "github-main", "deploy",
-               lambda t: {
-                   "ref": "v2.5.0",
-                   "environment": "production" if _kw_match(t, ["prod", "production", "canli"]) else "staging",
-                   "service": "api",
-               },
-               "Deploying {ref} to {environment}.", 0),
-    ]
-
-    # ── Security Incident Agent ──────────────────────────────────────────
-    agents["security_incident"] = [
-        Intent("revoke_tokens", ["revoke", "token", "iptal", "kill all"],
-               "github-prod", "revoke_tokens",
-               lambda t: {"scope": "production", "reason": t[:60]},
-               "CRITICAL: Revoking all production access tokens. CTO + Security Lead required.", 10),
-        Intent("lock_repo", ["lock", "kilitle", "freeze repo"],
-               "github-prod", "lock_repo",
-               lambda t: {"repo": "acme/api", "reason": t[:60]},
-               "Locking repository acme/api. Security Lead approval required.", 5),
-        Intent("log_alert", ["alert", "suspicious", "log", "detect", "uyari"],
-               "slack-prod", "send_message",
-               lambda t: {"channel": "#security", "message": t[:200]},
-               "Security alert logged to #security channel. Auto-processed.", 0),
-    ]
-
-    # ── Dependency Update Agent ──────────────────────────────────────────
-    agents["dependency_update"] = [
-        Intent("major_update", ["major", "breaking", "buyuk"],
-               "github-prod", "merge_pr",
-               lambda t: {"package": _extract_name(t, "update") or "webpack",
-                          "from_version": "5.91.0", "to_version": "6.0.0", "update_type": "major"},
-               "BREAKING update: {package} {from_version} -> {to_version}. Full team approval required.", 10),
-        Intent("minor_update", ["minor", "kucuk"],
-               "github-prod", "merge_pr",
-               lambda t: {"package": _extract_name(t, "update") or "react",
-                          "from_version": "18.2.0", "to_version": "18.3.0", "update_type": "minor"},
-               "Minor update: {package} {from_version} -> {to_version}. Lead Engineer approval.", 5),
-        Intent("update", ["update", "upgrade", "guncelle", "patch", "dependency"],
-               "github-prod", "merge_pr",
-               lambda t: {"package": _extract_name(t, "update") or "lodash",
-                          "from_version": "4.17.20", "to_version": "4.17.21", "update_type": "patch"},
-               "Patch update: {package} {from_version} -> {to_version}. Auto-merge.", 0),
-    ]
-
-    # ── Database Migration Agent ─────────────────────────────────────────
-    agents["db_migration"] = [
-        Intent("prod_migration", ["production", "prod", "canli"],
-               "github-prod", "deploy",
-               lambda t: {"type": "migration", "env": "production", "migration_name": "alter_schema",
-                          "description": t[:60]},
-               "Running PRODUCTION migration: {migration_name}. DBA + CTO required.", 10),
-        Intent("staging_migration", ["staging", "test"],
-               "github-prod", "deploy",
-               lambda t: {"type": "migration", "env": "staging", "migration_name": "alter_orders"},
-               "Running staging migration: {migration_name}. DBA approval needed.", 5),
-        Intent("dev_migration", ["migrate", "migration", "schema", "index", "alter", "drop", "add column"],
-               "github-prod", "deploy",
-               lambda t: {"type": "migration", "env": "dev", "migration_name": "add_index"},
-               "Running dev migration: {migration_name}. Auto-approved.", 0),
-    ]
-
-    # ── API Key Rotation Agent ───────────────────────────────────────────
-    agents["api_key_rotation"] = [
-        Intent("third_party", ["third.party", "partner", "external", "dis"],
-               "github-prod", "deploy",
-               lambda t: {"type": "key_rotation", "service": "partner-api", "scope": "third_party", "provider": "PaymentCo"},
-               "Rotating third-party partner key. CTO + Security Lead required.", 10),
-        Intent("emergency", ["emergency", "acil", "compromised", "leaked", "exposed"],
-               "github-prod", "deploy",
-               lambda t: {"type": "key_rotation", "service": "aws", "urgency": "emergency",
-                          "reason": t[:60]},
-               "EMERGENCY key rotation for {service}. Security Lead approval.", 5),
-        Intent("rotate", ["rotate", "dondur", "key", "credential", "anahtar"],
-               "github-prod", "deploy",
-               lambda t: {"type": "key_rotation", "service": "stripe", "urgency": "scheduled"},
-               "Scheduled key rotation for {service}. Auto-approved.", 0),
-    ]
-
-    # ── Compliance Audit Agent ───────────────────────────────────────────
-    agents["compliance_audit"] = [
-        Intent("regulatory", ["regulatory", "regulator", "file report", "resmi", "duzenleyici"],
-               "gmail-prod", "send_email",
-               lambda t: {"type": "regulatory_filing", "authority": "DPA Ireland",
-                          "subject": "Mandatory notification"},
-               "Filing regulatory report to {authority}. Legal + CEO required.", 10),
-        Intent("violation", ["violation", "ihlal", "breach", "non-compliance"],
-               "gmail-prod", "send_email",
-               lambda t: {"type": "violation_report", "framework": "GDPR",
-                          "description": t[:80], "severity": "medium"},
-               "Reporting {framework} violation: {description}. Compliance Officer review.", 5),
-        Intent("audit", ["audit", "check", "scan", "denetim", "kontrol"],
-               "slack-prod", "send_message",
-               lambda t: {"channel": "#compliance", "message": "Audit pass: all controls green"},
-               "Running compliance audit. Auto-approved.", 0),
-    ]
-
-    # ── Recruitment Agent ────────────────────────────────────────────────
-    agents["recruitment"] = [
-        Intent("salary_package", ["salary package", "equity", "maas paketi", "compensation"],
-               "gmail-prod", "send_email",
-               lambda t: {"type": "salary_package", "candidate": _extract_email(t) or "senior@example.com",
-                          "salary": _extract_amount(t) or 220000, "equity": "0.5%"},
-               "Preparing salary package: ${salary} + {equity} equity. HR + CFO approval required.", 10),
-        Intent("termination", ["terminate", "fire", "isten cikar", "dismissal"],
-               "gmail-prod", "send_email",
-               lambda t: {"type": "termination", "recipient": _extract_email(t) or "employee@example.com",
-                          "subject": "Employment Termination"},
-               "SENSITIVE: Termination notice for {recipient}. HR + CEO required.", 10),
-        Intent("offer", ["offer", "teklif", "hire"],
-               "gmail-prod", "send_email",
-               lambda t: {"type": "offer_letter", "recipient": _extract_email(t) or "candidate@example.com",
-                          "subject": f"Offer: ${_extract_amount(t) or 180000}"},
-               "Sending offer letter to {recipient}. HR Manager approval.", 5),
-        Intent("interview", ["interview", "mulakat", "invite", "schedule"],
-               "gmail-prod", "send_email",
-               lambda t: {"type": "invite", "recipient": _extract_email(t) or "candidate@example.com",
-                          "subject": "Interview Invitation"},
-               "Sending interview invite to {recipient}. Auto-approved.", 0),
-    ]
-
-    # ── Access Provisioning Agent ────────────────────────────────────────
-    agents["access_provisioning"] = [
-        Intent("financial_access", ["financial", "finance", "finans"],
-               "github-prod", "add_member",
-               lambda t: {"username": _extract_email(t) or "finance-lead", "access_level": "financial"},
-               "Granting financial system access to {username}. CFO + CTO required.", 10),
-        Intent("admin_access", ["admin", "yonetici"],
-               "github-prod", "add_member",
-               lambda t: {"username": _extract_email(t) or "senior-dev", "role": "admin", "access_level": "admin"},
-               "Granting admin access to {username}. CTO approval required.", 5),
-        Intent("revoke", ["revoke", "remove", "iptal", "kaldir", "depart"],
-               "github-prod", "remove_member",
-               lambda t: {"username": _extract_email(t) or "departed", "org": "acme-corp", "reason": "Employment ended"},
-               "Revoking all access for {username}. Auto-processed.", 8),
-        Intent("grant_access", ["access", "erisim", "grant", "provision"],
-               "github-prod", "add_member",
-               lambda t: {"username": _extract_email(t) or "new-hire", "access_level": "standard"},
-               "Granting standard access to {username}. IT Manager approval.", 0),
-    ]
-
-    # ── Leave Management Agent ───────────────────────────────────────────
-    agents["leave_management"] = [
-        Intent("critical_leave", ["critical", "launch", "kritik", "important period"],
-               "calendar-prod", "block_time",
-               lambda t: {"employee": _extract_email(t) or "lead@company.com",
-                          "days": _extract_number(t) or 3, "is_critical_period": True, "reason": t[:60]},
-               "Leave during critical period: {days} days. Manager + CEO required.", 10),
-        Intent("long_leave", ["sabbatical", "uzun izin", "month", "3 month"],
-               "calendar-prod", "block_time",
-               lambda t: {"employee": _extract_email(t) or "employee@company.com",
-                          "days": _extract_number(t) or 60},
-               "Long leave request: {days} days. HR Manager approval.", 5),
-        Intent("leave", ["leave", "izin", "off", "vacation", "tatil", "day off"],
-               "calendar-prod", "block_time",
-               lambda t: {
-                   "employee": _extract_email(t) or "alice@company.com",
-                   "days": _extract_number(t) or 1,
-                   "start_date": "2026-04-03",
-               },
-               "Leave request: {days} day(s) starting {start_date}.", 0),
-    ]
-
-    # ── Contractor Onboarding Agent ──────────────────────────────────────
-    agents["contractor_onboarding"] = [
-        Intent("large_contract", ["large contract", "buyuk sozlesme", "$10k", "$15k", "$20k"],
-               "stripe-prod", "charge",
-               lambda t: {"type": "contractor_agreement", "contractor": _extract_email(t) or "agency@consulting.com",
-                          "amount_usd": _extract_amount(t) or 15000},
-               "Setting up large contract ${amount_usd}/mo with {contractor}. Legal + CEO required.", 10),
-        Intent("payment", ["payment", "odeme", "agreement", "rate"],
-               "stripe-prod", "charge",
-               lambda t: {"type": "contractor_agreement", "contractor": _extract_email(t) or "dev@freelance.com",
-                          "amount_usd": _extract_amount(t) or 5000},
-               "Setting up payment agreement: ${amount_usd}/mo for {contractor}. Legal review.", 5),
-        Intent("nda", ["nda", "gizlilik", "confidentiality"],
-               "gmail-prod", "send_email",
-               lambda t: {"type": "nda", "recipient": _extract_email(t) or "contractor@freelance.com",
-                          "subject": "NDA Agreement"},
-               "Sending NDA to {recipient}. Auto-approved.", 0),
-        Intent("onboard", ["onboard", "contractor", "freelancer"],
-               "gmail-prod", "send_email",
-               lambda t: {"type": "nda", "recipient": _extract_email(t) or "contractor@freelance.com",
-                          "subject": "Welcome - Onboarding"},
-               "Starting contractor onboarding for {recipient}.", 0),
-    ]
-
-    # ── Performance Review Agent ─────────────────────────────────────────
-    agents["performance_review"] = [
-        Intent("salary_increase", ["salary increase", "raise", "maas artisi", "zam"],
-               "stripe-prod", "charge",
-               lambda t: {"type": "salary_increase", "employee": _extract_email(t) or "bob@company.com",
-                          "current": 150000, "new_salary": _extract_amount(t) or 175000},
-               "Processing salary increase to ${new_salary}. HR + CFO required.", 10),
-        Intent("promote", ["promote", "promotion", "terfi"],
-               "gmail-prod", "send_email",
-               lambda t: {"type": "promotion", "employee": _extract_email(t) or "alice@company.com",
-                          "new_title": "Staff Engineer"},
-               "Recommending promotion for {employee} to {new_title}. HR + Manager required.", 5),
-        Intent("review", ["review", "degerlendirme", "performance", "form"],
-               "gmail-prod", "send_email",
-               lambda t: {"type": "review_form", "recipient": "team@company.com",
-                          "subject": "Quarterly Performance Review"},
-               "Sending review forms. Auto-approved.", 0),
-    ]
-
-    # ── Support Escalation Agent ─────────────────────────────────────────
-    agents["support_escalation"] = [
-        Intent("compensation", ["compensation", "tazminat", "$5000", "refund", "large"],
-               "stripe-prod", "refund",
-               lambda t: {"type": "compensation", "amount_usd": _extract_amount(t) or 5000,
-                          "customer": _extract_email(t) or "enterprise@bigcorp.com", "reason": t[:60]},
-               "Processing ${amount_usd} compensation for {customer}. CFO + Legal required.", 10),
-        Intent("vip", ["vip", "enterprise", "priority", "important"],
-               "salesforce-prod", "update_case",
-               lambda t: {"customer_tier": "vip", "customer": _extract_email(t) or "enterprise@bigcorp.com",
-                          "subject": t[:60]},
-               "Escalating VIP complaint from {customer}. CS Manager approval.", 5),
-        Intent("complaint", ["complaint", "issue", "problem", "sikayet", "sorun", "help"],
-               "gmail-prod", "send_email",
-               lambda t: {"type": "standard", "customer": _extract_email(t) or "user@example.com",
-                          "subject": t[:60]},
-               "Handling customer complaint. Auto-responding.", 0),
-    ]
-
-    # ── Account Takeover Agent ───────────────────────────────────────────
-    agents["account_takeover"] = [
-        Intent("ban", ["ban", "permanent", "kalici", "yasak"],
-               "salesforce-prod", "update_case",
-               lambda t: {"type": "permanent_ban", "account_id": "ACC-67890", "reason": t[:60]},
-               "Permanent account ban. Security + Legal required.", 10),
-        Intent("freeze", ["freeze", "dondur", "lock account", "suspend"],
-               "salesforce-prod", "update_case",
-               lambda t: {"type": "freeze_account", "account_id": "ACC-12345", "reason": t[:60]},
-               "Freezing account ACC-12345. Security Lead approval.", 5),
-        Intent("alert", ["alert", "suspicious", "detect", "unusual", "suphe"],
-               "slack-prod", "send_message",
-               lambda t: {"channel": "#security", "message": t[:200]},
-               "Security alert logged. Auto-processed.", 0),
-    ]
-
-    # ── SLA Breach Agent ─────────────────────────────────────────────────
-    agents["sla_breach"] = [
-        Intent("large_credit", ["large", "major", "buyuk", "$5000", "$10000", "$50000"],
-               "stripe-prod", "credit",
-               lambda t: {"type": "sla_credit", "amount_usd": _extract_amount(t) or 50000,
-                          "customer": _extract_email(t) or "enterprise@bigcorp.com"},
-               "Major SLA compensation: ${amount_usd}. CFO + Legal required.", 10),
-        Intent("credit", ["credit", "kredi", "refund", "iade"],
-               "stripe-prod", "credit",
-               lambda t: {"type": "sla_credit", "amount_usd": _extract_amount(t) or 2000,
-                          "customer": _extract_email(t) or "client@example.com"},
-               "Issuing SLA credit: ${amount_usd}. CS Manager approval.", 5),
-        Intent("notify", ["notify", "breach", "sla", "downtime", "outage", "bildir"],
-               "gmail-prod", "send_email",
-               lambda t: {"type": "notification", "customer": _extract_email(t) or "client@example.com",
-                          "subject": "Service Level Update"},
-               "Sending SLA breach notification. Auto-approved.", 0),
-    ]
-
-    # ── Patient Data Sharing Agent ───────────────────────────────────────
-    agents["patient_data"] = [
-        Intent("insurance_share", ["insurance", "sigorta"],
-               "gdrive-prod", "share_file",
-               lambda t: {"patient_id": "PAT-001", "recipient_type": "insurance",
-                          "insurance_company": "HealthCare Inc"},
-               "Sharing records with insurance. Patient Rep + Doctor required.", 10),
-        Intent("external_share", ["external", "clinic", "hospital", "dis", "klinik"],
-               "gdrive-prod", "share_file",
-               lambda t: {"patient_id": "PAT-001", "recipient_type": "external_clinic",
-                          "clinic": "City Hospital"},
-               "Sharing records with external clinic. Doctor approval.", 5),
-        Intent("share", ["share", "paylas", "record", "dosya", "patient"],
-               "gdrive-prod", "share_file",
-               lambda t: {"patient_id": "PAT-001", "recipient_type": "own_doctor", "doctor": "Dr. Smith"},
-               "Sharing with patient's own doctor. Auto-approved.", 0),
-    ]
-
-    # ── Medical Supply Agent ─────────────────────────────────────────────
-    agents["medical_supply"] = [
-        Intent("device", ["device", "cihaz", "equipment", "machine", "$20000", "$50000"],
-               "stripe-prod", "charge",
-               lambda t: {"type": "medical_supply", "amount_usd": _extract_amount(t) or 50000,
-                          "item": "Portable Ultrasound System"},
-               "Ordering medical device: {item} (${amount_usd}). Chief Doctor + CFO required.", 10),
-        Intent("supply", ["supply", "order", "siparis", "malzeme", "glove", "mask"],
-               "stripe-prod", "charge",
-               lambda t: {"type": "medical_supply", "amount_usd": _extract_amount(t) or 200,
-                          "item": t[:40], "category": "consumable"},
-               "Ordering supplies: {item} (${amount_usd}).", 0),
-    ]
-
-    # ── Prescription Refill Agent ────────────────────────────────────────
-    agents["prescription_refill"] = [
-        Intent("dosage_change", ["dosage", "change", "doz", "increase", "decrease"],
-               "gmail-prod", "send_email",
-               lambda t: {"type": "dosage_change", "medication": "Lisinopril",
-                          "old_dosage": "10mg", "new_dosage": "20mg",
-                          "patient": _extract_email(t) or "patient@example.com"},
-               "Dosage change: {medication} {old_dosage} -> {new_dosage}. Doctor + Pharmacist.", 10),
-        Intent("controlled", ["controlled", "kontrol", "adderall", "opioid", "narcotic"],
-               "gmail-prod", "send_email",
-               lambda t: {"type": "controlled_refill", "medication": "Adderall", "dosage": "20mg",
-                          "patient": _extract_email(t) or "patient@example.com"},
-               "Controlled substance refill: {medication} {dosage}. Doctor approval required.", 5),
-        Intent("refill", ["refill", "yenile", "prescription", "ilac", "medication"],
-               "gmail-prod", "send_email",
-               lambda t: {"type": "routine_refill", "medication": "Metformin", "dosage": "500mg",
-                          "patient": _extract_email(t) or "patient@example.com"},
-               "Routine refill: {medication} {dosage}. Auto-processed.", 0),
-    ]
-
-    # ── Research Data Agent ──────────────────────────────────────────────
-    agents["research_data"] = [
-        Intent("external_share", ["external", "institution", "share with", "dis kurum"],
-               "gdrive-prod", "share_file",
-               lambda t: {"data_type": "external_share", "institution": "MIT Research Lab",
-                          "study_id": "COLLAB-003"},
-               "Sharing data with {institution}. Ethics Board + Chief Doctor required.", 10),
-        Intent("patient_data", ["patient", "identifiable", "clinical trial", "hasta"],
-               "gdrive-prod", "share_file",
-               lambda t: {"data_type": "patient_level", "study_id": "TRIAL-007",
-                          "researcher": _extract_email(t) or "dr.smith@hospital.edu"},
-               "Accessing patient-level data for {study_id}. Ethics Board approval.", 5),
-        Intent("data", ["data", "veri", "access", "dataset", "study", "arastirma"],
-               "gdrive-prod", "share_file",
-               lambda t: {"data_type": "anonymized", "study_id": "STUDY-042",
-                          "researcher": _extract_email(t) or "researcher@edu"},
-               "Accessing anonymized dataset {study_id}. Auto-approved.", 0),
-    ]
-
-    # ── Grade Override Agent ─────────────────────────────────────────────
-    agents["grade_override"] = [
-        Intent("final_override", ["final", "override", "genel not"],
-               "gsheets-prod", "update_sheet",
-               lambda t: {"type": "final_override", "student": "STU-9012", "course": "PHY301",
-                          "current_grade": "C", "new_grade": "B-"},
-               "Final grade override: {course} {current_grade} -> {new_grade}. Teacher + Dept Head.", 10),
-        Intent("appeal", ["appeal", "itiraz", "raise grade", "not yukselt"],
-               "gsheets-prod", "update_sheet",
-               lambda t: {"type": "grade_appeal", "student": "STU-5678", "course": "MATH201",
-                          "current_grade": "B", "new_grade": "B+"},
-               "Grade appeal: {course} {current_grade} -> {new_grade}. Teacher approval.", 5),
-        Intent("fix", ["fix", "error", "hata", "correct", "duzelt", "admin"],
-               "gsheets-prod", "update_sheet",
-               lambda t: {"type": "admin_error", "student": "STU-1234", "course": "CS101",
-                          "current_grade": 72, "new_grade": 78},
-               "Fixing administrative error: {course} {current_grade} -> {new_grade}. Auto.", 0),
-    ]
-
-    # ── Scholarship Agent ────────────────────────────────────────────────
-    agents["scholarship"] = [
-        Intent("full", ["full scholarship", "tam burs", "$40000"],
-               "stripe-prod", "payout",
-               lambda t: {"type": "full_scholarship", "amount_usd": _extract_amount(t) or 40000,
-                          "student": _extract_email(t) or "exceptional@university.edu"},
-               "Full scholarship ${amount_usd}/yr for {student}. Rector + Committee.", 10),
-        Intent("award", ["award", "scholarship", "burs", "grant"],
-               "stripe-prod", "payout",
-               lambda t: {"type": "scholarship", "amount_usd": _extract_amount(t) or 5000,
-                          "student": _extract_email(t) or "top@university.edu"},
-               "Scholarship award: ${amount_usd} for {student}. Committee review.", 5),
-        Intent("application", ["apply", "application", "basvuru", "accept"],
-               "gmail-prod", "send_email",
-               lambda t: {"type": "application", "student": _extract_email(t) or "applicant@university.edu",
-                          "subject": "Application received"},
-               "Application recorded. Confirmation sent. Auto.", 0),
-    ]
-
-    # ── Research Grant Agent ─────────────────────────────────────────────
-    agents["research_grant"] = [
-        Intent("large_grant", ["large", "collaboration", "external", "$50k", "$75k", "buyuk"],
-               "stripe-prod", "charge",
-               lambda t: {"type": "grant", "amount_usd": _extract_amount(t) or 75000,
-                          "purpose": t[:60]},
-               "Large grant expenditure: ${amount_usd}. Rector + External Board required.", 10),
-        Intent("medium_grant", ["conference", "sponsorship", "medium"],
-               "stripe-prod", "charge",
-               lambda t: {"type": "grant", "amount_usd": _extract_amount(t) or 25000,
-                          "purpose": t[:60]},
-               "Grant expenditure: ${amount_usd}. Rector approval.", 5),
-        Intent("grant", ["grant", "spend", "hibe", "fon", "lab", "equipment"],
-               "stripe-prod", "charge",
-               lambda t: {"type": "grant", "amount_usd": _extract_amount(t) or 3000,
-                          "purpose": t[:60]},
-               "Grant expenditure: ${amount_usd}.", 0),
-    ]
-
-    # ── Contract Signing Agent ───────────────────────────────────────────
-    agents["contract_signing"] = [
-        Intent("partnership", ["partnership", "ortaklik", "strategic"],
-               "gmail-prod", "send_email",
-               lambda t: {"type": "partnership", "party": "BigTech Inc",
-                          "subject": "Strategic Partnership Agreement"},
-               "Partnership agreement. CEO + Legal required.", 10),
-        Intent("service_agreement", ["service agreement", "servis", "contract", "sozlesme"],
-               "gmail-prod", "send_email",
-               lambda t: {"type": "service_agreement", "party": _extract_email(t) or "vendor@example.com",
-                          "subject": "Service Agreement"},
-               "Service agreement for {party}. Legal review.", 5),
-        Intent("nda", ["nda", "gizlilik", "confidential"],
-               "gmail-prod", "send_email",
-               lambda t: {"type": "nda", "party": _extract_email(t) or "partner@example.com",
-                          "subject": "Mutual NDA"},
-               "Sending NDA to {party}. Auto-approved.", 0),
-    ]
-
-    # ── GDPR Request Agent ───────────────────────────────────────────────
-    agents["gdpr_request"] = [
-        Intent("bulk_delete", ["bulk", "toplu", "mass delete", "500"],
-               "github-prod", "deploy",
-               lambda t: {"type": "gdpr_bulk_delete", "count": _extract_number(t) or 500,
-                          "reason": "Data retention cleanup"},
-               "Bulk GDPR delete: {count} records. CTO + Privacy Officer required.", 10),
-        Intent("delete", ["delete", "sil", "remove data", "erase", "purge"],
-               "github-prod", "deploy",
-               lambda t: {"type": "gdpr_delete", "user_email": _extract_email(t) or "user@example.com"},
-               "Deleting data for {user_email}. Privacy Officer approval.", 5),
-        Intent("request", ["gdpr", "request", "talep", "data request"],
-               "slack-prod", "send_message",
-               lambda t: {"channel": "#privacy", "message": f"GDPR request: {t[:100]}"},
-               "GDPR request logged. Auto-processed.", 0),
-    ]
-
-    # ── IP Filing Agent ──────────────────────────────────────────────────
-    agents["ip_filing"] = [
-        Intent("international", ["international", "pct", "uluslararasi", "worldwide"],
-               "gmail-prod", "send_email",
-               lambda t: {"type": "international_filing", "title": t[:60],
-                          "jurisdictions": ["US", "EU", "JP"]},
-               "International patent (PCT) filing. CEO + Legal required.", 10),
-        Intent("domestic", ["patent", "file", "domestic", "basvuru"],
-               "gmail-prod", "send_email",
-               lambda t: {"type": "domestic_filing", "title": t[:60], "jurisdiction": "US"},
-               "Domestic patent filing. Legal review.", 5),
-        Intent("draft", ["draft", "prepare", "taslak", "idea", "invention"],
-               "slack-prod", "send_message",
-               lambda t: {"channel": "#ip", "message": f"Patent draft: {t[:100]}"},
-               "Preparing patent draft. Auto-processed.", 0),
-    ]
-
-    # ── Maintenance Request Agent ────────────────────────────────────────
-    agents["maintenance_request"] = [
-        Intent("emergency", ["emergency", "acil", "burst", "flood", "yangin"],
-               "stripe-prod", "charge",
-               lambda t: {"type": "maintenance", "amount_usd": _extract_amount(t) or 2000,
-                          "description": "EMERGENCY: " + t[:60], "is_emergency": True},
-               "EMERGENCY repair: {description}. Auto-approved (no blackout).", 10),
-        Intent("repair", ["repair", "fix", "replace", "maintenance", "bakim", "onarim"],
-               "stripe-prod", "charge",
-               lambda t: {"type": "maintenance", "amount_usd": _extract_amount(t) or 500,
-                          "description": t[:60]},
-               "Maintenance request: {description} (${amount_usd}).", 0),
-    ]
-
-    # ── Tenant Screening Agent ───────────────────────────────────────────
-    agents["tenant_screening"] = [
-        Intent("criminal", ["criminal", "sabika", "background"],
-               "salesforce-prod", "create_ticket",
-               lambda t: {"check_type": "criminal_check", "applicant": "Applicant",
-                          "unit": "Apt 2C"},
-               "Criminal background check for {applicant}. Manager + Legal required.", 10),
-        Intent("eviction", ["eviction", "tahliye", "prior eviction"],
-               "salesforce-prod", "create_ticket",
-               lambda t: {"check_type": "eviction_history", "applicant": "Applicant",
-                          "unit": "Apt 5B"},
-               "Eviction history review. Property Manager approval.", 5),
-        Intent("screen", ["screen", "check", "credit", "applicant", "tenant", "kiraci"],
-               "salesforce-prod", "create_ticket",
-               lambda t: {"check_type": "credit", "applicant": "Applicant", "unit": "Apt 3A"},
-               "Running credit check. Auto-processed.", 0),
-    ]
-
-    # ── Content Moderation Agent ─────────────────────────────────────────
-    agents["content_moderation"] = [
-        Intent("ban", ["ban", "yasak", "permanent"],
-               "slack-prod", "send_message",
-               lambda t: {"type": "account_ban", "account_id": "USER-99999",
-                          "reason": t[:60]},
-               "Account ban for {account_id}. Sr. Moderator + Legal required.", 10),
-        Intent("flag", ["flag", "suspicious", "review", "suphe", "incele"],
-               "slack-prod", "send_message",
-               lambda t: {"type": "suspicious_content", "content_id": "POST-67890",
-                          "reason": t[:60]},
-               "Flagging content for review. Moderator approval.", 5),
-        Intent("spam", ["spam", "remove", "delete", "kaldir"],
-               "slack-prod", "send_message",
-               lambda t: {"channel": "#moderation", "message": f"Spam removed: {t[:60]}"},
-               "Spam removed. Auto-processed.", 0),
-    ]
-
-    # ── Licensing Agent ──────────────────────────────────────────────────
-    agents["licensing"] = [
-        Intent("major_deal", ["major", "deal", "media deal", "$100k", "$250k", "buyuk"],
-               "stripe-prod", "charge",
-               lambda t: {"type": "major_deal", "amount_usd": _extract_amount(t) or 250000,
-                          "licensee": "Global Media Inc"},
-               "Major media deal: ${amount_usd}. CEO + Legal required.", 10),
-        Intent("commercial", ["commercial", "ticari", "business license"],
-               "stripe-prod", "charge",
-               lambda t: {"type": "commercial_license", "amount_usd": _extract_amount(t) or 5000,
-                          "licensee": _extract_email(t) or "MediaCorp Ltd"},
-               "Commercial license for {licensee}: ${amount_usd}. Legal review.", 5),
-        Intent("personal", ["personal", "license", "lisans", "kisisel"],
-               "stripe-prod", "charge",
-               lambda t: {"type": "personal_license", "amount_usd": 29,
-                          "licensee": _extract_email(t) or "user@example.com"},
-               "Personal license issued. Auto-approved.", 0),
-    ]
-
-    # ── Environmental Incident Agent ─────────────────────────────────────
-    agents["environmental_incident"] = [
-        Intent("major", ["major", "containment", "breach", "buyuk", "ciddi", "critical"],
-               "gmail-prod", "send_email",
-               lambda t: {"type": "major_incident", "incident_type": "Containment breach",
-                          "location": "Building C"},
-               "MAJOR incident reported. CEO + Environmental Officer required.", 10),
-        Intent("spill", ["spill", "leak", "sizinti", "dokuntu"],
-               "slack-prod", "send_message",
-               lambda t: {"channel": "#safety", "message": f"Minor spill: {t[:100]}"},
-               "Minor spill reported. Auto-notify activated.", 5),
-        Intent("monitor", ["monitor", "reading", "check", "olcum", "log"],
-               "slack-prod", "send_message",
-               lambda t: {"channel": "#environment", "message": "Readings: all parameters OK"},
-               "Environmental monitoring logged. Auto.", 0),
-    ]
-
-    # ── Renewable Energy Agent ───────────────────────────────────────────
-    agents["renewable_energy"] = [
-        Intent("ppa", ["ppa", "long-term", "agreement", "uzun vadeli", "sozlesme"],
-               "stripe-prod", "charge",
-               lambda t: {"type": "ppa_agreement", "amount_usd": _extract_amount(t) or 500000,
-                          "years": _extract_number(t) or 5, "annual_mwh": 5000},
-               "PPA agreement: {years}-year, ${amount_usd}. CEO + CFO required.", 10),
-        Intent("purchase", ["purchase", "buy", "credit", "energy", "solar", "wind", "enerji"],
-               "stripe-prod", "charge",
-               lambda t: {
-                   "type": "energy_purchase",
-                   "amount_usd": _extract_amount(t) or 8000,
-                   "quantity": (_extract_amount(t) or 8000) // 80,
-                   "source": "solar" if _kw_match(t, ["solar", "gunes"]) else "wind",
-               },
-               "Purchasing {quantity} MWh {source} credits (${amount_usd}).", 0),
-    ]
-
-    return agents
+    Gemini doesn't accept 'input_schema' — it needs a clean OpenAPI-style schema
+    without $-prefixed keys or unsupported features.
+    """
+    result = {}
+    if "type" in schema:
+        result["type"] = schema["type"].upper()
+    if "description" in schema:
+        result["description"] = schema["description"]
+    if "enum" in schema:
+        result["enum"] = schema["enum"]
+    if "properties" in schema:
+        result["properties"] = {
+            k: _convert_schema_for_gemini(v) for k, v in schema["properties"].items()
+        }
+    if "required" in schema:
+        result["required"] = schema["required"]
+    if "items" in schema:
+        result["items"] = _convert_schema_for_gemini(schema["items"])
+    return result
 
 
-# ── Singleton ──────────────────────────────────────────────────────────────────
-_AGENT_INTENTS: dict[str, list[Intent]] | None = None
+def _build_gemini_contents(history: list[dict]) -> list[dict]:
+    """Convert our session history to Gemini's Content format."""
+    contents = []
+    for msg in history:
+        role = msg["role"]
+        content = msg.get("content", "")
+        text = content if isinstance(content, str) else str(content)
+        if text:
+            contents.append({"role": role, "parts": [{"text": text}]})
+    return contents
 
 
-def get_agent_intents() -> dict[str, list[Intent]]:
-    global _AGENT_INTENTS
-    if _AGENT_INTENTS is None:
-        _AGENT_INTENTS = _build_agent_intents()
-    return _AGENT_INTENTS
+# ── Main Processing ──────────────────────────────────────────────────────────
+
+def process_message(agent_id: str, message: str, agent_title: str = "", session_id: str = "", api_key: str = "") -> dict:
+    """Process a user message through Gemini API (google.genai SDK).
+
+    api_key: User-provided Gemini API key (stored encrypted in Vault/DB).
+
+    Returns:
+        {
+            "response": str,
+            "action": {"connection": ..., "action": ..., "params": {...}} | None,
+            "suggestions": list[str],
+            "type": "chat" | "action",
+            "session_id": str
+        }
+    """
+    if not session_id:
+        session_id = str(uuid.uuid4())
+
+    session_key = f"{agent_id}:{session_id}"
+
+    if not api_key:
+        return _fallback_response(agent_id, message, session_id)
+
+    # Get or create session
+    if session_key not in _sessions:
+        _sessions[session_key] = []
+
+    history = _sessions[session_key]
+
+    system_prompt = AGENT_PROMPTS.get(agent_id, f"You are a helpful AI assistant called {agent_title}.")
+    tools = AGENT_TOOLS.get(agent_id, [])
+
+    try:
+        from google import genai
+        from google.genai import types
+
+        client = genai.Client(api_key=api_key)
+
+        # Build function declarations for Gemini
+        function_declarations = []
+        for t in tools:
+            params_schema = _convert_schema_for_gemini(t["input_schema"])
+            function_declarations.append(types.FunctionDeclaration(
+                name=t["name"],
+                description=t["description"],
+                parameters=params_schema,
+            ))
+
+        gemini_tools = [types.Tool(function_declarations=function_declarations)] if function_declarations else []
+
+        # Build conversation contents
+        contents = _build_gemini_contents(history)
+        contents.append({"role": "user", "parts": [{"text": message}]})
+
+        response = client.models.generate_content(
+            model="models/gemini-2.5-flash",
+            contents=contents,
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                tools=gemini_tools,
+                temperature=0.7,
+            ),
+        )
+
+        # Process response
+        text_parts = []
+        action = None
+
+        if response.candidates and response.candidates[0].content:
+            for part in response.candidates[0].content.parts:
+                if part.text:
+                    text_parts.append(part.text)
+                elif part.function_call:
+                    fc = part.function_call
+                    tool_args = dict(fc.args) if fc.args else {}
+                    action = _map_tool_to_action(agent_id, fc.name, tool_args)
+                    if action:
+                        text_parts.append(f"\n\n[Executing: {fc.name}]")
+
+        response_text = "\n".join(text_parts).strip()
+
+        # Update session history
+        history.append({"role": "user", "content": message})
+        history.append({"role": "model", "content": response_text or "Processing..."})
+
+        # Trim history
+        if len(history) > MAX_HISTORY * 2:
+            _sessions[session_key] = history[-MAX_HISTORY:]
+
+        suggestions = AGENT_SUGGESTIONS.get(agent_id, [])[:3]
+
+        return {
+            "response": response_text or "Processing your request...",
+            "action": action,
+            "suggestions": suggestions,
+            "type": "action" if action else "chat",
+            "session_id": session_id,
+        }
+
+    except ImportError:
+        logger.error("google-genai package not installed")
+        return _fallback_response(agent_id, message, session_id, error="google-genai package not installed — run: pip install google-genai")
+    except Exception as e:
+        logger.error(f"Gemini API error for agent {agent_id}: {e}")
+        return _fallback_response(agent_id, message, session_id, error=str(e))
 
 
-# ── Public API ─────────────────────────────────────────────────────────────────
+def _fallback_response(agent_id: str, message: str, session_id: str, error: str = "") -> dict:
+    """Fallback when Gemini API is unavailable."""
+    if error:
+        resp = f"AI error: {error}\n\nPlease check your Gemini API key and try again."
+    else:
+        resp = (
+            "To chat with this agent, enter your Gemini API key using the 🔑 button above.\n\n"
+            "Get a free key at https://aistudio.google.com/apikey\n\n"
+            "You can also use the ⚡ Quick Scenarios panel to test approval flows directly without an API key."
+        )
 
-GREETINGS = ["hi", "hello", "hey", "merhaba", "selam", "nasilsin", "nasil"]
-HELP_WORDS = ["help", "yardim", "what can", "ne yapabilir", "neler", "commands", "options"]
+    return {
+        "response": resp,
+        "action": None,
+        "suggestions": AGENT_SUGGESTIONS.get(agent_id, []),
+        "type": "chat",
+        "session_id": session_id,
+    }
 
 
 def get_suggestions(agent_id: str) -> list[str]:
-    """Return example prompts for an agent."""
-    intents = get_agent_intents().get(agent_id, [])
-    suggestions = []
-    for intent in sorted(intents, key=lambda i: i.priority, reverse=True):
-        tpl = intent.response_template
-        # Create a short example from the intent name
-        suggestions.append(intent.name.replace("_", " ").title())
-    return suggestions[:6]
-
-
-def process_message(agent_id: str, message: str, agent_title: str = "") -> dict[str, Any]:
-    """
-    Process a user message and return a structured response.
-
-    Returns: {
-        "response": str,           # Agent's text response
-        "action": {...} | None,    # Action to execute via ApprovalKit
-        "suggestions": [...],      # Next suggested actions
-        "type": "chat" | "action"  # Response type
-    }
-    """
-    text = message.strip()
-    lower = text.lower()
-
-    # Handle greetings
-    if any(lower.startswith(g) or lower == g for g in GREETINGS):
-        return {
-            "response": f"Hello! I'm the {agent_title}. How can I help you today?\n\nHere are some things I can do:",
-            "action": None,
-            "suggestions": get_suggestions(agent_id),
-            "type": "chat",
-        }
-
-    # Handle help
-    if any(w in lower for w in HELP_WORDS):
-        suggestions = get_suggestions(agent_id)
-        return {
-            "response": f"I can help you with:\n\n" + "\n".join(f"  - {s}" for s in suggestions) + "\n\nJust type what you need!",
-            "action": None,
-            "suggestions": suggestions,
-            "type": "chat",
-        }
-
-    # Match intents
-    intents = get_agent_intents().get(agent_id, [])
-    matched: list[tuple[int, Intent]] = []
-
-    for intent in intents:
-        score = 0
-        for kw in intent.keywords:
-            if kw.lower() in lower:
-                score += len(kw)  # Longer keyword matches score higher
-        if score > 0:
-            matched.append((score + intent.priority * 2, intent))
-
-    if not matched:
-        # No match - provide suggestions
-        return {
-            "response": f"I'm not sure what you'd like me to do. Could you be more specific?\n\nHere are some things I can help with:",
-            "action": None,
-            "suggestions": get_suggestions(agent_id),
-            "type": "chat",
-        }
-
-    # Pick best match
-    matched.sort(key=lambda x: x[0], reverse=True)
-    _, best = matched[0]
-
-    # Build params
-    params = best.param_builder(text)
-
-    # Format response
-    try:
-        response = best.response_template.format(**params)
-    except (KeyError, IndexError):
-        response = best.response_template
-
-    return {
-        "response": response,
-        "action": {
-            "connection": best.connection,
-            "action": best.action,
-            "params": params,
-        },
-        "suggestions": get_suggestions(agent_id),
-        "type": "action",
-    }
+    """Return suggested prompts for an agent."""
+    return AGENT_SUGGESTIONS.get(agent_id, [
+        "What can you help me with?",
+        "Show me the approval rules",
+        "Walk me through a typical workflow",
+    ])
