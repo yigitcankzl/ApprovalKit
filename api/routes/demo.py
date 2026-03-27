@@ -633,6 +633,8 @@ def _build_agent_catalog() -> list[dict]:
             "setupInfo": [
                 {"type": "connection", "name": "salesforce-prod", "detail": "Salesforce for case management"},
                 {"type": "connection", "name": "stripe-prod", "detail": "Stripe for compensation"},
+                {"type": "connection", "name": "gmail-prod", "detail": "Gmail for security notifications"},
+                {"type": "connection", "name": "slack-prod", "detail": "Slack for alerts"},
                 {"type": "approver", "name": "Security Lead", "detail": "Approves account freezes + bans"},
                 {"type": "approver", "name": "Legal", "detail": "Co-approves permanent bans"},
                 {"type": "approver", "name": "CS Manager", "detail": "Approves compensation $100+"},
@@ -697,6 +699,7 @@ def _build_agent_catalog() -> list[dict]:
             "setupInfo": [
                 {"type": "connection", "name": "gmail-prod", "detail": "Gmail for HR emails"},
                 {"type": "connection", "name": "github-prod", "detail": "GitHub for org management"},
+                {"type": "connection", "name": "slack-prod", "detail": "Slack for HR announcements"},
                 {"type": "approver", "name": "HR Manager", "detail": "Approves offer letters"},
                 {"type": "approver", "name": "CFO", "detail": "Co-approves $180k+ salaries"},
                 {"type": "approver", "name": "CEO", "detail": "Co-approves terminations"},
@@ -753,6 +756,7 @@ def _build_agent_catalog() -> list[dict]:
             ],
             "setupInfo": [
                 {"type": "connection", "name": "github-prod", "detail": "GitHub for access management"},
+                {"type": "connection", "name": "slack-prod", "detail": "Slack for access notifications"},
                 {"type": "approver", "name": "IT Manager", "detail": "Approves standard access"},
                 {"type": "approver", "name": "CTO", "detail": "Approves admin access"},
                 {"type": "approver", "name": "CFO", "detail": "Co-approves financial access"},
@@ -808,6 +812,8 @@ def _build_agent_catalog() -> list[dict]:
             ],
             "setupInfo": [
                 {"type": "connection", "name": "google-drive-prod", "detail": "Google Drive for record sharing"},
+                {"type": "connection", "name": "gmail-prod", "detail": "Gmail for data sharing notifications"},
+                {"type": "connection", "name": "slack-prod", "detail": "Slack for internal alerts"},
                 {"type": "approver", "name": "Doctor", "detail": "Approves external sharing"},
                 {"type": "approver", "name": "Patient Rep", "detail": "Patient consent"},
                 {"type": "approver", "name": "Ethics Board", "detail": "Approves research sharing"},
@@ -864,6 +870,7 @@ def _build_agent_catalog() -> list[dict]:
             ],
             "setupInfo": [
                 {"type": "connection", "name": "gmail-prod", "detail": "Gmail for pharmacy notifications"},
+                {"type": "connection", "name": "slack-prod", "detail": "Slack for pharmacy notifications"},
                 {"type": "approver", "name": "Doctor", "detail": "Approves controlled substances + new Rx"},
                 {"type": "approver", "name": "Pharmacist", "detail": "Verifies dosage changes"},
                 {"type": "rule", "name": "[Rx] Controlled substance", "detail": "Controlled → doctor"},
@@ -919,6 +926,7 @@ def _build_agent_catalog() -> list[dict]:
             "setupInfo": [
                 {"type": "connection", "name": "github-prod", "detail": "GitHub for deletion scripts"},
                 {"type": "connection", "name": "gmail-prod", "detail": "Gmail for compliance emails"},
+                {"type": "connection", "name": "slack-prod", "detail": "Slack for privacy alerts"},
                 {"type": "approver", "name": "Privacy Officer", "detail": "Approves deletions + transfers"},
                 {"type": "approver", "name": "CTO", "detail": "Co-approves bulk deletions"},
                 {"type": "approver", "name": "Legal", "detail": "Co-approves cross-border transfers"},
@@ -975,6 +983,7 @@ def _build_agent_catalog() -> list[dict]:
             "setupInfo": [
                 {"type": "connection", "name": "github-prod", "detail": "GitHub for rotation scripts"},
                 {"type": "connection", "name": "slack-prod", "detail": "Slack for rotation alerts"},
+                {"type": "connection", "name": "gmail-prod", "detail": "Gmail for rotation reports"},
                 {"type": "approver", "name": "Security Lead", "detail": "Approves emergency rotations"},
                 {"type": "approver", "name": "CTO", "detail": "Approves third-party + full rotations"},
                 {"type": "rule", "name": "[KeyRotation] Emergency rotation", "detail": "Emergency → security lead"},
