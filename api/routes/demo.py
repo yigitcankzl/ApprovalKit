@@ -449,7 +449,7 @@ def _build_agent_catalog() -> list[dict]:
             "icon": "CreditCard",
             "category": "finance",
             "categoryLabel": "Commerce & Finance",
-            "description": "AI-powered expense management. Submits expense requests, enforces approval policies based on amount and category, supports partial approval where managers can adjust amounts.",
+            "description": "Autonomous expense management agent that handles the full lifecycle of employee spending. When employees report needs — broken equipment, upcoming travel, team events — the agent evaluates the situation, determines the appropriate expense category and amount, and submits it through ApprovalKit. Expenses under $500 auto-approve instantly. $500–$5,000 requires manager sign-off via Guardian push notification. Above $5,000 triggers a step-up to dual approval (Manager + CFO). Managers can also modify amounts before approving (partial approval), letting them adjust a $3,000 request down to $2,500 without rejecting it entirely. All actions execute through Auth0 Token Vault — the agent never touches Stripe credentials directly.",
             "scenarios": [
                 {
                     "title": "Office supplies — $75 (auto-approve)",
@@ -503,7 +503,7 @@ def _build_agent_catalog() -> list[dict]:
             "icon": "Server",
             "category": "devops",
             "categoryLabel": "DevOps & Software",
-            "description": "Manages code deployments and rollbacks. Staging auto-deploys, production requires maintainer approval, hotfixes have 2-minute emergency timeout.",
+            "description": "CI/CD automation agent that manages the full deployment lifecycle. Engineers describe what needs shipping — and the agent handles the rest. Staging deploys go through automatically. Production releases require a maintainer to approve via Guardian push notification before any code reaches live servers. For critical incidents, the agent can deploy emergency hotfixes with a 2-minute approval window from the on-call engineer. Production rollbacks also require lead engineer approval with the same urgency timeout. Every deployment action flows through Auth0 Token Vault, ensuring the agent never holds GitHub deploy keys directly. The approval chain guarantees no code reaches production without human sign-off.",
             "scenarios": [
                 {
                     "title": "Deploy to staging (auto-approve)",
@@ -558,7 +558,7 @@ def _build_agent_catalog() -> list[dict]:
             "icon": "Shield",
             "category": "devops",
             "categoryLabel": "DevOps & Software",
-            "description": "Handles security incident response. Logs alerts, locks repositories, and can revoke all production tokens. Critical actions require CTO + Security Lead approval.",
+            "description": "Real-time security incident response agent that acts decisively when threats are detected. When the team reports suspicious activity — unusual API traffic, compromised accounts, unauthorized code commits — the agent immediately triages the situation and takes appropriate action. Low-severity alerts are logged to Slack automatically. Medium threats trigger repository locks pending Security Lead approval. For confirmed breaches, the agent can initiate a full production token revocation, which requires both CTO and Security Lead to approve via Guardian push — a nuclear option that ensures no single person can shut down production access alone. Every second counts in incident response, and the agent acts first while keeping humans in the approval loop for critical decisions.",
             "scenarios": [
                 {
                     "title": "Log security alert (auto)",
@@ -604,7 +604,7 @@ def _build_agent_catalog() -> list[dict]:
             "icon": "Lock",
             "category": "customer_service",
             "categoryLabel": "Customer Service",
-            "description": "Responds to compromised accounts. Freezes accounts, issues bans, provides compensation. Permanent bans require Security + Legal dual approval.",
+            "description": "Customer account protection agent that handles the full incident lifecycle when accounts are compromised. When customer service receives a report of unauthorized access — suspicious purchases, password changes, or credential stuffing attacks — the agent immediately freezes the affected account (Security Lead approval), notifies the customer, investigates the scope, and issues compensation credits. Small goodwill credits under $100 auto-approve. Larger compensation requires CS Manager sign-off. For confirmed attackers, the agent initiates a permanent ban requiring both Security Lead and Legal to approve — ensuring bans have proper legal backing. The agent prioritizes in order: stop the bleeding (freeze), inform the victim (notify), make it right (compensate).",
             "scenarios": [
                 {
                     "title": "Freeze compromised account",
@@ -654,7 +654,7 @@ def _build_agent_catalog() -> list[dict]:
             "icon": "UserPlus",
             "category": "hr",
             "categoryLabel": "Human Resources",
-            "description": "Manages full hiring lifecycle. Interview invites auto-send, offer letters need HR approval, high salaries require CFO step-up, terminations need HR + CEO.",
+            "description": "Full-lifecycle recruitment agent that handles everything from first interview to onboarding. When hiring managers make decisions — scheduling interviews, extending offers, onboarding new hires — the agent executes the paperwork autonomously. Interview invitations auto-send without approval. Offer letters require HR Manager sign-off via Guardian push. Salary packages above $180K trigger a step-up requiring both HR Manager and CFO approval, preventing unauthorized high-compensation commitments. Termination notices require the most stringent control: both HR Manager and CEO must approve before any termination letter is sent. The agent also handles GitHub organization access — adding new hires as members (IT Manager approval) or admins (IT Manager + CTO dual approval). All emails flow through Gmail via Token Vault, ensuring the agent never holds email credentials.",
             "scenarios": [
                 {
                     "title": "Interview invite (auto-approve)",
@@ -720,7 +720,7 @@ def _build_agent_catalog() -> list[dict]:
             "icon": "Key",
             "category": "hr",
             "categoryLabel": "Human Resources",
-            "description": "Manages system access and permissions. Standard access needs IT approval, admin needs CTO, financial systems need CFO + CTO. Offboarding auto-revokes.",
+            "description": "Zero-trust access provisioning agent that enforces least-privilege principles across all systems. When employees join, change roles, or leave — the agent handles every permission change. Standard access (GitHub member) requires IT Manager approval. Admin privileges escalate to CTO approval, preventing unauthorized privilege escalation. Financial system access triggers the highest bar: both CFO and CTO must approve, ensuring no single person can grant access to billing and payment systems. For offboarding, the agent immediately revokes all access across every connected system with HR Manager confirmation — no access lingers after an employee's last day. All permission changes flow through Auth0 Token Vault and are logged in the audit trail.",
             "scenarios": [
                 {
                     "title": "Standard access (IT Manager)",
@@ -776,7 +776,7 @@ def _build_agent_catalog() -> list[dict]:
             "icon": "Heart",
             "category": "healthcare",
             "categoryLabel": "Healthcare & Clinical",
-            "description": "HIPAA-compliant patient data sharing. Own doctor auto-approved, external clinic needs doctor approval, insurance needs patient + doctor, research needs Ethics Board + Chief Doctor.",
+            "description": "HIPAA-compliant patient data sharing agent that ensures medical records are only shared with proper authorization. When a patient's own treating doctor requests records, sharing auto-approves — no friction for routine care. External clinic referrals require the treating doctor's explicit approval via Guardian push. Insurance company requests trigger the highest individual bar: both the patient's consent (via Patient Representative) and the treating doctor must approve, ensuring patients maintain control over their data. Research data sharing requires Ethics Board review plus Chief Doctor approval — anonymized data only. Every share is logged in a full audit trail with patient ID, recipient, purpose, and data scope. The agent never accesses records directly — Google Drive sharing executes through Token Vault.",
             "scenarios": [
                 {
                     "title": "Share with own doctor (auto)",
@@ -834,7 +834,7 @@ def _build_agent_catalog() -> list[dict]:
             "icon": "Pill",
             "category": "healthcare",
             "categoryLabel": "Healthcare & Clinical",
-            "description": "Manages medication refills. Routine refills auto-process, controlled substances need doctor approval, dosage changes require doctor + pharmacist sequential approval.",
+            "description": "Pharmacy automation agent that processes prescription refills with built-in safety controls. Routine medications (blood pressure, cholesterol) refill automatically — no delay for standard maintenance drugs. Controlled substances (Schedule II-V: Adderall, Xanax, opioids) require the prescribing doctor's explicit approval via Guardian push before dispensing, preventing unauthorized refills of addictive medications. Dosage changes trigger the strictest review: both the doctor and pharmacist must approve sequentially, ensuring clinical validation and drug interaction checks. New prescriptions also require doctor approval. Every refill action is logged with patient ID, medication, dosage, and approval chain for DEA compliance. The agent flags potential issues but never dispenses without proper authorization.",
             "scenarios": [
                 {
                     "title": "Routine refill — Lisinopril (auto)",
@@ -889,7 +889,7 @@ def _build_agent_catalog() -> list[dict]:
             "icon": "ShieldCheck",
             "category": "legal",
             "categoryLabel": "Legal & Compliance",
-            "description": "Handles GDPR/CCPA data subject requests. Single deletions need Privacy Officer, bulk deletions need CTO + Privacy Officer, cross-border transfers need Legal + Privacy.",
+            "description": "GDPR and CCPA compliance agent that handles data subject requests within the mandatory 30-day deadline. When users exercise their right to be forgotten, the agent processes deletion requests across all connected systems. Single-user deletions require Privacy Officer approval to verify identity and scope. Bulk deletions (10+ users, common after acquisitions or data cleanup) escalate to CTO + Privacy Officer dual approval — preventing accidental mass data loss. Cross-border data transfers (EU to US, EU to UK) require both Legal and Privacy Officer approval to ensure proper legal basis (adequacy decision, standard contractual clauses, or explicit consent). The agent tracks every request with timestamps, regulatory deadlines, and deletion confirmations for audit compliance.",
             "scenarios": [
                 {
                     "title": "Log data request (auto)",
@@ -946,7 +946,7 @@ def _build_agent_catalog() -> list[dict]:
             "icon": "Zap",
             "category": "devops",
             "categoryLabel": "DevOps & Software",
-            "description": "Manages credential rotation lifecycle. Scheduled rotations auto-execute, emergency rotations need Security Lead, third-party keys need CTO, full rotation needs CTO + Security Lead.",
+            "description": "Credential lifecycle agent that ensures API keys and secrets are rotated before they become security risks. Scheduled 90-day rotations auto-execute with zero downtime using a blue-green deployment strategy — no approval needed for routine hygiene. When a key is potentially compromised (found in a public repo, flagged by a security scan), the agent triggers an emergency rotation requiring Security Lead approval with a tight 3-minute window. Third-party API keys (SendGrid, Twilio, payment processors) require CTO approval since they affect vendor relationships. The nuclear option — rotating ALL production keys simultaneously — requires both CTO and Security Lead, ensuring infrastructure-wide credential changes have proper oversight. Auth0 Token Vault is central to this agent's design: rotated credentials are stored in Vault, never exposed to the agent itself.",
             "scenarios": [
                 {
                     "title": "Scheduled rotation — Stripe (auto)",
