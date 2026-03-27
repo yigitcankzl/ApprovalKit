@@ -370,10 +370,20 @@ export default function DemoAgentPage() {
                       size="sm"
                       onClick={async () => {
                         try {
-                          const data = await api.getConnectUrl(conn.id!);
+                          // Get user token for Connected Accounts (Token Vault) flow
+                          let userToken: string | null = null;
+                          let refreshToken: string | null = null;
+                          try {
+                            const tokenRes = await fetch("/api/token");
+                            if (tokenRes.ok) {
+                              const td = await tokenRes.json();
+                              userToken = td.accessToken;
+                              refreshToken = td.refreshToken;
+                            }
+                          } catch {}
+                          const data = await api.getConnectUrl(conn.id!, userToken, refreshToken);
                           if (data?.url) window.location.href = data.url;
                         } catch (e: any) {
-                          // If Auth0 connection not configured, redirect to connections page
                           router.push(`/connections?highlight=${conn.slug}`);
                         }
                       }}
