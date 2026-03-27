@@ -1011,20 +1011,21 @@ def _fire_token_vault_execution(connection: str, action: str, params: dict, user
                         "client_secret": ws_client_secret,
                         "subject_token_type": "urn:ietf:params:oauth:token-type:refresh_token",
                         "subject_token": refresh_token,
+                        "requested_token_type": "http://auth0.com/oauth/token-type/federated-connection-access-token",
                         "connection": provider,
                     },
                     timeout=15,
                 )
+                logger.info(f"Token Exchange response: {token_resp.status_code} {token_resp.text[:200]}")
                 if token_resp.status_code == 200:
                     access_token = token_resp.json().get("access_token", "")
                     logger.info(f"Token Exchange succeeded for {connection} (provider={provider})")
             except Exception as e:
                 logger.warning(f"Token Exchange error: {e}")
 
-            # Fallback: use stored token directly (Slack tokens don't expire)
             if not access_token:
-                access_token = refresh_token
-                logger.info(f"Using stored token directly for {connection}")
+                logger.warning(f"Token Exchange failed — no access_token for {connection}")
+                return
 
             # Execute the action with the fresh token
             if service == "slack":
