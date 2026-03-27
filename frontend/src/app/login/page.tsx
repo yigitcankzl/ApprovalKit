@@ -121,15 +121,22 @@ export default function LoginPage() {
                     </li>
                     <li className="flex gap-2">
                       <span className="text-zinc-400 font-bold">b.</span>
-                      <span>Settings tab → <strong>Allowed Callback URLs</strong>, add: <CopyText text="http://localhost:3000/auth/callback" /></span>
+                      <div>
+                        <span><strong>Allowed Callback URLs</strong> — add all three (comma-separated):</span>
+                        <div className="mt-1 space-y-0.5">
+                          <CopyText text="http://localhost:3000/auth/callback" />
+                          <CopyText text="http://localhost:8000/api/v1/connections/oauth/callback" />
+                          <CopyText text="http://localhost:8000/api/v1/connections/connected-accounts/callback" />
+                        </div>
+                      </div>
                     </li>
                     <li className="flex gap-2">
                       <span className="text-zinc-400 font-bold">c.</span>
-                      <span><strong>Allowed Logout URLs</strong>, add: <CopyText text="http://localhost:3000" /></span>
+                      <span><strong>Allowed Logout URLs</strong>: <CopyText text="http://localhost:3000" /></span>
                     </li>
                     <li className="flex gap-2">
                       <span className="text-zinc-400 font-bold">d.</span>
-                      <span><strong>Allowed Web Origins</strong>, add: <CopyText text="http://localhost:3000" /></span>
+                      <span><strong>Allowed Web Origins</strong>: <CopyText text="http://localhost:3000" /></span>
                     </li>
                     <li className="flex gap-2">
                       <span className="text-zinc-400 font-bold">e.</span>
