@@ -1057,7 +1057,7 @@ def process_message(agent_id: str, message: str, agent_title: str = "", session_
             for _retry in range(3):
                 try:
                     response = client.models.generate_content(
-                        model="models/gemini-2.5-flash",
+                        model="models/gemini-2.0-flash",
                         contents=contents,
                         config=config,
                     )
@@ -1070,7 +1070,9 @@ def process_message(agent_id: str, message: str, agent_title: str = "", session_
                     else:
                         raise
 
-            if not response or not response.candidates or not response.candidates[0].content:
+            if not response:
+                return _fallback_response(agent_id, message, session_id, error="Rate limit exceeded. Please wait a minute and try again.")
+            if not response.candidates or not response.candidates[0].content:
                 break
 
             response_parts = response.candidates[0].content.parts
