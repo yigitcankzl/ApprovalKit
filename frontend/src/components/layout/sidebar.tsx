@@ -36,6 +36,7 @@ const navigation = [
   { name: "Approvers", href: "/approvers", icon: Users },
   { name: "Audit Log", href: "/audit", icon: ScrollText },
   { name: "Connect Agent", href: "/connect", icon: Plug },
+  { name: "MCP Server", href: "/mcp", icon: Shield },
   { name: "Agents", href: "/agents", icon: Bot },
   { name: "Demos", href: "/demos", icon: Rocket },
   { name: "Docs", href: "/docs", icon: FileText },
