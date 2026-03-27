@@ -986,12 +986,10 @@ def _fire_token_vault_execution(connection: str, action: str, params: dict, user
                         auth0_conn_name = parts[0]
 
                 ws_domain = workspace.auth0_domain or settings.AUTH0_DOMAIN
-                # Token Exchange requires M2M app credentials
-                ws_client_id = workspace.auth0_m2m_client_id or settings.AUTH0_CLIENT_ID
-                ws_client_secret = decrypt_secret(workspace.auth0_m2m_client_secret) or settings.AUTH0_CLIENT_SECRET
-                # Also get web app credentials as fallback
-                ws_web_client_id = workspace.auth0_web_client_id or settings.AUTH0_WEB_CLIENT_ID or ws_client_id
-                ws_web_client_secret = decrypt_secret(workspace.auth0_web_client_secret) or settings.AUTH0_WEB_CLIENT_SECRET or ws_client_secret
+                # Token Exchange must use the SAME client that obtained the refresh token
+                # OAuth callback uses web app credentials, so Token Exchange must too
+                ws_client_id = workspace.auth0_web_client_id or workspace.auth0_m2m_client_id or settings.AUTH0_WEB_CLIENT_ID or settings.AUTH0_CLIENT_ID
+                ws_client_secret = decrypt_secret(workspace.auth0_web_client_secret) or decrypt_secret(workspace.auth0_m2m_client_secret) or settings.AUTH0_WEB_CLIENT_SECRET or settings.AUTH0_CLIENT_SECRET
 
             engine.dispose()
 
