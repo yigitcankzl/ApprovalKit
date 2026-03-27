@@ -1149,25 +1149,50 @@ async def clear_demo_data(
     workspace: Workspace = Depends(get_current_workspace),
     db: AsyncSession = Depends(get_db),
 ):
-    """Remove all demo-created resources from this workspace."""
-    # Delete rules with [Demo] or [Expense] etc prefix
+    """Remove all demo-created resources (rules, approvers, connections) from this workspace."""
+    demo_prefixes = ("[Expense]", "[Release]", "[Security]", "[ATO]", "[HR]", "[Access]",
+                     "[Patient]", "[Rx]", "[GDPR]", "[KeyRotation]", "[Shared]", "[Demo]")
+
+    # 1. Delete rules + rule_approvers
     result = await db.execute(
         select(Rule).where(Rule.workspace_id == workspace.id)
     )
-    rules = result.scalars().all()
-    demo_prefixes = ("[Expense]", "[Release]", "[Security]", "[ATO]", "[HR]", "[Access]",
-                     "[Patient]", "[Rx]", "[GDPR]", "[KeyRotation]", "[Shared]", "[Demo]")
-    deleted = 0
-    for rule in rules:
+    deleted_rules = 0
+    for rule in result.scalars().all():
         if any(rule.name.startswith(p) for p in demo_prefixes):
-            # Delete rule approvers first
             ra_result = await db.execute(
                 select(RuleApprover).where(RuleApprover.rule_id == rule.id)
             )
             for ra in ra_result.scalars().all():
                 await db.delete(ra)
             await db.delete(rule)
-            deleted += 1
+            deleted_rules += 1
+
+    # 2. Delete demo approvers (auth0_user_id starts with "demo|")
+    result = await db.execute(
+        select(Approver).where(Approver.workspace_id == workspace.id)
+    )
+    deleted_approvers = 0
+    for approver in result.scalars().all():
+        if approver.auth0_user_id and approver.auth0_user_id.startswith("demo|"):
+            await db.delete(approver)
+            deleted_approvers += 1
+
+    # 3. Delete demo connections (slug matches our seed list)
+    demo_slugs = {c["slug"] for c in CONNECTIONS}
+    result = await db.execute(
+        select(ServiceConnection).where(ServiceConnection.workspace_id == workspace.id)
+    )
+    deleted_conns = 0
+    for conn in result.scalars().all():
+        if conn.slug in demo_slugs:
+            await db.delete(conn)
+            deleted_conns += 1
 
     await db.commit()
-    return {"status": "ok", "deleted_rules": deleted}
+    return {
+        "status": "ok",
+        "deleted_rules": deleted_rules,
+        "deleted_approvers": deleted_approvers,
+        "deleted_connections": deleted_conns,
+    }
