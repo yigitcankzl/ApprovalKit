@@ -22,7 +22,7 @@ function decrypt(data: string): string {
 export async function GET(req: NextRequest) {
   const cookie = req.cookies.get(COOKIE_NAME)?.value;
   if (!cookie || cookie === "default") {
-    return NextResponse.json({ domain: "", clientId: "", hasConfig: false });
+    return NextResponse.json({ domain: "", clientId: "", m2mClientId: "", hasConfig: false });
   }
 
   try {
@@ -31,6 +31,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       domain: config.domain || "",
       clientId: config.clientId || "",
+      clientSecret: config.clientSecret || "",
+      m2mClientId: config.m2mClientId || "",
+      m2mClientSecret: config.m2mClientSecret || "",
       hasConfig: true,
     });
   } catch {

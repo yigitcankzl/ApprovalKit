@@ -33,6 +33,8 @@ export interface TenantConfig {
   domain: string;
   clientId: string;
   clientSecret: string;
+  m2mClientId?: string;
+  m2mClientSecret?: string;
 }
 
 // ── Auth0 Client Cache ───────────────────────────────────────────────────────

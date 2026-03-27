@@ -3,7 +3,7 @@ import { encryptTenantConfig, COOKIE_NAME } from "@/lib/auth0";
 
 export async function POST(req: NextRequest) {
   try {
-    const { domain, clientId, clientSecret } = await req.json();
+    const { domain, clientId, clientSecret, m2mClientId, m2mClientSecret } = await req.json();
 
     if (!domain || !clientId) {
       return NextResponse.json({ ok: false, error: "domain and clientId required" }, { status: 400 });
@@ -13,6 +13,8 @@ export async function POST(req: NextRequest) {
       domain: domain || "",
       clientId: clientId || "",
       clientSecret: clientSecret || "",
+      m2mClientId: m2mClientId || "",
+      m2mClientSecret: m2mClientSecret || "",
     });
 
     const res = NextResponse.json({ ok: true });

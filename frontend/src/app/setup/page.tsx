@@ -40,6 +40,9 @@ export default function SetupPage() {
     fetch("/api/get-tenant").then(r => r.json()).then(data => {
       if (data.domain) setTenantDomain(data.domain);
       if (data.clientId) setTenantClientId(data.clientId);
+      if (data.clientSecret) setWebClientSecret(data.clientSecret);
+      if (data.m2mClientId) setM2mClientId(data.m2mClientId);
+      if (data.m2mClientSecret) setM2mClientSecret(data.m2mClientSecret);
     }).catch(() => {});
 
     api.getWorkspace()
@@ -59,6 +62,7 @@ export default function SetupPage() {
         auth0_web_client_secret: webClientSecret || undefined,
         auth0_m2m_client_id: m2mClientId || undefined,
         auth0_m2m_client_secret: m2mClientSecret || undefined,
+        auth0_audience: tenantDomain ? `https://${tenantDomain}/api/v2/` : undefined,
       });
       if (res.api_key) setApiKey(res.api_key);
       if (res.hmac_secret) setHmacSecret(res.hmac_secret);

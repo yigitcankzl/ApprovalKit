@@ -23,6 +23,8 @@ export default function LoginPage() {
   const [tenantInput, setTenantInput] = useState("");
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
+  const [m2mClientId, setM2mClientId] = useState("");
+  const [m2mClientSecret, setM2mClientSecret] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -34,6 +36,8 @@ export default function LoginPage() {
     if (!raw) { setError("Enter your Auth0 tenant name."); setLoading(false); return; }
     if (!clientId.trim()) { setError("Enter your Web App Client ID."); setLoading(false); return; }
     if (!clientSecret.trim()) { setError("Enter your Web App Client Secret."); setLoading(false); return; }
+    if (!m2mClientId.trim()) { setError("Enter your M2M Client ID."); setLoading(false); return; }
+    if (!m2mClientSecret.trim()) { setError("Enter your M2M Client Secret."); setLoading(false); return; }
 
     const domain = `${raw}.us.auth0.com`;
 
@@ -41,7 +45,13 @@ export default function LoginPage() {
       const res = await fetch("/api/set-tenant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ domain, clientId: clientId.trim(), clientSecret: clientSecret.trim() }),
+        body: JSON.stringify({
+          domain,
+          clientId: clientId.trim(),
+          clientSecret: clientSecret.trim(),
+          m2mClientId: m2mClientId.trim() || undefined,
+          m2mClientSecret: m2mClientSecret.trim() || undefined,
+        }),
       });
 
       if (!res.ok) {
@@ -135,14 +145,44 @@ export default function LoginPage() {
             </CardContent>
           </Card>
 
-          {/* Step 3: Enter Credentials */}
+          {/* Step 3: Create M2M Application */}
           <Card>
-            <CardContent className="pt-5 space-y-4">
+            <CardContent className="pt-5 pb-4">
               <div className="flex items-start gap-3">
                 <div className="w-6 h-6 rounded-full bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">3</div>
                 <div className="flex-1">
-                  <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Enter Web App Credentials</h3>
-                  <p className="text-xs text-zinc-500 mt-1">Tenant name is in the top-left of your Auth0 Dashboard. Client ID and Secret are in your Regular Web Application settings.</p>
+                  <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Create a Machine to Machine Application</h3>
+                  <ol className="text-xs text-zinc-500 mt-2 space-y-1.5 ml-1">
+                    <li className="flex gap-2">
+                      <span className="text-zinc-400 font-bold">a.</span>
+                      <span>Go to <strong>Applications → Create Application → Machine to Machine</strong></span>
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="text-zinc-400 font-bold">b.</span>
+                      <span>Select API: <strong>Auth0 Management API</strong></span>
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="text-zinc-400 font-bold">c.</span>
+                      <span>Check permissions: <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded">read:users</code> <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded">read:connections</code></span>
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="text-zinc-400 font-bold">d.</span>
+                      <span>Click <strong>Authorize</strong> → copy Client ID and Client Secret</span>
+                    </li>
+                  </ol>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Step 4: Enter Credentials */}
+          <Card>
+            <CardContent className="pt-5 space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">4</div>
+                <div className="flex-1">
+                  <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Enter Credentials</h3>
+                  <p className="text-xs text-zinc-500 mt-1">Tenant name is in the top-left of your Auth0 Dashboard.</p>
                 </div>
               </div>
 
@@ -160,25 +200,28 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              <div>
-                <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Client ID</label>
-                <Input
-                  value={clientId}
-                  onChange={(e) => setClientId(e.target.value)}
-                  className="mt-1 font-mono text-xs"
-                  placeholder="GVNbXpKSDzU28Xh9..."
-                />
+              <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wider pt-1">Web Application (Step 2)</div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] text-zinc-500">Client ID</label>
+                  <Input value={clientId} onChange={(e) => setClientId(e.target.value)} className="mt-0.5 font-mono text-xs" placeholder="GVNbXp..." />
+                </div>
+                <div>
+                  <label className="text-[10px] text-zinc-500">Client Secret</label>
+                  <Input type="password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} className="mt-0.5 font-mono text-xs" placeholder="KRLgl7..." />
+                </div>
               </div>
 
-              <div>
-                <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Client Secret</label>
-                <Input
-                  type="password"
-                  value={clientSecret}
-                  onChange={(e) => setClientSecret(e.target.value)}
-                  className="mt-1 font-mono text-xs"
-                  placeholder="KRLgl7Tn8-VM4onf..."
-                />
+              <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wider pt-1">Machine to Machine (Step 3)</div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] text-zinc-500">M2M Client ID</label>
+                  <Input value={m2mClientId} onChange={(e) => setM2mClientId(e.target.value)} className="mt-0.5 font-mono text-xs" placeholder="n5NycP..." />
+                </div>
+                <div>
+                  <label className="text-[10px] text-zinc-500">M2M Client Secret</label>
+                  <Input type="password" value={m2mClientSecret} onChange={(e) => setM2mClientSecret(e.target.value)} className="mt-0.5 font-mono text-xs" placeholder="8dMjot..." />
+                </div>
               </div>
 
               {error && (
@@ -187,7 +230,7 @@ export default function LoginPage() {
 
               <Button
                 onClick={handleLogin}
-                disabled={loading || !tenantInput.trim() || !clientId.trim() || !clientSecret.trim()}
+                disabled={loading || !tenantInput.trim() || !clientId.trim() || !clientSecret.trim() || !m2mClientId.trim() || !m2mClientSecret.trim()}
                 size="lg"
                 className="w-full"
               >
