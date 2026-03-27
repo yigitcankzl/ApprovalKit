@@ -421,7 +421,9 @@ async def get_connect_url(connection_id: str, request: Request, workspace: Works
                 )
                 if token_resp.status_code == 200:
                     me_token = token_resp.json().get("access_token")
-                    logger.debug(f"Got workspace M2M token for Connected Accounts API")
+                    logger.info(f"Got workspace M2M token for Connected Accounts API")
+                else:
+                    logger.warning(f"Failed to get M2M token: {token_resp.status_code} {token_resp.text[:200]}")
         except Exception as e:
             logger.warning(f"Failed to get workspace M2M token: {e}")
 
