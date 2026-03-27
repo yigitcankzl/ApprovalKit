@@ -508,7 +508,7 @@ function ConnectionsContent() {
               "Go to api.slack.com/apps → Create New App → From scratch → name it and select your workspace",
               "OAuth & Permissions → Bot Token Scopes → add: chat:write, channels:read, users:read (this also creates the Bot User automatically)",
               "OAuth & Permissions → User Token Scopes → add: identity.basic, identity.email",
-              "OAuth & Permissions → Redirect URLs → add: https://" + auth0Domain + "/login/callback",
+              "OAuth & Permissions → Redirect URLs → add the redirect URL shown below",
               "Basic Information → App Credentials → copy Client ID and Client Secret (click Show to reveal secret)",
               "Auth0 Dashboard → Authentication → Social → Create Connection → Sign in with Slack",
               "Paste Client ID and Client Secret from Slack App",
