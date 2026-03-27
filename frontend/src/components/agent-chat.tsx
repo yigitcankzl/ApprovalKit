@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   ArrowRight, Bot, CheckCircle2, ChevronRight, Clock, Loader2,
-  Play, Send, XCircle, RefreshCw, Zap, Shield, AlertTriangle,
+  Play, Send, XCircle, RefreshCw, Zap, Shield, AlertTriangle, KeyRound,
 } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -91,11 +91,8 @@ function FlowDiagram({ steps }: { steps: FlowStep[] }) {
 
 // ── Chat Bubble ───────────────────────────────────────────────────────────────
 
-function ChatBubble({ msg, onApprove, onReject, deciding }: {
+function ChatBubble({ msg }: {
   msg: ChatMessage;
-  onApprove?: (jobId: string) => void;
-  onReject?: (jobId: string) => void;
-  deciding?: boolean;
 }) {
   const isUser = msg.type === "user";
   const isApproval = msg.type === "approval";
@@ -160,27 +157,21 @@ function ChatBubble({ msg, onApprove, onReject, deciding }: {
               {msg.meta.approvers && msg.meta.approvers.length > 0 && (
                 <div className="text-xs"><span className="font-semibold">Approvers:</span> {msg.meta.approvers.join(", ")}</div>
               )}
-              {msg.meta.status === "pending" && msg.meta.jobId && onApprove && onReject && (
-                <div className="flex gap-2 mt-3">
-                  <Button
-                    size="sm"
-                    onClick={() => onApprove(msg.meta!.jobId!)}
-                    disabled={deciding}
-                    className="flex-1 bg-green-600 hover:bg-green-700 text-white h-8 text-xs"
+              {msg.meta.status === "pending" && msg.meta.jobId && (
+                <div className="mt-3 space-y-2">
+                  <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-300">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    <span>Waiting for approval{msg.meta.approvers?.length ? ` from ${msg.meta.approvers.join(" & ")}` : ""}...</span>
+                  </div>
+                  <a
+                    href="/dashboard"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
                   >
-                    {deciding ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
-                    Approve
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => onReject(msg.meta!.jobId!)}
-                    disabled={deciding}
-                    className="flex-1 border-red-200 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 h-8 text-xs"
-                  >
-                    {deciding ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <XCircle className="h-3 w-3 mr-1" />}
-                    Reject
-                  </Button>
+                    <ArrowRight className="h-3 w-3" />
+                    Open Dashboard to approve/reject
+                  </a>
                 </div>
               )}
               {msg.meta.status === "approved" && (
@@ -297,7 +288,11 @@ export function AgentChat({ agent }: { agent: DemoAgent }) {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showScenarios, setShowScenarios] = useState(false);
   const [runningScenario, setRunningScenario] = useState<number | null>(null);
-  const [deciding, setDeciding] = useState(false);
+  const [sessionId, setSessionId] = useState("");
+  const [hasAIKey, setHasAIKey] = useState(false);
+  const [keyInput, setKeyInput] = useState("");
+  const [showKeyInput, setShowKeyInput] = useState(false);
+  const [savingKey, setSavingKey] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -312,7 +307,7 @@ export function AgentChat({ agent }: { agent: DemoAgent }) {
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, []);
 
-  // Initial welcome + fetch suggestions
+  // Initial welcome + fetch suggestions + check AI key
   useEffect(() => {
     setMessages([{
       id: msgId(),
@@ -322,6 +317,9 @@ export function AgentChat({ agent }: { agent: DemoAgent }) {
     }]);
     api.getAgentSuggestions(agent.id)
       .then((data: { suggestions: string[] }) => setSuggestions(data.suggestions))
+      .catch(() => {});
+    api.getAIKeyStatus()
+      .then((data: { has_ai_api_key: boolean }) => setHasAIKey(data.has_ai_api_key))
       .catch(() => {});
   }, [agent.id]);
 
@@ -414,9 +412,14 @@ export function AgentChat({ agent }: { agent: DemoAgent }) {
 
     try {
       // Call chat engine
-      const res = await api.chatWithAgent(agent.id, userText, agent.title);
+      const res = await api.chatWithAgent(agent.id, userText, agent.title, sessionId);
 
       setIsTyping(false);
+
+      // Save session ID for conversation continuity
+      if (res.session_id) {
+        setSessionId(res.session_id);
+      }
 
       // Show agent response
       addMsg("agent", res.response);
@@ -466,24 +469,13 @@ export function AgentChat({ agent }: { agent: DemoAgent }) {
     setRunningScenario(null);
   };
 
-  const handleApprove = async (jobId: string) => {
-    setDeciding(true);
-    try {
-      await api.submitDecision(jobId, { decision: "approve" });
-    } catch {}
-    setDeciding(false);
-  };
-
-  const handleReject = async (jobId: string) => {
-    setDeciding(true);
-    try {
-      await api.submitDecision(jobId, { decision: "reject" });
-    } catch {}
-    setDeciding(false);
-  };
 
   const handleReset = () => {
     stopPoll();
+    if (sessionId) {
+      api.clearAgentSession(agent.id, sessionId).catch(() => {});
+    }
+    setSessionId("");
     setRunningScenario(null);
     setIsProcessing(false);
     setIsTyping(false);
@@ -507,13 +499,7 @@ export function AgentChat({ agent }: { agent: DemoAgent }) {
       {/* Chat area */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
         {messages.map(msg => (
-          <ChatBubble
-            key={msg.id}
-            msg={msg}
-            onApprove={handleApprove}
-            onReject={handleReject}
-            deciding={deciding}
-          />
+          <ChatBubble key={msg.id} msg={msg} />
         ))}
         {isTyping && <TypingIndicator />}
         <div ref={chatEndRef} />
@@ -565,6 +551,19 @@ export function AgentChat({ agent }: { agent: DemoAgent }) {
             <Zap className="h-4 w-4" />
           </button>
           <button
+            onClick={() => setShowKeyInput(v => !v)}
+            className={`h-10 w-10 flex items-center justify-center rounded-xl border transition-colors shrink-0 ${
+              hasAIKey
+                ? "bg-green-50 dark:bg-green-950/30 border-green-300 dark:border-green-700 text-green-600 dark:text-green-400"
+                : showKeyInput
+                ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 border-zinc-900 dark:border-zinc-100"
+                : "border-amber-300 dark:border-amber-700 text-amber-500 hover:text-amber-600 dark:hover:text-amber-400 hover:border-amber-400 dark:hover:border-amber-600"
+            }`}
+            title={hasAIKey ? "Gemini API key configured ✓" : "Set Gemini API key"}
+          >
+            <KeyRound className="h-4 w-4" />
+          </button>
+          <button
             onClick={handleReset}
             className="h-10 w-10 flex items-center justify-center rounded-xl border border-zinc-200 dark:border-zinc-700 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors shrink-0"
             title="Reset chat"
@@ -572,6 +571,63 @@ export function AgentChat({ agent }: { agent: DemoAgent }) {
             <RefreshCw className="h-4 w-4" />
           </button>
         </div>
+
+        {/* API Key input */}
+        {showKeyInput && (
+          <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+            {hasAIKey ? (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+                  <span className="text-xs text-green-700 dark:text-green-400 font-medium">Gemini API key configured</span>
+                  <span className="text-[10px] text-zinc-400">(encrypted on server)</span>
+                </div>
+                <button
+                  onClick={async () => {
+                    await api.deleteAIKey();
+                    setHasAIKey(false);
+                  }}
+                  className="text-xs text-red-500 hover:text-red-600"
+                >
+                  Remove key
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <input
+                      type="password"
+                      value={keyInput}
+                      onChange={(e) => setKeyInput(e.target.value)}
+                      placeholder="Paste your Gemini API key..."
+                      className="w-full rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-3 py-2 text-xs text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <Button
+                    size="sm"
+                    disabled={!keyInput.trim() || savingKey}
+                    onClick={async () => {
+                      setSavingKey(true);
+                      try {
+                        await api.saveAIKey(keyInput.trim());
+                        setHasAIKey(true);
+                        setKeyInput("");
+                      } catch {}
+                      setSavingKey(false);
+                    }}
+                    className="h-8 px-3 text-xs"
+                  >
+                    {savingKey ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
+                  </Button>
+                </div>
+                <p className="text-[10px] text-zinc-400 mt-1.5">
+                  Free key from <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">aistudio.google.com/apikey</a> — encrypted and stored on the server, never in your browser.
+                </p>
+              </>
+            )}
+          </div>
+        )}
 
         {/* Collapsible scenarios panel */}
         {showScenarios && (
