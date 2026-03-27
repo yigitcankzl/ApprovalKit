@@ -137,7 +137,7 @@ export default function DemoAgentPage() {
   const handleReset = async () => {
     setResetting(true);
     try {
-      await api.clearDemoData();
+      await api.clearDemoData(agentId);
       setSetupDone(false);
       setConnections([]);
       setAllConnected(false);
@@ -365,7 +365,7 @@ export default function DemoAgentPage() {
             </div>
 
             <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
-              This will permanently delete all demo data for <strong>all agents</strong> in your workspace:
+              This will delete the demo data for <strong>{agent.title}</strong>:
             </p>
 
             <ul className="text-sm text-zinc-500 dark:text-zinc-400 space-y-1.5 mb-5 ml-1">

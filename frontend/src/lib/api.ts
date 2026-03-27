@@ -115,7 +115,10 @@ export const api = {
     const qs = params.toString();
     return fetchAPI(`/api/v1/demo/seed${qs ? `?${qs}` : ""}`, { method: "POST" });
   },
-  clearDemoData: () => fetchAPI("/api/v1/demo/seed", { method: "DELETE" }),
+  clearDemoData: (agentId?: string) => {
+    const qs = agentId ? `?agent_id=${agentId}` : "";
+    return fetchAPI(`/api/v1/demo/seed${qs}`, { method: "DELETE" });
+  },
 
   // Agent Chat
   chatWithAgent: (agentId: string, message: string, agentTitle: string = "", sessionId: string = "") =>

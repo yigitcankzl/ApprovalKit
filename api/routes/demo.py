@@ -1176,12 +1176,47 @@ async def get_demo_agents():
 
 @router.delete("/seed")
 async def clear_demo_data(
+    agent_id: str | None = None,
     workspace: Workspace = Depends(get_current_workspace),
     db: AsyncSession = Depends(get_db),
 ):
-    """Remove all demo-created resources (rules, approvers, connections) from this workspace."""
-    demo_prefixes = ("[Expense]", "[Release]", "[Security]", "[ATO]", "[HR]", "[Access]",
-                     "[Patient]", "[Rx]", "[GDPR]", "[KeyRotation]", "[Shared]", "[Demo]")
+    """Remove demo-created resources. If agent_id given, only that agent's data."""
+
+    _AGENT_RULE_PREFIXES = {
+        "expense": ["[Expense]"],
+        "release_manager": ["[Release]"],
+        "security_incident": ["[Security]", "[Shared]"],
+        "account_takeover": ["[ATO]"],
+        "recruitment": ["[HR]"],
+        "access_provisioning": ["[Access]"],
+        "patient_data": ["[Patient]"],
+        "prescription_refill": ["[Rx]"],
+        "gdpr_request": ["[GDPR]"],
+        "api_key_rotation": ["[KeyRotation]"],
+    }
+
+    _AGENT_DEPS = {
+        "expense": {"conns": ["stripe-prod", "slack-prod"], "roles": ["manager", "cfo"]},
+        "release_manager": {"conns": ["github-main", "slack-prod"], "roles": ["maintainer", "lead_engineer", "oncall_engineer"]},
+        "security_incident": {"conns": ["github-prod", "slack-prod"], "roles": ["security_lead", "cto"]},
+        "account_takeover": {"conns": ["salesforce-prod", "stripe-prod", "gmail-prod", "slack-prod"], "roles": ["security_lead", "legal", "cs_manager"]},
+        "recruitment": {"conns": ["gmail-prod", "github-prod", "slack-prod"], "roles": ["hr_manager", "cfo", "ceo", "it_manager", "cto"]},
+        "access_provisioning": {"conns": ["github-prod", "slack-prod"], "roles": ["it_manager", "cto", "cfo", "hr_manager"]},
+        "patient_data": {"conns": ["google-drive-prod", "gmail-prod", "slack-prod"], "roles": ["doctor", "patient_rep", "ethics_board", "chief_doctor"]},
+        "prescription_refill": {"conns": ["gmail-prod", "slack-prod"], "roles": ["doctor", "pharmacist"]},
+        "gdpr_request": {"conns": ["github-prod", "gmail-prod", "slack-prod"], "roles": ["privacy_officer", "cto", "legal"]},
+        "api_key_rotation": {"conns": ["github-prod", "slack-prod", "gmail-prod"], "roles": ["security_lead", "cto"]},
+    }
+
+    if agent_id and agent_id in _AGENT_RULE_PREFIXES:
+        demo_prefixes = tuple(_AGENT_RULE_PREFIXES[agent_id])
+        target_conns = set(_AGENT_DEPS[agent_id]["conns"])
+        target_roles = set(_AGENT_DEPS[agent_id]["roles"])
+    else:
+        demo_prefixes = ("[Expense]", "[Release]", "[Security]", "[ATO]", "[HR]", "[Access]",
+                         "[Patient]", "[Rx]", "[GDPR]", "[KeyRotation]", "[Shared]", "[Demo]")
+        target_conns = None
+        target_roles = None
 
     # 1. Delete rules + rule_approvers
     result = await db.execute(
@@ -1199,23 +1234,31 @@ async def clear_demo_data(
             deleted_rules += 1
 
     # 2. Delete demo approvers (auth0_user_id starts with "demo|")
+    # Build role → auth0_user_id map from APPROVERS list
+    _role_to_auth0 = {a["role"]: a["auth0_user_id"] for a in APPROVERS}
     result = await db.execute(
         select(Approver).where(Approver.workspace_id == workspace.id)
     )
     deleted_approvers = 0
     for approver in result.scalars().all():
-        if approver.auth0_user_id and approver.auth0_user_id.startswith("demo|"):
-            await db.delete(approver)
-            deleted_approvers += 1
+        if not approver.auth0_user_id or not approver.auth0_user_id.startswith("demo|"):
+            continue
+        if target_roles is not None:
+            # Only delete approvers belonging to this agent
+            approver_role = next((r for r, aid in _role_to_auth0.items() if aid == approver.auth0_user_id), None)
+            if approver_role not in target_roles:
+                continue
+        await db.delete(approver)
+        deleted_approvers += 1
 
-    # 3. Delete demo connections (slug matches our seed list)
-    demo_slugs = {c["slug"] for c in CONNECTIONS}
+    # 3. Delete demo connections (slug matches seed list or agent's list)
+    allowed_slugs = target_conns if target_conns else {c["slug"] for c in CONNECTIONS}
     result = await db.execute(
         select(ServiceConnection).where(ServiceConnection.workspace_id == workspace.id)
     )
     deleted_conns = 0
     for conn in result.scalars().all():
-        if conn.slug in demo_slugs:
+        if conn.slug in allowed_slugs:
             await db.delete(conn)
             deleted_conns += 1
 
