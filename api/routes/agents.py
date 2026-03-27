@@ -7,6 +7,7 @@ POST /api/v1/agents        — create agent + optional scenarios
 DELETE /api/v1/agents/{id} — delete agent and its scenarios
 POST /api/v1/agents/{id}/scenarios — add a scenario to an existing agent
 """
+import hashlib
 import secrets
 import uuid
 
@@ -106,7 +107,7 @@ async def create_agent(body: AgentIn, ws: Workspace = Depends(get_current_worksp
         name=body.name,
         description=body.description,
         icon=body.icon,
-        api_key=agent_api_key,
+        api_key=hashlib.sha256(agent_api_key.encode()).hexdigest(),  # Hash only — plaintext shown once
         allowed_connections=body.allowed_connections,
         is_active=True,
     )
@@ -203,9 +204,10 @@ async def delete_agent(agent_id: str, ws: Workspace = Depends(get_current_worksp
 async def regenerate_api_key(agent_id: str, ws: Workspace = Depends(get_current_workspace), db: AsyncSession = Depends(get_db)):
     """Generate a new API key for this agent. Old key stops working immediately."""
     agent = await _get_agent_for_workspace(agent_id, ws, db)
-    agent.api_key = f"ak_{secrets.token_urlsafe(32)}"
+    new_key = f"ak_{secrets.token_urlsafe(32)}"
+    agent.api_key = hashlib.sha256(new_key.encode()).hexdigest()  # Hash only
     await db.commit()
-    return {"api_key": agent.api_key}
+    return {"api_key": new_key}  # Plaintext shown once, never stored
 
 
 @router.post("/{agent_id}/revoke")

@@ -1,14 +1,55 @@
 import hashlib
 import hmac
 import time
+from functools import lru_cache
 
 from fastapi import HTTPException, Request, Depends
+from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.database import get_db
 from api.models.workspace import Workspace
 from api.models.agent import RegisteredAgent
+
+
+def _hash_key(key: str) -> str:
+    """SHA256 hash of an API key for DB lookup. One-way — cannot be reversed."""
+    return hashlib.sha256(key.encode()).hexdigest()
+
+
+# In-memory cache for HMAC secrets from Vault (TTL managed by caller)
+_hmac_cache: dict[str, tuple[str, float]] = {}
+_HMAC_CACHE_TTL = 300  # 5 minutes
+
+
+def _get_cached_hmac(workspace_id: str) -> str | None:
+    """Get HMAC secret from cache if not expired."""
+    entry = _hmac_cache.get(workspace_id)
+    if entry and time.time() - entry[1] < _HMAC_CACHE_TTL:
+        return entry[0]
+    return None
+
+
+def _set_cached_hmac(workspace_id: str, secret: str):
+    """Cache HMAC secret with timestamp."""
+    _hmac_cache[workspace_id] = (secret, time.time())
+
+
+async def _get_hmac_secret(workspace_id: str) -> str | None:
+    """Get HMAC secret from Vault (cached). Falls back to DB field if Vault unavailable."""
+    cached = _get_cached_hmac(workspace_id)
+    if cached:
+        return cached
+
+    from api.services.vault import read_secret
+    vault_data = read_secret(workspace_id, "hmac")
+    if vault_data and vault_data.get("hmac_secret"):
+        secret = vault_data["hmac_secret"]
+        _set_cached_hmac(workspace_id, secret)
+        return secret
+
+    return None
 
 
 async def verify_hmac_signature(request: Request, db: AsyncSession = Depends(get_db)) -> Workspace:
@@ -39,12 +80,14 @@ async def verify_hmac_signature(request: Request, db: AsyncSession = Depends(get
         raise HTTPException(status_code=401, detail="Request timestamp too old (replay attack prevention)")
 
     # Try per-agent API key first (ak_* format)
+    # Agent keys stored as SHA256 hash in DB — hash the incoming key and compare
     workspace = None
     agent = None
     if api_key.startswith("ak_"):
+        key_hash = _hash_key(api_key)
         result = await db.execute(
             select(RegisteredAgent).where(
-                RegisteredAgent.api_key == api_key,
+                RegisteredAgent.api_key == key_hash,
                 RegisteredAgent.is_active.is_(True),
             )
         )
@@ -55,9 +98,12 @@ async def verify_hmac_signature(request: Request, db: AsyncSession = Depends(get
             )
             workspace = ws_result.scalar_one_or_none()
 
-    # Fall back to workspace API key
+    # Fall back to workspace API key (also stored as SHA256 hash)
     if not workspace:
-        result = await db.execute(select(Workspace).where(Workspace.api_key == api_key, Workspace.is_active.is_(True)))
+        key_hash = _hash_key(api_key)
+        result = await db.execute(
+            select(Workspace).where(Workspace.api_key == key_hash, Workspace.is_active.is_(True))
+        )
         workspace = result.scalar_one_or_none()
 
     if not workspace:
@@ -70,12 +116,19 @@ async def verify_hmac_signature(request: Request, db: AsyncSession = Depends(get
         raise HTTPException(status_code=400, detail="Request body must be valid UTF-8")
     message = f"{timestamp_str}.{body_str}"
 
+    # Get HMAC secret from Vault (cached, 5min TTL). Falls back to DB field.
+    hmac_secret = await _get_hmac_secret(str(workspace.id))
+    if not hmac_secret:
+        # Fallback: DB field (for migration period)
+        hmac_secret = workspace.hmac_secret
+    if not hmac_secret:
+        raise HTTPException(status_code=500, detail="HMAC secret not configured for this workspace")
+
     # Per-agent HMAC key composition: "hmac_secret:agent_api_key"
     # This MUST match the SDK's _sign() method in sdk/approvalkit/__init__.py:89-91
-    # If you change this format, update the SDK too.
-    sign_key = workspace.hmac_secret
+    sign_key = hmac_secret
     if agent:
-        sign_key = f"{workspace.hmac_secret}:{agent.api_key}"
+        sign_key = f"{hmac_secret}:{api_key}"
 
     expected_hash = hmac.new(
         sign_key.encode(),

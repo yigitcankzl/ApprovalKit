@@ -4,6 +4,7 @@ Workspace management routes
 POST /api/v1/workspace/setup  — create or return existing workspace
 GET  /api/v1/workspace        — get current workspace info (no secrets)
 """
+import hashlib
 import secrets
 import uuid
 
@@ -20,6 +21,11 @@ from api.database import get_db
 from api.models.workspace import Workspace
 from api.services.encryption import encrypt_secret
 from api.middleware.workspace import get_current_workspace
+
+
+def _hash_key(key: str) -> str:
+    """SHA256 hash for DB storage. One-way — original cannot be recovered."""
+    return hashlib.sha256(key.encode()).hexdigest()
 
 router = APIRouter(prefix="/api/v1/workspace", tags=["workspace"])
 settings = get_settings()
@@ -134,37 +140,50 @@ async def setup_workspace(body: WorkspaceSetupRequest, request: Request, db: Asy
             detail="Could not connect to Auth0 with provided credentials.",
         )
 
+    # Generate secrets — plaintext shown to user ONCE, never stored
     api_key = secrets.token_urlsafe(32)
     hmac_secret = secrets.token_hex(32)
+    ws_id = uuid.uuid4()
 
+    # DB stores ONLY hashes — plaintext never touches the database
     workspace = Workspace(
-        id=uuid.uuid4(),
+        id=ws_id,
         name=body.name,
         auth0_tenant=domain,
-        api_key=api_key,
-        hmac_secret=hmac_secret,
+        api_key=_hash_key(api_key),          # SHA256 hash only
+        hmac_secret="vault",                  # Marker — real secret in Vault
         owner_auth0_sub=user_sub or None,
         auth0_domain=body.auth0_domain,
         auth0_m2m_client_id=body.auth0_m2m_client_id,
-        auth0_m2m_client_secret=encrypt_secret(body.auth0_m2m_client_secret),
+        auth0_m2m_client_secret="vault",      # Marker — real secret in Vault
         auth0_web_client_id=body.auth0_web_client_id,
-        auth0_web_client_secret=encrypt_secret(body.auth0_web_client_secret),
+        auth0_web_client_secret="vault",      # Marker — real secret in Vault
         auth0_audience=body.auth0_audience,
         auth0_mgmt_api_audience=f"https://{domain}/api/v2/" if domain else None,
         fga_api_url=body.fga_api_url,
         fga_store_id=body.fga_store_id,
         fga_model_id=body.fga_model_id,
         fga_client_id=body.fga_client_id,
-        fga_client_secret=encrypt_secret(body.fga_client_secret),
+        fga_client_secret="vault",            # Marker — real secret in Vault
     )
     db.add(workspace)
     await db.commit()
     await db.refresh(workspace)
 
-    logger.info(f"Workspace created: {workspace.id}")
+    # Store ALL secrets in HashiCorp Vault — never in DB
+    from api.services.vault import store_secret
+    store_secret(str(ws_id), "hmac", {"hmac_secret": hmac_secret})
+    store_secret(str(ws_id), "auth0", {
+        "m2m_client_secret": body.auth0_m2m_client_secret or "",
+        "web_client_secret": body.auth0_web_client_secret or "",
+    })
+    if body.fga_client_secret:
+        store_secret(str(ws_id), "fga", {"client_secret": body.fga_client_secret})
+
+    logger.info(f"Workspace created: {ws_id} — secrets stored in Vault, DB has hashes only")
     return JSONResponse(
         content={
-            "workspace_id": str(workspace.id),
+            "workspace_id": str(ws_id),
             "name": workspace.name,
             "auth0_tenant": workspace.auth0_tenant,
             "api_key": api_key,
