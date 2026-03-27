@@ -985,10 +985,10 @@ def _fire_token_vault_execution(connection: str, action: str, params: dict, user
                     elif len(parts) >= 2:
                         auth0_conn_name = parts[0]
 
-                # Always use login tenant for Token Exchange — tokens were obtained from login tenant
-                ws_domain = settings.AUTH0_DOMAIN
-                ws_client_id = settings.AUTH0_WEB_CLIENT_ID or settings.AUTH0_CLIENT_ID
-                ws_client_secret = settings.AUTH0_WEB_CLIENT_SECRET or settings.AUTH0_CLIENT_SECRET
+                # Use workspace's own Auth0 tenant for Token Exchange
+                ws_domain = workspace.auth0_domain or settings.AUTH0_DOMAIN
+                ws_client_id = workspace.auth0_web_client_id or settings.AUTH0_WEB_CLIENT_ID or settings.AUTH0_CLIENT_ID
+                ws_client_secret = decrypt_secret(workspace.auth0_web_client_secret) or settings.AUTH0_WEB_CLIENT_SECRET or settings.AUTH0_CLIENT_SECRET
 
             engine.dispose()
 
