@@ -64,6 +64,9 @@ export default function DemoAgentPage() {
   const [checkingConns, setCheckingConns] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [delRules, setDelRules] = useState(true);
+  const [delApprovers, setDelApprovers] = useState(true);
+  const [delConns, setDelConns] = useState(true);
 
   useEffect(() => {
     api.getDemoAgents()
@@ -135,13 +138,18 @@ export default function DemoAgentPage() {
   };
 
   const handleReset = async () => {
+    if (!delRules && !delApprovers && !delConns) return;
     setResetting(true);
     try {
-      await api.clearDemoData(agentId);
-      setSetupDone(false);
-      setConnections([]);
-      setAllConnected(false);
+      await api.clearDemoData(agentId, {
+        rules: delRules,
+        approvers: delApprovers,
+        connections: delConns,
+      });
+      if (delRules) setSetupDone(false);
+      if (delConns) { setConnections([]); setAllConnected(false); }
       setShowResetConfirm(false);
+      setDelRules(true); setDelApprovers(true); setDelConns(true);
     } catch {}
     setResetting(false);
   };
@@ -365,23 +373,35 @@ export default function DemoAgentPage() {
             </div>
 
             <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
-              This will delete the demo data for <strong>{agent.title}</strong>:
+              Select what to delete for <strong>{agent.title}</strong>:
             </p>
 
-            <ul className="text-sm text-zinc-500 dark:text-zinc-400 space-y-1.5 mb-5 ml-1">
-              <li className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
-                All demo <strong>connections</strong> (OAuth links will be removed)
-              </li>
-              <li className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
-                All demo <strong>approvers</strong>
-              </li>
-              <li className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
-                All demo <strong>approval rules</strong>
-              </li>
-            </ul>
+            <div className="space-y-2.5 mb-5">
+              <label className="flex items-center gap-3 p-2.5 rounded-lg border border-zinc-200 dark:border-zinc-700 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
+                <input type="checkbox" checked={delConns} onChange={e => setDelConns(e.target.checked)}
+                  className="w-4 h-4 rounded border-zinc-300 text-red-500 focus:ring-red-500" />
+                <div>
+                  <div className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Connections</div>
+                  <div className="text-xs text-zinc-400">OAuth links and service configurations</div>
+                </div>
+              </label>
+              <label className="flex items-center gap-3 p-2.5 rounded-lg border border-zinc-200 dark:border-zinc-700 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
+                <input type="checkbox" checked={delApprovers} onChange={e => setDelApprovers(e.target.checked)}
+                  className="w-4 h-4 rounded border-zinc-300 text-red-500 focus:ring-red-500" />
+                <div>
+                  <div className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Approvers</div>
+                  <div className="text-xs text-zinc-400">Demo approver accounts (Manager, CFO, etc.)</div>
+                </div>
+              </label>
+              <label className="flex items-center gap-3 p-2.5 rounded-lg border border-zinc-200 dark:border-zinc-700 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
+                <input type="checkbox" checked={delRules} onChange={e => setDelRules(e.target.checked)}
+                  className="w-4 h-4 rounded border-zinc-300 text-red-500 focus:ring-red-500" />
+                <div>
+                  <div className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Approval Rules</div>
+                  <div className="text-xs text-zinc-400">Approval policies and conditions</div>
+                </div>
+              </label>
+            </div>
 
             <div className="flex gap-2">
               <Button
@@ -394,12 +414,12 @@ export default function DemoAgentPage() {
               <Button
                 className="flex-1 bg-red-600 hover:bg-red-700 text-white"
                 onClick={handleReset}
-                disabled={resetting}
+                disabled={resetting || (!delRules && !delApprovers && !delConns)}
               >
                 {resetting ? (
                   <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Deleting...</>
                 ) : (
-                  <><Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete All</>
+                  <><Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete Selected</>
                 )}
               </Button>
             </div>

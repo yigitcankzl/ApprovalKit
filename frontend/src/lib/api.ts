@@ -115,9 +115,16 @@ export const api = {
     const qs = params.toString();
     return fetchAPI(`/api/v1/demo/seed${qs ? `?${qs}` : ""}`, { method: "POST" });
   },
-  clearDemoData: (agentId?: string) => {
-    const qs = agentId ? `?agent_id=${agentId}` : "";
-    return fetchAPI(`/api/v1/demo/seed${qs}`, { method: "DELETE" });
+  clearDemoData: (agentId?: string, opts?: { rules?: boolean; approvers?: boolean; connections?: boolean }) => {
+    const p = new URLSearchParams();
+    if (agentId) p.set("agent_id", agentId);
+    if (opts) {
+      if (opts.rules === false) p.set("delete_rules", "false");
+      if (opts.approvers === false) p.set("delete_approvers", "false");
+      if (opts.connections === false) p.set("delete_connections", "false");
+    }
+    const qs = p.toString();
+    return fetchAPI(`/api/v1/demo/seed${qs ? `?${qs}` : ""}`, { method: "DELETE" });
   },
 
   // Agent Chat
