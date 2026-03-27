@@ -122,11 +122,9 @@ export default function LoginPage() {
                     <li className="flex gap-2">
                       <span className="text-zinc-400 font-bold">b.</span>
                       <div>
-                        <span><strong>Allowed Callback URLs</strong> — add all three (comma-separated):</span>
-                        <div className="mt-1 space-y-0.5">
-                          <CopyText text="http://localhost:3000/auth/callback" />
-                          <CopyText text="http://localhost:8000/api/v1/connections/oauth/callback" />
-                          <CopyText text="http://localhost:8000/api/v1/connections/connected-accounts/callback" />
+                        <span><strong>Allowed Callback URLs</strong> — paste this exactly:</span>
+                        <div className="mt-1">
+                          <CopyText text="http://localhost:3000/auth/callback, http://localhost:8000/api/v1/connections/oauth/callback, http://localhost:8000/api/v1/connections/connected-accounts/callback" />
                         </div>
                       </div>
                     </li>
