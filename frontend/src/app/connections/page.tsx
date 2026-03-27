@@ -252,10 +252,25 @@ function ConnectionsContent() {
         </div>
       ) : connections.length === 0 ? (
         <Card>
-          <CardContent className="py-12 text-center">
-            <Link2 className="h-12 w-12 text-zinc-300 dark:text-zinc-600 mx-auto mb-4" />
-            <p className="text-zinc-500 dark:text-zinc-400 mb-4">No connections yet.</p>
-            <Button onClick={() => router.push("/onboarding")}>Set Up Connections</Button>
+          <CardContent className="py-10">
+            <div className="text-center mb-6">
+              <Link2 className="h-12 w-12 text-zinc-300 dark:text-zinc-600 mx-auto mb-4" />
+              <p className="text-lg font-medium text-zinc-900 dark:text-zinc-100">No connections yet</p>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Connect your first service to start gating agent actions with approvals.</p>
+            </div>
+            <div className="max-w-md mx-auto space-y-3">
+              <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <p className="text-xs text-blue-700 dark:text-blue-300 font-medium">How connections work:</p>
+                <ol className="text-xs text-blue-600 dark:text-blue-400 mt-1 ml-3 list-decimal space-y-1">
+                  <li>Enable <strong>Token Vault</strong> for a social connection in Auth0 (Authentication &rarr; Social &rarr; Advanced &rarr; Enable Token Vault)</li>
+                  <li>Click <strong>&quot;Add Connection&quot;</strong> below to register it here</li>
+                  <li>Click <strong>&quot;Connect&quot;</strong> to link your account via OAuth — credentials stored in Auth0 Token Vault</li>
+                </ol>
+              </div>
+              <Button className="w-full" onClick={() => setShowAdd(true)}>
+                <Link2 className="h-4 w-4 mr-2" /> Add Your First Connection
+              </Button>
+            </div>
           </CardContent>
         </Card>
       ) : (
