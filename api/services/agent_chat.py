@@ -849,80 +849,77 @@ AGENT_SUGGESTIONS: dict[str, list[str]] = {
 
 # ── Tool Execution (server-side) ──────────────────────────────────────────────
 
-async def _execute_tool_async(agent_id: str, tool_name: str, tool_args: dict, workspace_id: str) -> dict:
-    """Execute an ApprovalKit action server-side by calling the rule engine directly.
+def _execute_tool(agent_id: str, tool_name: str, tool_args: dict, workspace_id: str) -> dict:
+    """Execute an ApprovalKit action by querying the DB with a sync session.
 
-    No HTTP call — avoids deadlock when the same server handles both the chat
-    request and the internal tool execution.
+    Uses a separate sync SQLAlchemy engine to avoid async event loop conflicts.
     """
     action = _map_tool_to_action(agent_id, tool_name, tool_args)
     if not action:
         return {"success": False, "error": f"Unknown tool: {tool_name}"}
 
     try:
-        from api.database import async_session
-        from api.services.rule_engine import find_matching_rule
+        from sqlalchemy import create_engine, select
+        from sqlalchemy.orm import Session
+        from api.config import get_settings
+        from api.models.rule import Rule
         from api.models.workspace import Workspace
-        from sqlalchemy import select
 
-        async with async_session() as db:
+        settings = get_settings()
+        # Convert async DB URL to sync
+        sync_url = settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
+        engine = create_engine(sync_url)
+
+        with Session(engine) as db:
             # Get workspace
-            result = await db.execute(
+            workspace = db.execute(
                 select(Workspace).where(Workspace.owner_auth0_sub == workspace_id)
-            )
-            workspace = result.scalar_one_or_none()
+            ).scalar_one_or_none()
+
             if not workspace:
                 return {"success": False, "error": "Workspace not found"}
 
-            # Find matching rule
-            rule = await find_matching_rule(
-                workspace.id, action["connection"], action["action"], action["params"], db
-            )
+            # Find matching rule (sync version)
+            rules = db.execute(
+                select(Rule).where(
+                    Rule.workspace_id == workspace.id,
+                    Rule.connection == action["connection"],
+                    Rule.action == action["action"],
+                    Rule.is_active.is_(True),
+                ).order_by(Rule.priority.desc())
+            ).scalars().all()
 
-            if not rule:
-                return {
-                    "success": True,
-                    "status": "auto_approved",
-                    "message": "No matching rule — auto-approved. Action executed via Token Vault.",
-                    "connection": action["connection"],
-                    "action": action["action"],
-                    "params": action["params"],
-                }
+            from api.services.rule_engine import evaluate_conditions
+            matched_rule = None
+            for rule in rules:
+                if evaluate_conditions(rule.conditions or [], action["params"]):
+                    matched_rule = rule
+                    break
 
+        engine.dispose()
+
+        if not matched_rule:
             return {
                 "success": True,
-                "status": "pending",
-                "message": f"Approval required. Rule: {rule.name} ({rule.model.value}). "
-                           f"Approval request sent — waiting for approver(s) via Guardian push notification. "
-                           f"Check the Dashboard to approve or reject.",
-                "rule": rule.name,
-                "model": rule.model.value,
+                "status": "auto_approved",
+                "message": "No matching rule — auto-approved. Action executed via Token Vault.",
                 "connection": action["connection"],
                 "action": action["action"],
                 "params": action["params"],
             }
-    except Exception as e:
-        logger.error(f"Tool execution error: {e}")
-        return {"success": False, "error": str(e)}
 
-
-def _execute_tool(agent_id: str, tool_name: str, tool_args: dict, workspace_id: str) -> dict:
-    """Sync wrapper for async tool execution."""
-    import asyncio
-    import concurrent.futures
-
-    def _run():
-        loop = asyncio.new_event_loop()
-        try:
-            return loop.run_until_complete(
-                _execute_tool_async(agent_id, tool_name, tool_args, workspace_id)
-            )
-        finally:
-            loop.close()
-
-    try:
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            return pool.submit(_run).result(timeout=15)
+        return {
+            "success": True,
+            "status": "pending",
+            "message": f"Approval required. Rule: {matched_rule.name} ({matched_rule.model.value}). "
+                       f"Approval request sent — waiting for approver(s) via Guardian push notification. "
+                       f"Check the Dashboard to approve or reject.",
+            "rule": matched_rule.name,
+            "model": matched_rule.model.value,
+            "connection": action["connection"],
+            "action": action["action"],
+            "params": action["params"],
+        }
     except Exception as e:
         logger.error(f"Tool execution error: {e}")
         return {"success": False, "error": str(e)}
