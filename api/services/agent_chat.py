@@ -899,6 +899,8 @@ def _execute_tool(agent_id: str, tool_name: str, tool_args: dict, workspace_id: 
         engine.dispose()
 
         if not matched_rule:
+            # Auto-approved — execute via Token Vault in background
+            _fire_token_vault_execution(action["connection"], action["action"], action["params"], workspace_id)
             return {
                 "success": True,
                 "status": "auto_approved",
@@ -923,6 +925,30 @@ def _execute_tool(agent_id: str, tool_name: str, tool_args: dict, workspace_id: 
     except Exception as e:
         logger.error(f"Tool execution error: {e}")
         return {"success": False, "error": str(e)}
+
+
+def _fire_token_vault_execution(connection: str, action: str, params: dict, user_sub: str):
+    """Fire-and-forget: call test-request endpoint in a background thread.
+
+    This triggers the full ApprovalKit flow (rule check + Token Vault execution)
+    for auto-approved actions. Runs in a separate thread to avoid blocking.
+    """
+    import threading
+    import httpx
+
+    def _call():
+        try:
+            resp = httpx.post(
+                "http://api:8000/api/v1/test-request",
+                json={"connection": connection, "action": action, "params": params},
+                headers={"X-User-Sub": user_sub},
+                timeout=15,
+            )
+            logger.info(f"Token Vault fire: {connection}/{action} → {resp.status_code}")
+        except Exception as e:
+            logger.warning(f"Token Vault fire failed: {e}")
+
+    threading.Thread(target=_call, daemon=True).start()
 
 
 # ── Gemini Helpers ────────────────────────────────────────────────────────────
