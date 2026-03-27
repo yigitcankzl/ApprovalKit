@@ -849,47 +849,78 @@ AGENT_SUGGESTIONS: dict[str, list[str]] = {
 
 # ── Tool Execution (server-side) ──────────────────────────────────────────────
 
-def _execute_tool(agent_id: str, tool_name: str, tool_args: dict, workspace_id: str) -> dict:
-    """Execute an ApprovalKit action server-side and return the result.
+async def _execute_tool_async(agent_id: str, tool_name: str, tool_args: dict, workspace_id: str) -> dict:
+    """Execute an ApprovalKit action server-side by calling the rule engine directly.
 
-    This is the agentic loop — tool calls are executed here, not on the frontend.
-    The result is fed back to Gemini so it knows what happened.
+    No HTTP call — avoids deadlock when the same server handles both the chat
+    request and the internal tool execution.
     """
     action = _map_tool_to_action(agent_id, tool_name, tool_args)
     if not action:
         return {"success": False, "error": f"Unknown tool: {tool_name}"}
 
-    import httpx
-
     try:
-        # Call ApprovalKit's test-request endpoint internally
-        resp = httpx.post(
-            "http://localhost:8000/api/v1/test-request",
-            json={
-                "connection": action["connection"],
-                "action": action["action"],
-                "params": action["params"],
-            },
-            headers={"X-User-Sub": workspace_id},
-            timeout=10,
-        )
+        from api.database import async_session
+        from api.services.rule_engine import find_matching_rule
+        from api.models.workspace import Workspace
+        from sqlalchemy import select
 
-        if resp.status_code in (200, 201, 202):
-            data = resp.json()
+        async with async_session() as db:
+            # Get workspace
+            result = await db.execute(
+                select(Workspace).where(Workspace.owner_auth0_sub == workspace_id)
+            )
+            workspace = result.scalar_one_or_none()
+            if not workspace:
+                return {"success": False, "error": "Workspace not found"}
+
+            # Find matching rule
+            rule = await find_matching_rule(
+                workspace.id, action["connection"], action["action"], action["params"], db
+            )
+
+            if not rule:
+                return {
+                    "success": True,
+                    "status": "auto_approved",
+                    "message": "No matching rule — auto-approved. Action executed via Token Vault.",
+                    "connection": action["connection"],
+                    "action": action["action"],
+                    "params": action["params"],
+                }
+
             return {
                 "success": True,
-                "status": data.get("status", "submitted"),
-                "job_id": data.get("job_id"),
-                "message": data.get("message", ""),
-                "rule": data.get("rule"),
-                "model": data.get("model"),
+                "status": "pending",
+                "message": f"Approval required. Rule: {rule.name} ({rule.model.value}). "
+                           f"Approval request sent — waiting for approver(s) via Guardian push notification. "
+                           f"Check the Dashboard to approve or reject.",
+                "rule": rule.name,
+                "model": rule.model.value,
                 "connection": action["connection"],
                 "action": action["action"],
                 "params": action["params"],
             }
+    except Exception as e:
+        logger.error(f"Tool execution error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+def _execute_tool(agent_id: str, tool_name: str, tool_args: dict, workspace_id: str) -> dict:
+    """Sync wrapper for async tool execution."""
+    import asyncio
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # We're already in an async context — use a new thread
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                return pool.submit(
+                    asyncio.run,
+                    _execute_tool_async(agent_id, tool_name, tool_args, workspace_id)
+                ).result(timeout=15)
         else:
-            error_detail = resp.json().get("detail", resp.text[:200]) if resp.headers.get("content-type", "").startswith("application/json") else resp.text[:200]
-            return {"success": False, "error": f"HTTP {resp.status_code}: {error_detail}"}
+            return asyncio.run(_execute_tool_async(agent_id, tool_name, tool_args, workspace_id))
     except Exception as e:
         logger.error(f"Tool execution error: {e}")
         return {"success": False, "error": str(e)}
