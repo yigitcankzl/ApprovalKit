@@ -13,6 +13,7 @@ import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
+from pydantic import BaseModel as BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -1174,16 +1175,24 @@ async def get_demo_agents():
     return _build_agent_catalog()
 
 
-@router.delete("/seed")
+class DeleteRequest(BaseModel):
+    agent_id: str | None = None
+    rule_ids: list[str] | None = None
+    approver_ids: list[str] | None = None
+    connection_ids: list[str] | None = None
+
+
+@router.post("/delete")
 async def clear_demo_data(
-    agent_id: str | None = None,
-    delete_rules: bool = True,
-    delete_approvers: bool = True,
-    delete_connections: bool = True,
+    body: DeleteRequest,
     workspace: Workspace = Depends(get_current_workspace),
     db: AsyncSession = Depends(get_db),
 ):
-    """Remove demo-created resources. Checkboxes control what gets deleted."""
+    """Remove specific demo resources by ID. If IDs not given, delete all for agent."""
+    agent_id = body.agent_id
+    delete_rules = body.rule_ids is None  # delete all if no specific IDs
+    delete_approvers = body.approver_ids is None
+    delete_connections = body.connection_ids is None
 
     _AGENT_RULE_PREFIXES = {
         "expense": ["[Expense]"],
@@ -1223,27 +1232,40 @@ async def clear_demo_data(
 
     # 1. Delete rules + rule_approvers
     deleted_rules = 0
-    if delete_rules:
-        result = await db.execute(
-            select(Rule).where(Rule.workspace_id == workspace.id)
-        )
+    if body.rule_ids is not None:
+        # Delete specific rules by ID
+        for rid in body.rule_ids:
+            result = await db.execute(select(Rule).where(Rule.id == uuid.UUID(rid), Rule.workspace_id == workspace.id))
+            rule = result.scalar_one_or_none()
+            if rule:
+                ra_result = await db.execute(select(RuleApprover).where(RuleApprover.rule_id == rule.id))
+                for ra in ra_result.scalars().all():
+                    await db.delete(ra)
+                await db.delete(rule)
+                deleted_rules += 1
+    elif delete_rules:
+        # Delete all matching rules
+        result = await db.execute(select(Rule).where(Rule.workspace_id == workspace.id))
         for rule in result.scalars().all():
             if any(rule.name.startswith(p) for p in demo_prefixes):
-                ra_result = await db.execute(
-                    select(RuleApprover).where(RuleApprover.rule_id == rule.id)
-                )
+                ra_result = await db.execute(select(RuleApprover).where(RuleApprover.rule_id == rule.id))
                 for ra in ra_result.scalars().all():
                     await db.delete(ra)
                 await db.delete(rule)
                 deleted_rules += 1
 
-    # 2. Delete demo approvers
+    # 2. Delete approvers
     deleted_approvers = 0
-    if delete_approvers:
+    if body.approver_ids is not None:
+        for aid in body.approver_ids:
+            result = await db.execute(select(Approver).where(Approver.id == uuid.UUID(aid), Approver.workspace_id == workspace.id))
+            approver = result.scalar_one_or_none()
+            if approver:
+                await db.delete(approver)
+                deleted_approvers += 1
+    elif delete_approvers:
         _role_to_auth0 = {a["role"]: a["auth0_user_id"] for a in APPROVERS}
-        result = await db.execute(
-            select(Approver).where(Approver.workspace_id == workspace.id)
-        )
+        result = await db.execute(select(Approver).where(Approver.workspace_id == workspace.id))
         for approver in result.scalars().all():
             if not approver.auth0_user_id or not approver.auth0_user_id.startswith("demo|"):
                 continue
@@ -1254,13 +1276,18 @@ async def clear_demo_data(
             await db.delete(approver)
             deleted_approvers += 1
 
-    # 3. Delete demo connections
+    # 3. Delete connections
     deleted_conns = 0
-    if delete_connections:
+    if body.connection_ids is not None:
+        for cid in body.connection_ids:
+            result = await db.execute(select(ServiceConnection).where(ServiceConnection.id == uuid.UUID(cid), ServiceConnection.workspace_id == workspace.id))
+            conn = result.scalar_one_or_none()
+            if conn:
+                await db.delete(conn)
+                deleted_conns += 1
+    elif delete_connections:
         allowed_slugs = target_conns if target_conns else {c["slug"] for c in CONNECTIONS}
-        result = await db.execute(
-            select(ServiceConnection).where(ServiceConnection.workspace_id == workspace.id)
-        )
+        result = await db.execute(select(ServiceConnection).where(ServiceConnection.workspace_id == workspace.id))
         for conn in result.scalars().all():
             if conn.slug in allowed_slugs:
                 await db.delete(conn)

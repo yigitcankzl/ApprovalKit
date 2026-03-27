@@ -64,9 +64,10 @@ export default function DemoAgentPage() {
   const [checkingConns, setCheckingConns] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetting, setResetting] = useState(false);
-  const [delRules, setDelRules] = useState(true);
-  const [delApprovers, setDelApprovers] = useState(true);
-  const [delConns, setDelConns] = useState(true);
+  const [resetItems, setResetItems] = useState<{rules: any[]; approvers: any[]; conns: any[]}>({rules: [], approvers: [], conns: []});
+  const [selectedRuleIds, setSelectedRuleIds] = useState<Set<string>>(new Set());
+  const [selectedApproverIds, setSelectedApproverIds] = useState<Set<string>>(new Set());
+  const [selectedConnIds, setSelectedConnIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     api.getDemoAgents()
@@ -137,19 +138,52 @@ export default function DemoAgentPage() {
     setSettingUp(false);
   };
 
+  const openResetModal = async () => {
+    if (!agent) return;
+    const prefixes = agent.setupInfo.filter(s => s.type === "rule").map(s => s.name.split(" ")[0]);
+    const neededSlugs = new Set(agent.setupInfo.filter(s => s.type === "connection").map(s => s.name));
+
+    try {
+      const [allRules, allApprovers, allConns] = await Promise.all([
+        api.getRules(),
+        api.getApprovers(),
+        api.getConnections(),
+      ]);
+      const agentRules = allRules.filter((r: any) => prefixes.some((p: string) => r.name.includes(p)));
+      const demoApprovers = allApprovers.filter((a: any) => a.auth0_user_id?.startsWith("demo|"));
+      const agentConns = allConns.filter((c: any) => neededSlugs.has(c.slug));
+
+      setResetItems({ rules: agentRules, approvers: demoApprovers, conns: agentConns });
+      setSelectedRuleIds(new Set(agentRules.map((r: any) => r.id)));
+      setSelectedApproverIds(new Set(demoApprovers.map((a: any) => a.id)));
+      setSelectedConnIds(new Set(agentConns.map((c: any) => c.id)));
+    } catch {
+      setResetItems({ rules: [], approvers: [], conns: [] });
+    }
+    setShowResetConfirm(true);
+  };
+
+  const toggleId = (set: Set<string>, id: string, setter: (s: Set<string>) => void) => {
+    const next = new Set(set);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setter(next);
+  };
+
+  const totalSelected = selectedRuleIds.size + selectedApproverIds.size + selectedConnIds.size;
+
   const handleReset = async () => {
-    if (!delRules && !delApprovers && !delConns) return;
+    if (totalSelected === 0) return;
     setResetting(true);
     try {
-      await api.clearDemoData(agentId, {
-        rules: delRules,
-        approvers: delApprovers,
-        connections: delConns,
+      await api.clearDemoData({
+        agent_id: agentId,
+        rule_ids: selectedRuleIds.size > 0 ? Array.from(selectedRuleIds) : undefined,
+        approver_ids: selectedApproverIds.size > 0 ? Array.from(selectedApproverIds) : undefined,
+        connection_ids: selectedConnIds.size > 0 ? Array.from(selectedConnIds) : undefined,
       });
-      if (delRules) setSetupDone(false);
-      if (delConns) { setConnections([]); setAllConnected(false); }
+      if (selectedRuleIds.size > 0) setSetupDone(false);
+      if (selectedConnIds.size > 0) { setConnections([]); setAllConnected(false); }
       setShowResetConfirm(false);
-      setDelRules(true); setDelApprovers(true); setDelConns(true);
     } catch {}
     setResetting(false);
   };
@@ -211,7 +245,7 @@ export default function DemoAgentPage() {
             <StepBadge num={3} label="Chat" active={step === 3} done={false} />
             {setupDone && (
               <button
-                onClick={() => setShowResetConfirm(true)}
+                onClick={openResetModal}
                 className="ml-1 p-1.5 rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
                 title="Reset demo"
               >
@@ -364,62 +398,108 @@ export default function DemoAgentPage() {
       {/* Reset confirmation modal */}
       {showResetConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowResetConfirm(false)}>
-          <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-xl p-6 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
+          <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-xl p-6 max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2 bg-red-100 dark:bg-red-950/30 rounded-lg">
                 <AlertTriangle className="h-5 w-5 text-red-500" />
               </div>
-              <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">Reset Demo?</h3>
+              <div>
+                <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">Reset {agent.title}</h3>
+                <p className="text-xs text-zinc-400">Select items to delete</p>
+              </div>
             </div>
 
-            <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
-              Select what to delete for <strong>{agent.title}</strong>:
-            </p>
+            {/* Connections */}
+            {resetItems.conns.length > 0 && (
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Connections</span>
+                  <button className="text-[10px] text-blue-500" onClick={() => {
+                    const allIds = new Set(resetItems.conns.map((c: any) => c.id));
+                    setSelectedConnIds(selectedConnIds.size === allIds.size ? new Set() : allIds);
+                  }}>{selectedConnIds.size === resetItems.conns.length ? "Deselect all" : "Select all"}</button>
+                </div>
+                <div className="space-y-1">
+                  {resetItems.conns.map((c: any) => (
+                    <label key={c.id} className="flex items-center gap-2.5 p-2 rounded-lg border border-zinc-100 dark:border-zinc-800 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
+                      <input type="checkbox" checked={selectedConnIds.has(c.id)} onChange={() => toggleId(selectedConnIds, c.id, setSelectedConnIds)}
+                        className="w-3.5 h-3.5 rounded border-zinc-300 text-red-500 focus:ring-red-500" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm text-zinc-700 dark:text-zinc-300">{c.name}</div>
+                        <div className="text-[10px] text-zinc-400">{c.slug} — {c.service}</div>
+                      </div>
+                      {c.connected_user_name && <Badge variant="success" className="text-[9px] shrink-0">OAuth</Badge>}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
 
-            <div className="space-y-2.5 mb-5">
-              <label className="flex items-center gap-3 p-2.5 rounded-lg border border-zinc-200 dark:border-zinc-700 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
-                <input type="checkbox" checked={delConns} onChange={e => setDelConns(e.target.checked)}
-                  className="w-4 h-4 rounded border-zinc-300 text-red-500 focus:ring-red-500" />
-                <div>
-                  <div className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Connections</div>
-                  <div className="text-xs text-zinc-400">OAuth links and service configurations</div>
+            {/* Approvers */}
+            {resetItems.approvers.length > 0 && (
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Approvers</span>
+                  <button className="text-[10px] text-blue-500" onClick={() => {
+                    const allIds = new Set(resetItems.approvers.map((a: any) => a.id));
+                    setSelectedApproverIds(selectedApproverIds.size === allIds.size ? new Set() : allIds);
+                  }}>{selectedApproverIds.size === resetItems.approvers.length ? "Deselect all" : "Select all"}</button>
                 </div>
-              </label>
-              <label className="flex items-center gap-3 p-2.5 rounded-lg border border-zinc-200 dark:border-zinc-700 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
-                <input type="checkbox" checked={delApprovers} onChange={e => setDelApprovers(e.target.checked)}
-                  className="w-4 h-4 rounded border-zinc-300 text-red-500 focus:ring-red-500" />
-                <div>
-                  <div className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Approvers</div>
-                  <div className="text-xs text-zinc-400">Demo approver accounts (Manager, CFO, etc.)</div>
+                <div className="space-y-1">
+                  {resetItems.approvers.map((a: any) => (
+                    <label key={a.id} className="flex items-center gap-2.5 p-2 rounded-lg border border-zinc-100 dark:border-zinc-800 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
+                      <input type="checkbox" checked={selectedApproverIds.has(a.id)} onChange={() => toggleId(selectedApproverIds, a.id, setSelectedApproverIds)}
+                        className="w-3.5 h-3.5 rounded border-zinc-300 text-red-500 focus:ring-red-500" />
+                      <div className="text-sm text-zinc-700 dark:text-zinc-300">{a.name}</div>
+                      <span className="text-[10px] text-zinc-400 ml-auto">{a.email}</span>
+                    </label>
+                  ))}
                 </div>
-              </label>
-              <label className="flex items-center gap-3 p-2.5 rounded-lg border border-zinc-200 dark:border-zinc-700 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
-                <input type="checkbox" checked={delRules} onChange={e => setDelRules(e.target.checked)}
-                  className="w-4 h-4 rounded border-zinc-300 text-red-500 focus:ring-red-500" />
-                <div>
-                  <div className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Approval Rules</div>
-                  <div className="text-xs text-zinc-400">Approval policies and conditions</div>
+              </div>
+            )}
+
+            {/* Rules */}
+            {resetItems.rules.length > 0 && (
+              <div className="mb-5">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Rules</span>
+                  <button className="text-[10px] text-blue-500" onClick={() => {
+                    const allIds = new Set(resetItems.rules.map((r: any) => r.id));
+                    setSelectedRuleIds(selectedRuleIds.size === allIds.size ? new Set() : allIds);
+                  }}>{selectedRuleIds.size === resetItems.rules.length ? "Deselect all" : "Select all"}</button>
                 </div>
-              </label>
-            </div>
+                <div className="space-y-1">
+                  {resetItems.rules.map((r: any) => (
+                    <label key={r.id} className="flex items-center gap-2.5 p-2 rounded-lg border border-zinc-100 dark:border-zinc-800 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
+                      <input type="checkbox" checked={selectedRuleIds.has(r.id)} onChange={() => toggleId(selectedRuleIds, r.id, setSelectedRuleIds)}
+                        className="w-3.5 h-3.5 rounded border-zinc-300 text-red-500 focus:ring-red-500" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm text-zinc-700 dark:text-zinc-300">{r.name}</div>
+                        <div className="text-[10px] text-zinc-400">{r.model} — {r.connection}/{r.action}</div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {totalSelected === 0 && (
+              <p className="text-sm text-zinc-400 text-center mb-4">No items selected</p>
+            )}
 
             <div className="flex gap-2">
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => setShowResetConfirm(false)}
-              >
+              <Button variant="outline" className="flex-1" onClick={() => setShowResetConfirm(false)}>
                 Cancel
               </Button>
               <Button
                 className="flex-1 bg-red-600 hover:bg-red-700 text-white"
                 onClick={handleReset}
-                disabled={resetting || (!delRules && !delApprovers && !delConns)}
+                disabled={resetting || totalSelected === 0}
               >
                 {resetting ? (
                   <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Deleting...</>
                 ) : (
-                  <><Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete Selected</>
+                  <><Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete {totalSelected} items</>
                 )}
               </Button>
             </div>
