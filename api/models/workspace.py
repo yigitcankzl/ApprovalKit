@@ -31,6 +31,7 @@ class Workspace(Base):
     fga_client_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
     fga_client_secret: Mapped[str | None] = mapped_column(Text, nullable=True)
     credentials_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ai_api_key_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     owner_auth0_sub: Mapped[str | None] = mapped_column(String(200), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)

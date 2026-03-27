@@ -214,5 +214,65 @@ async def get_workspace(workspace: Workspace = Depends(get_current_workspace)):
         "is_active": workspace.is_active,
         "has_auth0_credentials": bool(workspace.auth0_domain and workspace.auth0_m2m_client_id),
         "has_fga_credentials": bool(workspace.fga_store_id),
+        "has_ai_api_key": bool(workspace.ai_api_key_encrypted),
         "created_at": workspace.created_at.isoformat(),
     }
+
+
+# ── AI API Key Management (HashiCorp Vault → Fernet fallback) ─────────────────
+
+from api.services.vault import store_secret, read_secret, delete_secret, is_vault_available
+from api.services.encryption import decrypt_secret
+
+_AI_KEY_SLUG = "_ai_api_key"
+
+
+class AIKeyRequest(BaseModel):
+    api_key: str
+
+
+@router.post("/ai-key")
+async def save_ai_api_key(
+    body: AIKeyRequest,
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+):
+    """Store the user's AI API key. Primary: HashiCorp Vault. Fallback: Fernet in DB."""
+    if not body.api_key or len(body.api_key) < 10:
+        raise HTTPException(status_code=422, detail="Invalid API key")
+
+    ws_id = str(workspace.id)
+    stored_in_vault = store_secret(ws_id, _AI_KEY_SLUG, {"api_key": body.api_key})
+
+    if stored_in_vault:
+        # Vault succeeded — clear any DB fallback and mark as vault-stored
+        workspace.ai_api_key_encrypted = "vault"
+    else:
+        # Vault unavailable — fall back to Fernet encryption in DB
+        workspace.ai_api_key_encrypted = encrypt_secret(body.api_key)
+
+    await db.commit()
+    return {"status": "saved", "has_ai_api_key": True, "storage": "vault" if stored_in_vault else "encrypted_db"}
+
+
+@router.delete("/ai-key")
+async def delete_ai_api_key(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+):
+    """Remove the stored AI API key from both Vault and DB."""
+    ws_id = str(workspace.id)
+    delete_secret(ws_id, _AI_KEY_SLUG)
+    workspace.ai_api_key_encrypted = None
+    await db.commit()
+    return {"status": "deleted", "has_ai_api_key": False}
+
+
+@router.get("/ai-key/status")
+async def ai_api_key_status(
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    """Check if an AI API key is configured (never returns the key itself)."""
+    has_key = bool(workspace.ai_api_key_encrypted)
+    storage = "vault" if workspace.ai_api_key_encrypted == "vault" else "encrypted_db" if has_key else None
+    return {"has_ai_api_key": has_key, "storage": storage, "vault_available": is_vault_available()}
