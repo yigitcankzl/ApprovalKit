@@ -1051,13 +1051,26 @@ def process_message(agent_id: str, message: str, agent_title: str = "", session_
         all_actions = []
 
         for _round in range(MAX_TOOL_ROUNDS):
-            response = client.models.generate_content(
-                model="models/gemini-2.5-flash",
-                contents=contents,
-                config=config,
-            )
+            # Retry on rate limit (429)
+            import time as _time
+            response = None
+            for _retry in range(3):
+                try:
+                    response = client.models.generate_content(
+                        model="models/gemini-2.5-flash",
+                        contents=contents,
+                        config=config,
+                    )
+                    break
+                except Exception as retry_err:
+                    if "429" in str(retry_err) or "RESOURCE_EXHAUSTED" in str(retry_err):
+                        wait = 10 * (_retry + 1)
+                        logger.warning(f"Gemini rate limited, retrying in {wait}s...")
+                        _time.sleep(wait)
+                    else:
+                        raise
 
-            if not response.candidates or not response.candidates[0].content:
+            if not response or not response.candidates or not response.candidates[0].content:
                 break
 
             response_parts = response.candidates[0].content.parts
