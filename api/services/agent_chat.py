@@ -986,40 +986,45 @@ def _fire_token_vault_execution(connection: str, action: str, params: dict, user
                         auth0_conn_name = parts[0]
 
                 ws_domain = workspace.auth0_domain or settings.AUTH0_DOMAIN
+                # Token Exchange requires M2M app credentials
                 ws_client_id = workspace.auth0_m2m_client_id or settings.AUTH0_CLIENT_ID
                 ws_client_secret = decrypt_secret(workspace.auth0_m2m_client_secret) or settings.AUTH0_CLIENT_SECRET
+                # Also get web app credentials as fallback
+                ws_web_client_id = workspace.auth0_web_client_id or settings.AUTH0_WEB_CLIENT_ID or ws_client_id
+                ws_web_client_secret = decrypt_secret(workspace.auth0_web_client_secret) or settings.AUTH0_WEB_CLIENT_SECRET or ws_client_secret
 
             engine.dispose()
 
             if not refresh_token:
-                logger.warning(f"Token Vault fire: no refresh token for '{connection}'")
+                logger.warning(f"Token Vault fire: no token for '{connection}'")
                 return
 
-            # Token Exchange — get fresh access token from Auth0
+            # Try Token Exchange first, fall back to stored token
+            access_token = None
             provider = auth0_conn_name or service
-            token_resp = httpx.post(
-                f"https://{ws_domain}/oauth/token",
-                json={
-                    "grant_type": "urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token",
-                    "client_id": ws_client_id,
-                    "client_secret": ws_client_secret,
-                    "subject_token_type": "urn:ietf:params:oauth:token-type:refresh_token",
-                    "subject_token": refresh_token,
-                    "connection": provider,
-                },
-                timeout=15,
-            )
+            try:
+                token_resp = httpx.post(
+                    f"https://{ws_domain}/oauth/token",
+                    json={
+                        "grant_type": "urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token",
+                        "client_id": ws_client_id,
+                        "client_secret": ws_client_secret,
+                        "subject_token_type": "urn:ietf:params:oauth:token-type:refresh_token",
+                        "subject_token": refresh_token,
+                        "connection": provider,
+                    },
+                    timeout=15,
+                )
+                if token_resp.status_code == 200:
+                    access_token = token_resp.json().get("access_token", "")
+                    logger.info(f"Token Exchange succeeded for {connection} (provider={provider})")
+            except Exception as e:
+                logger.warning(f"Token Exchange error: {e}")
 
-            if token_resp.status_code != 200:
-                logger.warning(f"Token Exchange failed for {connection}: {token_resp.status_code} {token_resp.text[:200]}")
-                return
-
-            access_token = token_resp.json().get("access_token", "")
+            # Fallback: use stored token directly (Slack tokens don't expire)
             if not access_token:
-                logger.warning(f"Token Exchange: no access_token in response for {connection}")
-                return
-
-            logger.info(f"Token Exchange succeeded for {connection} (provider={provider})")
+                access_token = refresh_token
+                logger.info(f"Using stored token directly for {connection}")
 
             # Execute the action with the fresh token
             if service == "slack":

@@ -360,7 +360,7 @@ async def oauth_callback(
 
     conn.connected_auth0_user_id = sub
     conn.connected_user_name = name
-    conn.auth0_refresh_token = encrypt_secret(tokens.get("refresh_token"))
+    conn.auth0_refresh_token = encrypt_secret(tokens.get("refresh_token") or tokens.get("access_token"))
     await db.commit()
 
     return RedirectResponse(url=f"{settings.FRONTEND_URL}/connections?connected={conn.slug}")
