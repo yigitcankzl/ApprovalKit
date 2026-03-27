@@ -935,23 +935,56 @@ def _execute_tool(agent_id: str, tool_name: str, tool_args: dict, workspace_id: 
 
 
 def _fire_token_vault_execution(connection: str, action: str, params: dict, user_sub: str):
-    """Fire-and-forget: call test-request endpoint in a background thread.
+    """Fire-and-forget: execute action via Token Vault in a background thread.
 
-    This triggers the full ApprovalKit flow (rule check + Token Vault execution)
-    for auto-approved actions. Runs in a separate thread to avoid blocking.
+    Directly calls the Token Vault service for auto-approved actions.
     """
     import threading
-    import httpx
 
     def _call():
         try:
-            resp = httpx.post(
-                "http://api:8000/api/v1/test-request",
-                json={"connection": connection, "action": action, "params": params},
-                headers={"X-User-Sub": user_sub},
-                timeout=15,
-            )
-            logger.info(f"Token Vault fire: {connection}/{action} → {resp.status_code}")
+            from sqlalchemy import create_engine, select
+            from sqlalchemy.orm import Session
+            from api.config import get_settings
+            from api.models.workspace import Workspace
+            from api.services.token_vault import token_vault_service
+            import asyncio
+
+            settings = get_settings()
+            sync_url = settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
+            engine = create_engine(sync_url)
+
+            with Session(engine) as db:
+                workspace = db.execute(
+                    select(Workspace).where(Workspace.owner_auth0_sub == user_sub)
+                ).scalar_one_or_none()
+                ws_id = str(workspace.id) if workspace else ""
+
+            engine.dispose()
+
+            if not ws_id:
+                logger.warning(f"Token Vault fire: workspace not found for {user_sub}")
+                return
+
+            # Run async Token Vault execution in new event loop
+            loop = asyncio.new_event_loop()
+            try:
+                from api.database import async_session
+                async def _execute():
+                    async with async_session() as adb:
+                        result = await token_vault_service.execute_action(
+                            connection=connection,
+                            action=action,
+                            params=params,
+                            workspace_id=ws_id,
+                            db=adb,
+                        )
+                        logger.info(f"Token Vault fire: {connection}/{action} → {result}")
+                        return result
+                loop.run_until_complete(_execute())
+            finally:
+                loop.close()
+
         except Exception as e:
             logger.warning(f"Token Vault fire failed: {e}")
 
