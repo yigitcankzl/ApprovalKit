@@ -326,9 +326,8 @@ def ${agentName.replace(/[^a-z0-9_]/gi, "_")}_${action || "charge"}(amount_usd: 
                   <CopyButton text={baseUrl} />
                 </div>
               </div>
-              <SecretField label="HMAC Secret" value={creds.hmac_secret} />
-              <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-xs text-blue-800">
-                Each agent gets its own API key. Save your agent below (Step 5) to generate a unique <code className="bg-blue-100 px-1 rounded">ak_*</code> key.
+              <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-xs text-blue-800 dark:text-blue-300">
+                HMAC secret and API keys are only shown once when created. Save your agent below (Step 5) to generate a unique <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">ak_*</code> key.
               </div>
             </>
           ) : (
@@ -582,9 +581,6 @@ def ${agentName.replace(/[^a-z0-9_]/gi, "_")}_${action || "charge"}(amount_usd: 
               {savedApiKey && (
                 <SecretField label="Agent API Key" value={savedApiKey} />
               )}
-              {creds && (
-                <SecretField label="HMAC Secret (shared)" value={creds.hmac_secret} />
-              )}
               <div className="bg-zinc-950 rounded-lg p-4">
                 <p className="text-xs text-zinc-400 mb-2">Use in your agent:</p>
                 <pre className="text-xs text-zinc-100 font-mono overflow-x-auto">{`from approvalkit import ApprovalKit
@@ -592,7 +588,7 @@ def ${agentName.replace(/[^a-z0-9_]/gi, "_")}_${action || "charge"}(amount_usd: 
 kit = ApprovalKit(
     base_url="${typeof window !== 'undefined' ? window.location.origin.replace(':3000', ':8000') : 'http://localhost:8000'}",
     api_key="${savedApiKey || '<your-agent-key>'}",
-    hmac_secret="${creds?.hmac_secret || '<hmac-secret>'}",
+    hmac_secret="<from workspace setup>",
     user_id="${saveAgentName || 'my-agent'}",
 )`}</pre>
               </div>

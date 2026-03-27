@@ -177,11 +177,12 @@ async def setup_workspace(body: WorkspaceSetupRequest, request: Request, db: Asy
 
 @router.get("/credentials")
 async def get_workspace_credentials(workspace: Workspace = Depends(get_current_workspace)):
+    """Returns workspace info. Secrets are NOT exposed — they are only shown once at creation."""
     return {
         "workspace_id": str(workspace.id),
         "name": workspace.name,
-        "api_key": workspace.api_key,
-        "hmac_secret": workspace.hmac_secret,
+        "has_api_key": bool(workspace.api_key),
+        "has_hmac_secret": bool(workspace.hmac_secret),
     }
 
 
