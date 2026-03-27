@@ -113,7 +113,7 @@ export default function DemoAgentPage() {
           slug,
           name: conn?.name || slug,
           service: conn?.service || slug.split("-")[0],
-          connected: !!conn?.connected_auth0_user_id,
+          connected: !!conn?.connected_user_name || conn?.connected_via === "auth0",
           id: conn?.id,
         };
       });
