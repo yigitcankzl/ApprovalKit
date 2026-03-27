@@ -50,7 +50,9 @@ export default function SetupPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [apiKey, setApiKey] = useState<string | null>(null);
+  const [hmacSecret, setHmacSecret] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copiedHmac, setCopiedHmac] = useState(false);
   const [checking, setChecking] = useState(true);
 
   // If user already has a workspace, redirect to dashboard
@@ -82,6 +84,7 @@ export default function SetupPage() {
         fga_client_secret: fgaClientSecret || undefined,
       });
       if (res.api_key) setApiKey(res.api_key);
+      if (res.hmac_secret) setHmacSecret(res.hmac_secret);
       setStep(2);
     } catch (err: any) {
       setError(err.message || "Failed to connect. Check your credentials.");
@@ -288,18 +291,36 @@ export default function SetupPage() {
               <CardDescription>Select services your agents will interact with.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {apiKey && (
-                <div className="p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg">
-                  <p className="text-sm font-medium text-green-800 dark:text-green-300 mb-2">
-                    Workspace created! Save your API key:
+              {(apiKey || hmacSecret) && (
+                <div className="p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg space-y-3">
+                  <p className="text-sm font-medium text-green-800 dark:text-green-300">
+                    Workspace created! Save these credentials — they won&apos;t be shown again.
                   </p>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 text-xs bg-white dark:bg-zinc-900 border rounded px-3 py-2 font-mono truncate">{apiKey}</code>
-                    <button onClick={() => { navigator.clipboard.writeText(apiKey); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-                      className="p-2 rounded hover:bg-green-100 dark:hover:bg-green-900/30 text-green-700 dark:text-green-400">
-                      {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                    </button>
-                  </div>
+                  {apiKey && (
+                    <div>
+                      <label className="text-xs font-semibold text-green-700 dark:text-green-400">Workspace API Key</label>
+                      <div className="flex items-center gap-2 mt-1">
+                        <code className="flex-1 text-xs bg-white dark:bg-zinc-900 border rounded px-3 py-2 font-mono truncate">{apiKey}</code>
+                        <button onClick={() => { navigator.clipboard.writeText(apiKey); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+                          className="p-2 rounded hover:bg-green-100 dark:hover:bg-green-900/30 text-green-700 dark:text-green-400">
+                          {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {hmacSecret && (
+                    <div>
+                      <label className="text-xs font-semibold text-green-700 dark:text-green-400">HMAC Secret</label>
+                      <div className="flex items-center gap-2 mt-1">
+                        <code className="flex-1 text-xs bg-white dark:bg-zinc-900 border rounded px-3 py-2 font-mono truncate">{hmacSecret}</code>
+                        <button onClick={() => { navigator.clipboard.writeText(hmacSecret); setCopiedHmac(true); setTimeout(() => setCopiedHmac(false), 2000); }}
+                          className="p-2 rounded hover:bg-green-100 dark:hover:bg-green-900/30 text-green-700 dark:text-green-400">
+                          {copiedHmac ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  <p className="text-xs text-red-600 dark:text-red-400 font-medium">These credentials will NOT be shown again. Copy them now.</p>
                 </div>
               )}
 
