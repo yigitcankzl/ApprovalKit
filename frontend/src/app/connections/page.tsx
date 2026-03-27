@@ -631,18 +631,30 @@ function ConnectionsContent() {
                   )}
 
                   <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-4">
-                    <div className="text-[10px] text-blue-500 font-semibold uppercase tracking-wider mb-1.5">Auth0 Application → Allowed Callback URLs</div>
-                    <div className="space-y-1">
-                      {[
-                        "http://localhost:3000/api/auth/callback",
-                        "http://localhost:8000/api/v1/connections/oauth/callback",
-                        "http://localhost:8000/api/v1/connections/connected-accounts/callback",
-                        `https://${auth0Domain}/login/callback`,
-                      ].map((url, i) => (
-                        <code key={i} className="block text-[11px] text-blue-700 dark:text-blue-300 break-all">{url}</code>
-                      ))}
+                    <div className="text-[10px] text-blue-500 font-semibold uppercase tracking-wider mb-1">Required URLs</div>
+                    <p className="text-[10px] text-blue-400 mb-1.5">
+                      Add these to <strong>two places</strong> in your Auth0 Dashboard:
+                    </p>
+                    <div className="space-y-2">
+                      <div>
+                        <div className="text-[10px] text-blue-600 dark:text-blue-300 font-medium">1. Regular Web Application → Settings → Allowed Callback URLs:</div>
+                        <div className="space-y-0.5 mt-0.5">
+                          {[
+                            "http://localhost:3000/auth/callback",
+                            "http://localhost:8000/api/v1/connections/oauth/callback",
+                            "http://localhost:8000/api/v1/connections/connected-accounts/callback",
+                          ].map((url, i) => (
+                            <code key={i} className="block text-[10px] text-blue-700 dark:text-blue-300 break-all">{url}</code>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-blue-600 dark:text-blue-300 font-medium">2. Slack App → OAuth &amp; Permissions → Redirect URLs:</div>
+                        <code className="block text-[10px] text-blue-700 dark:text-blue-300 break-all mt-0.5">
+                          {`https://${auth0Domain}/login/callback`}
+                        </code>
+                      </div>
                     </div>
-                    <p className="text-[10px] text-blue-400 mt-1.5">Add all of these to your Auth0 app&apos;s Allowed Callback URLs (comma-separated).</p>
                   </div>
 
                   <div className="flex gap-2">
