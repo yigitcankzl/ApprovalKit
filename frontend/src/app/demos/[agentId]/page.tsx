@@ -68,15 +68,20 @@ export default function DemoAgentPage() {
       .finally(() => setLoading(false));
   }, [agentId]);
 
-  // Check if setup is done
+  // Check if setup is done — only check rules belonging to THIS agent
   useEffect(() => {
     if (!agent) return;
+    const agentRuleNames = agent.setupInfo
+      .filter(s => s.type === "rule")
+      .map(s => s.name.split(" ")[0]); // e.g. "[Expense]", "[Release]"
+    if (agentRuleNames.length === 0) return;
+
     api.getRules().then((rules: any[]) => {
       const ruleNames = rules.map((r: any) => r.name);
-      const hasRule = agent.setupInfo
-        .filter(s => s.type === "rule")
-        .some(s => ruleNames.some((n: string) => n.includes(s.name.split(" ")[0])));
-      setSetupDone(hasRule || rules.length > 0);
+      const hasAgentRule = agentRuleNames.some(prefix =>
+        ruleNames.some((n: string) => n.includes(prefix))
+      );
+      setSetupDone(hasAgentRule);
     }).catch(() => {});
   }, [agent]);
 
