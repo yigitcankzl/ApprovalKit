@@ -636,6 +636,9 @@ def _build_agent_catalog() -> list[dict]:
                 {"type": "approver", "name": "Security Lead", "detail": "Approves account freezes + bans"},
                 {"type": "approver", "name": "Legal", "detail": "Co-approves permanent bans"},
                 {"type": "approver", "name": "CS Manager", "detail": "Approves compensation $100+"},
+                {"type": "rule", "name": "[ATO] Freeze account", "detail": "Freeze → security lead"},
+                {"type": "rule", "name": "[ATO] Permanent ban", "detail": "Ban → security + legal"},
+                {"type": "rule", "name": "[ATO] Compensation credit", "detail": "$100+ → CS manager"},
             ],
         },
 
@@ -698,6 +701,9 @@ def _build_agent_catalog() -> list[dict]:
                 {"type": "approver", "name": "CFO", "detail": "Co-approves $180k+ salaries"},
                 {"type": "approver", "name": "CEO", "detail": "Co-approves terminations"},
                 {"type": "approver", "name": "IT Manager", "detail": "Approves GitHub access"},
+                {"type": "rule", "name": "[HR] Offer letter", "detail": "Offer → HR manager"},
+                {"type": "rule", "name": "[HR] Termination notice", "detail": "Termination → HR + CEO"},
+                {"type": "rule", "name": "[HR] GitHub add member", "detail": "Member → IT manager"},
             ],
         },
 
@@ -750,6 +756,9 @@ def _build_agent_catalog() -> list[dict]:
                 {"type": "approver", "name": "IT Manager", "detail": "Approves standard access"},
                 {"type": "approver", "name": "CTO", "detail": "Approves admin access"},
                 {"type": "approver", "name": "CFO", "detail": "Co-approves financial access"},
+                {"type": "rule", "name": "[Access] Standard access", "detail": "Standard → IT manager"},
+                {"type": "rule", "name": "[Access] Admin privileges", "detail": "Admin → CTO"},
+                {"type": "rule", "name": "[Access] Financial system", "detail": "Finance → CFO + CTO"},
             ],
         },
 
@@ -803,6 +812,9 @@ def _build_agent_catalog() -> list[dict]:
                 {"type": "approver", "name": "Patient Rep", "detail": "Patient consent"},
                 {"type": "approver", "name": "Ethics Board", "detail": "Approves research sharing"},
                 {"type": "approver", "name": "Chief Doctor", "detail": "Co-approves research"},
+                {"type": "rule", "name": "[Patient] Share with external", "detail": "External → doctor"},
+                {"type": "rule", "name": "[Patient] Share with insurance", "detail": "Insurance → patient + doctor"},
+                {"type": "rule", "name": "[Patient] Share for research", "detail": "Research → ethics + chief doctor"},
             ],
         },
 
@@ -854,6 +866,9 @@ def _build_agent_catalog() -> list[dict]:
                 {"type": "connection", "name": "gmail-prod", "detail": "Gmail for pharmacy notifications"},
                 {"type": "approver", "name": "Doctor", "detail": "Approves controlled substances + new Rx"},
                 {"type": "approver", "name": "Pharmacist", "detail": "Verifies dosage changes"},
+                {"type": "rule", "name": "[Rx] Controlled substance", "detail": "Controlled → doctor"},
+                {"type": "rule", "name": "[Rx] Dosage change", "detail": "Dosage → doctor + pharmacist"},
+                {"type": "rule", "name": "[Rx] New prescription", "detail": "New Rx → doctor"},
             ],
         },
 
@@ -907,6 +922,9 @@ def _build_agent_catalog() -> list[dict]:
                 {"type": "approver", "name": "Privacy Officer", "detail": "Approves deletions + transfers"},
                 {"type": "approver", "name": "CTO", "detail": "Co-approves bulk deletions"},
                 {"type": "approver", "name": "Legal", "detail": "Co-approves cross-border transfers"},
+                {"type": "rule", "name": "[GDPR] Single user deletion", "detail": "Delete → privacy officer"},
+                {"type": "rule", "name": "[GDPR] Bulk deletion", "detail": "Bulk → CTO + privacy"},
+                {"type": "rule", "name": "[GDPR] Cross-border transfer", "detail": "Transfer → legal + privacy"},
             ],
         },
 
@@ -959,6 +977,9 @@ def _build_agent_catalog() -> list[dict]:
                 {"type": "connection", "name": "slack-prod", "detail": "Slack for rotation alerts"},
                 {"type": "approver", "name": "Security Lead", "detail": "Approves emergency rotations"},
                 {"type": "approver", "name": "CTO", "detail": "Approves third-party + full rotations"},
+                {"type": "rule", "name": "[KeyRotation] Emergency rotation", "detail": "Emergency → security lead"},
+                {"type": "rule", "name": "[KeyRotation] Third-party key", "detail": "3rd party → CTO"},
+                {"type": "rule", "name": "[KeyRotation] Full rotation", "detail": "All keys → CTO + security"},
             ],
         },
     ]
