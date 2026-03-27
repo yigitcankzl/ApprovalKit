@@ -164,7 +164,10 @@ async def create_connection(body: CreateConnectionRequest, workspace: Workspace 
     """Create a new service connection. Used during onboarding."""
 
     existing = await db.execute(
-        select(ServiceConnection).where(ServiceConnection.slug == body.slug)
+        select(ServiceConnection).where(
+            ServiceConnection.slug == body.slug,
+            ServiceConnection.workspace_id == workspace.id,
+        )
     )
     conn = existing.scalar_one_or_none()
     if conn:
