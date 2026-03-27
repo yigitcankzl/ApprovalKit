@@ -403,13 +403,34 @@ async def get_connect_url(connection_id: str, request: Request, workspace: Works
         conn.auth0_refresh_token = encrypt_secret(login_refresh_token)
         await db.commit()
 
-    # Try Connected Accounts API (Token Vault flow) if user is logged in
-    if user_token:
+    # Try Connected Accounts API (Token Vault flow)
+    # First try user token, then try getting a token from workspace's own tenant
+    me_token = user_token
+    if not me_token or True:  # Always try workspace token — user token may be from different tenant
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                # Get M2M token with My Account API audience from workspace's tenant
+                token_resp = await client.post(
+                    f"https://{ws_config.auth0_domain}/oauth/token",
+                    json={
+                        "grant_type": "client_credentials",
+                        "client_id": ws_config.auth0_client_id,
+                        "client_secret": ws_config.auth0_client_secret,
+                        "audience": f"https://{ws_config.auth0_domain}/me/",
+                    },
+                )
+                if token_resp.status_code == 200:
+                    me_token = token_resp.json().get("access_token")
+                    logger.debug(f"Got workspace M2M token for Connected Accounts API")
+        except Exception as e:
+            logger.warning(f"Failed to get workspace M2M token: {e}")
+
+    if me_token:
         try:
             async with httpx.AsyncClient(timeout=15) as client:
                 resp = await client.post(
                     f"https://{ws_config.auth0_domain}/me/v1/connected-accounts/connect",
-                    headers={"Authorization": f"Bearer {user_token}"},
+                    headers={"Authorization": f"Bearer {me_token}"},
                     json={
                         "connection": auth0_connection,
                         "redirect_uri": callback_url,
@@ -420,7 +441,7 @@ async def get_connect_url(connection_id: str, request: Request, workspace: Works
                 logger.debug(f"Connected Accounts response: {resp.text[:200]}")
                 if resp.status_code in (200, 201):
                     data = resp.json()
-                    await _store_auth_session(connection_id, data.get("auth_session", ""), user_token)
+                    await _store_auth_session(connection_id, data.get("auth_session", ""), me_token)
                     connect_uri = data["connect_uri"]
                     connect_params = data.get("connect_params", {})
                     if connect_params:
