@@ -78,6 +78,7 @@ export const api = {
   getConnectUrl: (id: string, userToken?: string | null, refreshToken?: string | null) =>
     fetchAPI(`/api/v1/connections/${id}/connect-url`, {
       headers: {
+        ...(_userSub ? { "X-User-Sub": _userSub } : {}),
         ...(userToken ? { "X-User-Token": userToken } : {}),
         ...(refreshToken ? { "X-Refresh-Token": refreshToken } : {}),
       },
