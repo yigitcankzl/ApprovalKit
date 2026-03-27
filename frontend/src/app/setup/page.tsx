@@ -217,8 +217,8 @@ export default function SetupPage() {
 
               <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4">
                 <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Auth0 Domain *</label>
-                <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-1">Settings &rarr; General &rarr; Domain</p>
-                <Input placeholder="your-tenant.us.auth0.com" value={tenant} onChange={(e) => setTenant(e.target.value)} />
+                <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-1">Look at your Auth0 dashboard URL: <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded">https://manage.auth0.com/dashboard/us/<strong>your-tenant</strong>/</code> &rarr; your domain is <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded"><strong>your-tenant</strong>.us.auth0.com</code></p>
+                <Input placeholder="dev-xxxxx.us.auth0.com" value={tenant} onChange={(e) => setTenant(e.target.value)} />
               </div>
 
               <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4">
