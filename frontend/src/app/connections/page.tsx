@@ -629,6 +629,21 @@ function ConnectionsContent() {
                     </div>
                   )}
 
+                  <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-4">
+                    <div className="text-[10px] text-blue-500 font-semibold uppercase tracking-wider mb-1.5">Auth0 Application → Allowed Callback URLs</div>
+                    <div className="space-y-1">
+                      {[
+                        "http://localhost:3000/api/auth/callback",
+                        "http://localhost:8000/api/v1/connections/oauth/callback",
+                        "http://localhost:8000/api/v1/connections/connected-accounts/callback",
+                        `https://${auth0Domain}/login/callback`,
+                      ].map((url, i) => (
+                        <code key={i} className="block text-[11px] text-blue-700 dark:text-blue-300 break-all">{url}</code>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-blue-400 mt-1.5">Add all of these to your Auth0 app&apos;s Allowed Callback URLs (comma-separated).</p>
+                  </div>
+
                   <div className="flex gap-2">
                     <a href={guide.provider_url} target="_blank" rel="noopener noreferrer"
                       className="flex-1 text-center bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-sm font-medium py-2 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors">

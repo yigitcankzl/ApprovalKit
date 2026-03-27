@@ -152,7 +152,9 @@ _AUTH0_CONNECTION = {
 }
 
 _DEFAULT_SCOPE = "openid profile email"
-_SERVICE_SCOPE: dict[str, str] = {}  # override per-service if needed; falls back to _DEFAULT_SCOPE
+_SERVICE_SCOPE: dict[str, str] = {
+    "slack": "openid profile email",  # Slack Sign-In uses identity scopes mapped by Auth0
+}
 
 # ---------------------------------------------------------------------------
 # Helpers
