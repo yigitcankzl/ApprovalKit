@@ -205,21 +205,76 @@ export default function DemoAgentPage() {
       {/* Content based on step */}
       <div className="flex-1 min-h-0">
         {step === 1 && (
-          <div className="flex flex-col items-center justify-center h-full gap-4">
-            <div className="p-4 bg-zinc-100 dark:bg-zinc-800 rounded-2xl">
-              <Icon className="h-10 w-10 text-zinc-400" />
+          <div className="overflow-y-auto h-full">
+            <div className="max-w-2xl mx-auto py-8 px-4 space-y-6">
+              {/* Agent header */}
+              <div className="text-center space-y-3">
+                <div className="inline-flex p-4 bg-zinc-100 dark:bg-zinc-800 rounded-2xl">
+                  <Icon className="h-10 w-10 text-zinc-500" />
+                </div>
+                <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">{agent.title}</h2>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400 max-w-lg mx-auto leading-relaxed">
+                  {agent.description}
+                </p>
+              </div>
+
+              {/* Scenarios */}
+              <div>
+                <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-3">Scenarios</h3>
+                <div className="space-y-2">
+                  {agent.scenarios.map((s, i) => (
+                    <div key={i} className="flex items-center gap-3 p-3 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/50">
+                      <Badge variant={s.badge} className="text-[10px] font-mono shrink-0 w-16 justify-center">
+                        {s.badgeLabel}
+                      </Badge>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-zinc-800 dark:text-zinc-200">{s.title}</div>
+                        <div className="text-xs text-zinc-400 mt-0.5">{s.description}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* What setup creates */}
+              <div>
+                <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-3">What Setup Creates</h3>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="p-3 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/50">
+                    <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Connections</div>
+                    {agent.setupInfo.filter(s => s.type === "connection").map((s, i) => (
+                      <div key={i} className="text-xs text-zinc-600 dark:text-zinc-300 py-0.5">{s.name}</div>
+                    ))}
+                  </div>
+                  <div className="p-3 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/50">
+                    <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Approvers</div>
+                    {agent.setupInfo.filter(s => s.type === "approver").map((s, i) => (
+                      <div key={i} className="text-xs text-zinc-600 dark:text-zinc-300 py-0.5">{s.name}</div>
+                    ))}
+                  </div>
+                  <div className="p-3 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/50">
+                    <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Rules</div>
+                    {agent.setupInfo.filter(s => s.type === "rule").map((s, i) => (
+                      <div key={i} className="text-xs text-zinc-600 dark:text-zinc-300 py-0.5">
+                        <span className="font-medium">{s.name.replace(/\[.*?\]\s*/, "")}</span>
+                        <span className="text-zinc-400 ml-1">— {s.detail}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Setup button */}
+              <div className="text-center pt-2">
+                <Button onClick={handleSetup} disabled={settingUp} size="lg">
+                  {settingUp ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Setting up...</>
+                  ) : (
+                    <><Play className="h-4 w-4 mr-2" /> Setup Demo</>
+                  )}
+                </Button>
+              </div>
             </div>
-            <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">Setup {agent.title}</h2>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 text-center max-w-md">
-              This will create the connections, approvers, and approval rules needed for this agent.
-            </p>
-            <Button onClick={handleSetup} disabled={settingUp} size="lg">
-              {settingUp ? (
-                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Setting up...</>
-              ) : (
-                <><Play className="h-4 w-4 mr-2" /> Setup Demo</>
-              )}
-            </Button>
           </div>
         )}
 
