@@ -58,6 +58,7 @@ function ConnectionsContent() {
   const [consent, setConsent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [auth0Domain, setAuth0Domain] = useState("");
   const [connecting, setConnecting] = useState<string | null>(null);
   const [successSlug, setSuccessSlug] = useState<string | null>(null);
   const [infoPopup, setInfoPopup] = useState<string | null>(null);
@@ -84,8 +85,13 @@ function ConnectionsContent() {
     Promise.all([
       api.getConnections(),
       api.getConsent().catch(() => null),
+      api.getWorkspace().catch(() => null),
     ])
-      .then(([c, con]) => { setConnections(c); setConsent(con); })
+      .then(([c, con, ws]) => {
+        setConnections(c);
+        setConsent(con);
+        if (ws?.auth0_tenant) setAuth0Domain(ws.auth0_tenant);
+      })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   };
@@ -507,7 +513,7 @@ function ConnectionsContent() {
                 <li className="flex gap-2"><span className="font-bold text-zinc-400">4.</span> Enable it for this application</li>
               </ol>
               <a
-                href={`https://manage.auth0.com/dashboard/us/${(process.env.NEXT_PUBLIC_AUTH0_DOMAIN || "").replace(".us.auth0.com", "")}/connections/social`}
+                href={`https://manage.auth0.com/dashboard/us/${auth0Domain.replace(".us.auth0.com", "").replace(".auth0.com", "")}/connections/social`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block w-full text-center bg-zinc-900 text-white text-sm font-medium py-2 rounded-lg hover:bg-zinc-800 transition-colors"
