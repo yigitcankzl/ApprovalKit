@@ -28,11 +28,20 @@ export default function SetupPage() {
   const [copied, setCopied] = useState(false);
   const [copiedHmac, setCopiedHmac] = useState(false);
   const [checking, setChecking] = useState(true);
+  const [tenantDomain, setTenantDomain] = useState("");
+  const [tenantClientId, setTenantClientId] = useState("");
 
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.push("/login"); return; }
     setUserSub(user.sub ?? null);
+
+    // Read tenant info from cookie (set at /login)
+    fetch("/api/get-tenant").then(r => r.json()).then(data => {
+      if (data.domain) setTenantDomain(data.domain);
+      if (data.clientId) setTenantClientId(data.clientId);
+    }).catch(() => {});
+
     api.getWorkspace()
       .then(() => router.replace("/dashboard"))
       .catch(() => setChecking(false));
@@ -44,10 +53,12 @@ export default function SetupPage() {
     try {
       const res = await api.setupWorkspace({
         name: user?.name ? `${user.name}'s Workspace` : "My Workspace",
+        auth0_domain: tenantDomain || undefined,
+        auth0_tenant: tenantDomain || undefined,
+        auth0_web_client_id: webClientId || tenantClientId || undefined,
+        auth0_web_client_secret: webClientSecret || undefined,
         auth0_m2m_client_id: m2mClientId || undefined,
         auth0_m2m_client_secret: m2mClientSecret || undefined,
-        auth0_web_client_id: webClientId || undefined,
-        auth0_web_client_secret: webClientSecret || undefined,
       });
       if (res.api_key) setApiKey(res.api_key);
       if (res.hmac_secret) setHmacSecret(res.hmac_secret);
