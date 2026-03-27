@@ -214,7 +214,7 @@ charge_customer(349, "alice@example.com")
           </p>
           <div className="flex items-center justify-center gap-3 flex-wrap">
             <Link
-              href="/auth/login?returnTo=/dashboard"
+              href="/login"
               className="inline-flex items-center gap-2 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-zinc-100 dark:bg-zinc-800 transition-colors"
             >
               Get Started

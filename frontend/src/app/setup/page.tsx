@@ -18,6 +18,11 @@ export default function SetupPage() {
   const [done, setDone] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showAuth0, setShowAuth0] = useState(false);
+  const [m2mClientId, setM2mClientId] = useState("");
+  const [m2mClientSecret, setM2mClientSecret] = useState("");
+  const [webClientId, setWebClientId] = useState("");
+  const [webClientSecret, setWebClientSecret] = useState("");
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [hmacSecret, setHmacSecret] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -26,7 +31,7 @@ export default function SetupPage() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user) { router.push("/auth/login?returnTo=/setup"); return; }
+    if (!user) { router.push("/login"); return; }
     setUserSub(user.sub ?? null);
     api.getWorkspace()
       .then(() => router.replace("/dashboard"))
@@ -39,6 +44,10 @@ export default function SetupPage() {
     try {
       const res = await api.setupWorkspace({
         name: user?.name ? `${user.name}'s Workspace` : "My Workspace",
+        auth0_m2m_client_id: m2mClientId || undefined,
+        auth0_m2m_client_secret: m2mClientSecret || undefined,
+        auth0_web_client_id: webClientId || undefined,
+        auth0_web_client_secret: webClientSecret || undefined,
       });
       if (res.api_key) setApiKey(res.api_key);
       if (res.hmac_secret) setHmacSecret(res.hmac_secret);
@@ -109,6 +118,42 @@ export default function SetupPage() {
                   <span className="text-sm text-zinc-600 dark:text-zinc-400">10 demo agents with AI-powered chat</span>
                 </div>
               </div>
+
+              {/* Optional Auth0 credentials */}
+              <details className="group" open={showAuth0}>
+                <summary
+                  onClick={(e) => { e.preventDefault(); setShowAuth0(!showAuth0); }}
+                  className="text-xs font-semibold text-zinc-500 cursor-pointer hover:text-zinc-700 dark:hover:text-zinc-300"
+                >
+                  {showAuth0 ? "Hide" : "Show"} Auth0 Credentials (for your own tenant)
+                </summary>
+                {showAuth0 && (
+                  <div className="mt-3 space-y-3 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
+                    <p className="text-xs text-zinc-400">
+                      If you logged in with your own Auth0 tenant, enter your M2M and Web App credentials here.
+                      Skip this if you used the default tenant.
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] text-zinc-500">M2M Client ID</label>
+                        <input value={m2mClientId} onChange={e => setM2mClientId(e.target.value)} className="w-full mt-0.5 rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1.5 text-xs font-mono" placeholder="n5NycPD..." />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-zinc-500">M2M Client Secret</label>
+                        <input type="password" value={m2mClientSecret} onChange={e => setM2mClientSecret(e.target.value)} className="w-full mt-0.5 rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1.5 text-xs font-mono" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-zinc-500">Web App Client ID</label>
+                        <input value={webClientId} onChange={e => setWebClientId(e.target.value)} className="w-full mt-0.5 rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1.5 text-xs font-mono" placeholder="fkcfkNQ..." />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-zinc-500">Web App Client Secret</label>
+                        <input type="password" value={webClientSecret} onChange={e => setWebClientSecret(e.target.value)} className="w-full mt-0.5 rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1.5 text-xs font-mono" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </details>
 
               <FormError message={error} />
 

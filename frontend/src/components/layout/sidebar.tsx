@@ -175,7 +175,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           </div>
         ) : (
           <a
-            href="/auth/login"
+            href="/login"
             title={collapsed ? "Login" : undefined}
             className={cn(
               "flex items-center justify-center rounded-lg bg-zinc-900 dark:bg-zinc-100 dark:bg-zinc-800 text-white dark:text-zinc-900 dark:text-zinc-100 text-sm font-medium py-2 hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors",
