@@ -974,8 +974,29 @@ async def seed_demo_data(
     workspace: Workspace = Depends(get_current_workspace),
     db: AsyncSession = Depends(get_db),
 ):
-    """Idempotently create demo connections, approvers, and rules."""
+    """Idempotently create demo connections, approvers, and rules.
+    If agent_id is provided, only creates resources needed by that agent."""
     created = {"connections": 0, "approvers": 0, "rules": 0, "skipped": 0}
+
+    # Map agent_id → needed connections and approver roles
+    _AGENT_DEPS = {
+        "expense": {"conns": ["stripe-prod", "slack-prod"], "roles": ["manager", "cfo"]},
+        "release_manager": {"conns": ["github-main", "slack-prod"], "roles": ["maintainer", "lead_engineer", "oncall_engineer"]},
+        "security_incident": {"conns": ["github-prod", "slack-prod"], "roles": ["security_lead", "cto"]},
+        "account_takeover": {"conns": ["salesforce-prod", "stripe-prod", "gmail-prod", "slack-prod"], "roles": ["security_lead", "legal", "cs_manager"]},
+        "recruitment": {"conns": ["gmail-prod", "github-prod", "slack-prod"], "roles": ["hr_manager", "cfo", "ceo", "it_manager", "cto"]},
+        "access_provisioning": {"conns": ["github-prod", "slack-prod"], "roles": ["it_manager", "cto", "cfo", "hr_manager"]},
+        "patient_data": {"conns": ["google-drive-prod", "gmail-prod", "slack-prod"], "roles": ["doctor", "patient_rep", "ethics_board", "chief_doctor"]},
+        "prescription_refill": {"conns": ["gmail-prod", "slack-prod"], "roles": ["doctor", "pharmacist"]},
+        "gdpr_request": {"conns": ["github-prod", "gmail-prod", "slack-prod"], "roles": ["privacy_officer", "cto", "legal"]},
+        "api_key_rotation": {"conns": ["github-prod", "slack-prod", "gmail-prod"], "roles": ["security_lead", "cto"]},
+    }
+
+    needed_conns = None
+    needed_roles = None
+    if agent_id and agent_id in _AGENT_DEPS:
+        needed_conns = set(_AGENT_DEPS[agent_id]["conns"])
+        needed_roles = set(_AGENT_DEPS[agent_id]["roles"])
 
     # ── Connections ───────────────────────────────────────────────────────
     existing_conns = {}
@@ -986,6 +1007,8 @@ async def seed_demo_data(
         existing_conns[c.slug] = c.id
 
     for conn_def in CONNECTIONS:
+        if needed_conns and conn_def["slug"] not in needed_conns:
+            continue
         if conn_def["slug"] in existing_conns:
             created["skipped"] += 1
             continue
@@ -1015,8 +1038,11 @@ async def seed_demo_data(
         auth0_id = approver_def["auth0_user_id"]
         role = approver_def["role"]
 
-        if real_user_id and auth0_id.startswith("demo|"):
-            pass  # keep demo users
+        if needed_roles and role not in needed_roles:
+            # Still map existing ones for rule assignment
+            if auth0_id in existing_approvers:
+                approver_role_map[role] = existing_approvers[auth0_id]
+            continue
 
         if auth0_id in existing_approvers:
             approver_role_map[role] = existing_approvers[auth0_id]
@@ -1040,6 +1066,20 @@ async def seed_demo_data(
     await db.flush()
 
     # ── Rules ────────────────────────────────────────────────────────────
+    # Map agent_id → rule name prefixes for filtering
+    _AGENT_RULE_PREFIXES = {
+        "expense": ["[Expense]"],
+        "release_manager": ["[Release]"],
+        "security_incident": ["[Security]", "[Shared]"],
+        "account_takeover": ["[ATO]"],
+        "recruitment": ["[HR]"],
+        "access_provisioning": ["[Access]"],
+        "patient_data": ["[Patient]"],
+        "prescription_refill": ["[Rx]"],
+        "gdpr_request": ["[GDPR]"],
+        "api_key_rotation": ["[KeyRotation]"],
+    }
+
     existing_rules = set()
     result = await db.execute(
         select(Rule.name).where(Rule.workspace_id == workspace.id)
@@ -1047,9 +1087,18 @@ async def seed_demo_data(
     for row in result.scalars().all():
         existing_rules.add(row)
 
+    # Filter rules by agent_id if specified
+    allowed_prefixes = None
+    if agent_id and agent_id in _AGENT_RULE_PREFIXES:
+        allowed_prefixes = _AGENT_RULE_PREFIXES[agent_id]
+
     for rule_def in _build_rules(approver_role_map):
         if rule_def["name"] in existing_rules:
             created["skipped"] += 1
+            continue
+
+        # Skip rules not belonging to the requested agent
+        if allowed_prefixes and not any(rule_def["name"].startswith(p) for p in allowed_prefixes):
             continue
 
         approver_roles = rule_def.pop("approver_roles", [])
