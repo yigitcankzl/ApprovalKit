@@ -194,6 +194,31 @@ async def setup_workspace(body: WorkspaceSetupRequest, request: Request, db: Asy
     )
 
 
+@router.get("/tenant-config")
+async def get_tenant_config(domain: str = "", db: AsyncSession = Depends(get_db)):
+    """Public endpoint — returns Auth0 client_id for a tenant domain (no secrets).
+    Used by /login page to configure Auth0Client before login.
+    """
+    if domain:
+        result = await db.execute(
+            select(Workspace).where(Workspace.auth0_domain == domain).limit(1)
+        )
+        ws = result.scalar_one_or_none()
+        if ws and ws.auth0_web_client_id:
+            return {
+                "domain": ws.auth0_domain,
+                "client_id": ws.auth0_web_client_id,
+                "found": True,
+            }
+
+    # Fallback to default tenant from .env
+    return {
+        "domain": settings.AUTH0_DOMAIN,
+        "client_id": settings.AUTH0_WEB_CLIENT_ID or settings.AUTH0_CLIENT_ID,
+        "found": False,
+    }
+
+
 @router.get("/credentials")
 async def get_workspace_credentials(workspace: Workspace = Depends(get_current_workspace)):
     """Returns workspace info. Secrets are shown only once at creation time."""
