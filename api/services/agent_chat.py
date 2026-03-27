@@ -1235,7 +1235,16 @@ def _process_openai_compatible(
                 break
 
             # Add assistant message with tool calls to messages
-            messages.append(msg.model_dump())
+            # Strip unsupported fields (e.g. 'annotations' that Groq rejects)
+            msg_dict = {"role": msg.role}
+            if msg.content:
+                msg_dict["content"] = msg.content
+            if msg.tool_calls:
+                msg_dict["tool_calls"] = [
+                    {"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
+                    for tc in msg.tool_calls
+                ]
+            messages.append(msg_dict)
 
             # Execute each tool call
             for tc in msg.tool_calls:
