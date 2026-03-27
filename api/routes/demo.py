@@ -996,6 +996,7 @@ async def seed_demo_data(
             service=conn_def["service"],
             slug=conn_def["slug"],
             actions=conn_def["actions"],
+            token_vault_connection_id=conn_def.get("tv_id", conn_def["service"]),
         )
         db.add(conn)
         existing_conns[conn_def["slug"]] = conn.id
