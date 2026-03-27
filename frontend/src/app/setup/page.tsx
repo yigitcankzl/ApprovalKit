@@ -172,80 +172,78 @@ export default function SetupPage() {
             </CardHeader>
             <CardContent className="space-y-4">
 
-              {/* Setup guide */}
-              <details className="group" open>
-                <summary className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 cursor-pointer hover:text-zinc-900 dark:hover:text-zinc-100 flex items-center gap-2">
-                  <Shield className="h-4 w-4 text-blue-600" /> How to get these credentials
-                </summary>
-                <ol className="mt-3 space-y-3 text-xs text-zinc-600 dark:text-zinc-400 ml-6">
-                  <li className="flex gap-2">
-                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-[10px] font-bold flex items-center justify-center">1</span>
-                    <div>
-                      <span><strong>M2M App:</strong> Applications &rarr; Create Application &rarr; Machine to Machine</span>
-                      <p className="mt-1 text-zinc-500 dark:text-zinc-400">A popup will ask <strong>&quot;Select an API&quot;</strong> &rarr; pick <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded">Auth0 Management API</code>. A permissions list appears below &mdash; check these boxes:</p>
-                      <p className="mt-1 font-mono text-zinc-600 dark:text-zinc-300">read:users &nbsp; update:users &nbsp; read:connections &nbsp; create:connections</p>
-                      <p className="mt-1 text-zinc-500 dark:text-zinc-400">Then click <strong>Authorize</strong>.</p>
-                      <p className="mt-1 text-green-700 dark:text-green-400 font-medium">On the next page: copy <strong>Client ID</strong> and <strong>Client Secret</strong> (click Reveal) &rarr; paste below</p>
-                    </div>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-[10px] font-bold flex items-center justify-center">2</span>
-                    <div>
-                      <span><strong>Web App:</strong> Applications &rarr; Create Application &rarr; Regular Web Application &rarr; Settings tab:</span>
-                      <ul className="mt-1 ml-3 space-y-0.5 list-disc">
-                        <li>Allowed Callback URLs: <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded">http://localhost:3000/auth/callback</code></li>
-                        <li>Allowed Logout URLs: <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded">http://localhost:3000</code></li>
-                        <li>Advanced Settings &rarr; Grant Types &rarr; Enable <strong>CIBA</strong> + <strong>Token Exchange</strong></li>
-                      </ul>
-                      <p className="mt-1 text-green-700 dark:text-green-400 font-medium">Copy from this page: <strong>Client ID</strong> and <strong>Client Secret</strong> &rarr; paste below as Web App Client ID / Secret</p>
-                    </div>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-[10px] font-bold flex items-center justify-center">3</span>
-                    <span><strong>Token Vault:</strong> Authentication &rarr; Social &rarr; select a connection (e.g. GitHub, Stripe) &rarr; Advanced &rarr; Enable Token Vault toggle</span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-[10px] font-bold flex items-center justify-center">4</span>
-                    <span><strong>Guardian:</strong> Security &rarr; Multi-factor Auth &rarr; Push via Auth0 Guardian &rarr; Enable</span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-zinc-200 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 text-[10px] font-bold flex items-center justify-center">5</span>
-                    <span><strong>Domain:</strong> Settings &rarr; General (or look at your browser URL: <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded">dev-xxx.us.auth0.com</code>) &rarr; paste below as Auth0 Domain</span>
-                  </li>
-                </ol>
-              </details>
-
-              <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4">
-                <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Auth0 Domain *</label>
-                <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-1">Look at your Auth0 dashboard URL: <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded">https://manage.auth0.com/dashboard/us/<strong>your-tenant</strong>/</code> &rarr; your domain is <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded"><strong>your-tenant</strong>.us.auth0.com</code></p>
-                <Input placeholder="dev-xxxxx.us.auth0.com" value={tenant} onChange={(e) => setTenant(e.target.value)} />
+              {/* Auth0 Domain */}
+              <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <p className="text-xs text-blue-700 dark:text-blue-300 font-medium mb-1">Auth0 Dashboard &rarr; Settings &rarr; General &rarr; Tenant Name</p>
+                <p className="text-xs text-blue-600 dark:text-blue-400 mb-2">Enter your tenant name below. The <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">.us.auth0.com</code> suffix is added automatically.</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Auth0 Tenant Name *</label>
+                <div className="flex items-center gap-0 mt-1">
+                  <Input
+                    placeholder="dev-xxxxxxxx"
+                    value={tenant.replace(/\.us\.auth0\.com$/, "")}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/\.us\.auth0\.com$/, "").trim();
+                      setTenant(raw ? `${raw}.us.auth0.com` : "");
+                    }}
+                    className="rounded-r-none font-mono text-xs"
+                  />
+                  <span className="px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border border-l-0 border-zinc-200 dark:border-zinc-700 rounded-r-md text-xs text-zinc-500 dark:text-zinc-400 whitespace-nowrap">.us.auth0.com</span>
+                </div>
               </div>
 
+              {/* M2M Application */}
               <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4">
-                <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-2">M2M Application (Step 1)</p>
+                <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg mb-3">
+                  <p className="text-xs text-blue-700 dark:text-blue-300 font-medium">Applications &rarr; Create Application &rarr; Machine to Machine</p>
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">A popup asks &quot;Select an API&quot; &rarr; pick <strong>Auth0 Management API</strong>. Check permissions: <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">read:users</code> <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">update:users</code> <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">read:connections</code> <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">create:connections</code> &rarr; Authorize</p>
+                  <p className="text-xs text-green-700 dark:text-green-400 font-medium mt-1">On the next page, copy Client ID and Client Secret (click Reveal):</p>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">M2M Client ID</label>
-                    <Input placeholder="From M2M app Settings tab" value={m2mClientId} onChange={(e) => setM2mClientId(e.target.value)} className="mt-1 font-mono text-xs" />
+                    <Input placeholder="PsP2e0l..." value={m2mClientId} onChange={(e) => setM2mClientId(e.target.value)} className="mt-1 font-mono text-xs" />
                   </div>
                   <div>
                     <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">M2M Client Secret</label>
-                    <Input type="password" placeholder="Click Reveal in Auth0" value={m2mClientSecret} onChange={(e) => setM2mClientSecret(e.target.value)} className="mt-1 font-mono text-xs" />
+                    <Input type="password" placeholder="JgHrS7TD..." value={m2mClientSecret} onChange={(e) => setM2mClientSecret(e.target.value)} className="mt-1 font-mono text-xs" />
                   </div>
                 </div>
               </div>
 
+              {/* Web Application */}
               <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4">
-                <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-2">Web Application (Step 2)</p>
+                <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg mb-3">
+                  <p className="text-xs text-blue-700 dark:text-blue-300 font-medium">Applications &rarr; Create Application &rarr; Regular Web Application</p>
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">In Settings tab set:</p>
+                  <ul className="text-xs text-blue-600 dark:text-blue-400 mt-1 ml-3 list-disc space-y-0.5">
+                    <li>Allowed Callback URLs: <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">http://localhost:3000/auth/callback</code></li>
+                    <li>Allowed Logout URLs: <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">http://localhost:3000</code></li>
+                    <li>Advanced Settings &rarr; Grant Types &rarr; Enable <strong>CIBA</strong> + <strong>Token Exchange</strong></li>
+                  </ul>
+                  <p className="text-xs text-green-700 dark:text-green-400 font-medium mt-1">Copy Client ID and Client Secret from the Settings tab:</p>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Web App Client ID</label>
-                    <Input placeholder="From Web app Settings tab" value={webClientId} onChange={(e) => setWebClientId(e.target.value)} className="mt-1 font-mono text-xs" />
+                    <Input placeholder="GVNbXp..." value={webClientId} onChange={(e) => setWebClientId(e.target.value)} className="mt-1 font-mono text-xs" />
                   </div>
                   <div>
                     <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Web App Client Secret</label>
-                    <Input type="password" placeholder="Click Reveal in Auth0" value={webClientSecret} onChange={(e) => setWebClientSecret(e.target.value)} className="mt-1 font-mono text-xs" />
+                    <Input type="password" placeholder="KRLgl7..." value={webClientSecret} onChange={(e) => setWebClientSecret(e.target.value)} className="mt-1 font-mono text-xs" />
                   </div>
+                </div>
+              </div>
+
+              {/* Token Vault + Guardian reminder */}
+              <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4 space-y-2">
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+                  <p className="text-xs text-amber-700 dark:text-amber-300 font-medium">Don&apos;t forget these two steps in Auth0 Dashboard:</p>
+                  <ul className="text-xs text-amber-600 dark:text-amber-400 mt-1 ml-3 list-disc space-y-0.5">
+                    <li><strong>Token Vault:</strong> Authentication &rarr; Social &rarr; each connection &rarr; Advanced &rarr; Enable Token Vault</li>
+                    <li><strong>Guardian:</strong> Security &rarr; Multi-factor Auth &rarr; Push via Auth0 Guardian &rarr; Enable</li>
+                  </ul>
                 </div>
               </div>
 
