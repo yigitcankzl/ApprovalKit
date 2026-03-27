@@ -32,16 +32,12 @@ from api.services.workspace_config import get_workspace_config, WorkspaceConfig
 
 settings = get_settings()
 
-# Per-workspace cache: workspace_id -> set of connection names
+# No cache — always fetch fresh from Auth0 (each workspace has different tenant)
 _auth0_connections_cache: dict[str, set[str]] = {}
 
 
 async def _get_auth0_configured_connections(ws_config: WorkspaceConfig, workspace_id: str = "") -> set[str]:
     """Fetch configured social connections from Auth0 Management API using workspace credentials."""
-    cache_key = workspace_id or "default"
-    if cache_key in _auth0_connections_cache:
-        return _auth0_connections_cache[cache_key]
-
     domain = ws_config.auth0_domain
     client_id = ws_config.auth0_client_id
     client_secret = ws_config.auth0_client_secret
@@ -73,7 +69,6 @@ async def _get_auth0_configured_connections(ws_config: WorkspaceConfig, workspac
                 return set()
 
             names = {c["name"] for c in conns_resp.json()}
-            _auth0_connections_cache[cache_key] = names
             return names
     except Exception:
         return set()
