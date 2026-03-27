@@ -80,7 +80,7 @@ router = APIRouter(prefix="/api/v1/connections", tags=["connections"])
 _AUTH0_CONNECTION = {
     "github":     "github",
     "stripe":     "stripe",
-    "slack":      "sign-in-with-slack",
+    "slack":      "slack-oauth-2",
     "salesforce": "salesforce",
     "google":     "google-oauth2",
     "gmail":      "google-oauth2",

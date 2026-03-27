@@ -33,7 +33,7 @@ settings = get_settings()
 _PROVIDER_MAP = {
     "github":     "github",
     "stripe":     "stripe",
-    "slack":      "sign-in-with-slack",
+    "slack":      "slack-oauth-2",
     "salesforce": "salesforce",
     "google":          "google-oauth2",
     "gmail":           "google-oauth2",
