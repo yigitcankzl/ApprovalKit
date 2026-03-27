@@ -15,7 +15,7 @@ import {
   DoorOpen, ClipboardList, UserCheck, Headphones, Lock, Clock,
   Stethoscope, Pill, Microscope, BookOpen, Award, Coins,
   FileSignature, ShieldCheck, Lightbulb, Wrench, UserSearch,
-  MessageSquare, FileText, Zap, TreePine, ExternalLink, Trash2,
+  MessageSquare, FileText, Zap, TreePine, Plug, Trash2,
 } from "lucide-react";
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -337,8 +337,8 @@ export default function DemoAgentPage() {
             <div className="text-center">
               <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">Connect Your Accounts</h2>
               <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 max-w-lg">
-                This agent needs the following services connected via Auth0 Token Vault.
-                Go to Connections to add your service and authorize with your own account — the agent never sees your credentials.
+                Authorize each service with your own account via Auth0 Token Vault.
+                The agent never sees your credentials — tokens are stored and managed by Auth0.
               </p>
             </div>
 
@@ -363,14 +363,23 @@ export default function DemoAgentPage() {
                     <Badge variant="success" className="text-[10px]">
                       <CheckCircle2 className="h-3 w-3 mr-1" /> Connected
                     </Badge>
+                  ) : !conn.id ? (
+                    <span className="text-xs text-zinc-400">Not found</span>
                   ) : (
                     <Button
                       size="sm"
-                      variant="outline"
-                      onClick={() => router.push(`/connections?highlight=${conn.slug}`)}
+                      onClick={async () => {
+                        try {
+                          const data = await api.getConnectUrl(conn.id!);
+                          if (data?.url) window.location.href = data.url;
+                        } catch (e: any) {
+                          // If Auth0 connection not configured, redirect to connections page
+                          router.push(`/connections?highlight=${conn.slug}`);
+                        }
+                      }}
                       className="h-7 text-xs"
                     >
-                      <ExternalLink className="h-3 w-3 mr-1" /> Go to Connections
+                      <Plug className="h-3 w-3 mr-1" /> Connect
                     </Button>
                   )}
                 </div>
