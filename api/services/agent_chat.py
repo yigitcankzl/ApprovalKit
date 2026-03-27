@@ -937,18 +937,19 @@ def _execute_tool(agent_id: str, tool_name: str, tool_args: dict, workspace_id: 
 def _fire_token_vault_execution(connection: str, action: str, params: dict, user_sub: str):
     """Fire-and-forget: execute action via Token Vault in a background thread.
 
-    Directly calls the Token Vault service for auto-approved actions.
+    Uses sync DB to get connection credentials, then calls external API directly.
     """
     import threading
 
     def _call():
         try:
+            import httpx
             from sqlalchemy import create_engine, select
             from sqlalchemy.orm import Session
             from api.config import get_settings
+            from api.models.connection import ServiceConnection
             from api.models.workspace import Workspace
-            from api.services.token_vault import token_vault_service
-            import asyncio
+            from api.services.encryption import decrypt_secret
 
             settings = get_settings()
             sync_url = settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
@@ -958,32 +959,84 @@ def _fire_token_vault_execution(connection: str, action: str, params: dict, user
                 workspace = db.execute(
                     select(Workspace).where(Workspace.owner_auth0_sub == user_sub)
                 ).scalar_one_or_none()
-                ws_id = str(workspace.id) if workspace else ""
+                if not workspace:
+                    logger.warning(f"Token Vault fire: workspace not found for {user_sub}")
+                    return
+
+                conn_obj = db.execute(
+                    select(ServiceConnection).where(
+                        ServiceConnection.workspace_id == workspace.id,
+                        ServiceConnection.slug == connection,
+                    )
+                ).scalar_one_or_none()
+                if not conn_obj:
+                    logger.warning(f"Token Vault fire: connection '{connection}' not found")
+                    return
+
+                refresh_token = decrypt_secret(conn_obj.auth0_refresh_token)
+                service = conn_obj.service.lower()
+
+                # Extract real Auth0 connection name from user_id
+                auth0_conn_name = None
+                if conn_obj.connected_auth0_user_id:
+                    parts = conn_obj.connected_auth0_user_id.split("|")
+                    if len(parts) >= 2 and parts[0] == "oauth2":
+                        auth0_conn_name = parts[1]
+                    elif len(parts) >= 2:
+                        auth0_conn_name = parts[0]
+
+                ws_domain = workspace.auth0_domain or settings.AUTH0_DOMAIN
+                ws_client_id = workspace.auth0_m2m_client_id or settings.AUTH0_CLIENT_ID
+                ws_client_secret = decrypt_secret(workspace.auth0_m2m_client_secret) or settings.AUTH0_CLIENT_SECRET
 
             engine.dispose()
 
-            if not ws_id:
-                logger.warning(f"Token Vault fire: workspace not found for {user_sub}")
+            if not refresh_token:
+                logger.warning(f"Token Vault fire: no refresh token for '{connection}'")
                 return
 
-            # Run async Token Vault execution in new event loop
-            loop = asyncio.new_event_loop()
-            try:
-                from api.database import async_session
-                async def _execute():
-                    async with async_session() as adb:
-                        result = await token_vault_service.execute_action(
-                            connection=connection,
-                            action=action,
-                            params=params,
-                            workspace_id=ws_id,
-                            db=adb,
-                        )
-                        logger.info(f"Token Vault fire: {connection}/{action} → {result}")
-                        return result
-                loop.run_until_complete(_execute())
-            finally:
-                loop.close()
+            # Token Exchange — get fresh access token from Auth0
+            provider = auth0_conn_name or service
+            token_resp = httpx.post(
+                f"https://{ws_domain}/oauth/token",
+                json={
+                    "grant_type": "urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token",
+                    "client_id": ws_client_id,
+                    "client_secret": ws_client_secret,
+                    "subject_token_type": "urn:ietf:params:oauth:token-type:refresh_token",
+                    "subject_token": refresh_token,
+                    "connection": provider,
+                },
+                timeout=15,
+            )
+
+            if token_resp.status_code != 200:
+                logger.warning(f"Token Exchange failed for {connection}: {token_resp.status_code} {token_resp.text[:200]}")
+                return
+
+            access_token = token_resp.json().get("access_token", "")
+            if not access_token:
+                logger.warning(f"Token Exchange: no access_token in response for {connection}")
+                return
+
+            logger.info(f"Token Exchange succeeded for {connection} (provider={provider})")
+
+            # Execute the action with the fresh token
+            if service == "slack":
+                # Slack API: chat.postMessage
+                slack_resp = httpx.post(
+                    "https://slack.com/api/chat.postMessage",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                    json={"channel": params.get("channel", "#general"), "text": params.get("message", "")},
+                    timeout=10,
+                )
+                result = slack_resp.json()
+                if result.get("ok"):
+                    logger.info(f"Slack message sent to {params.get('channel')}: {result.get('ts')}")
+                else:
+                    logger.warning(f"Slack API error: {result.get('error')}")
+            else:
+                logger.info(f"Token Vault fire: no handler for service '{service}', token obtained but action not executed")
 
         except Exception as e:
             logger.warning(f"Token Vault fire failed: {e}")
