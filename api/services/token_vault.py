@@ -1007,6 +1007,15 @@ class TokenVaultService:
                 service = conn_obj.service.lower()
                 provider = _PROVIDER_MAP.get(service)
 
+                # Try to extract real Auth0 connection name from connected_auth0_user_id
+                # Format: "oauth2|slack-oauth-2|T0AHV..." or "github|12345"
+                if conn_obj.connected_auth0_user_id:
+                    parts = conn_obj.connected_auth0_user_id.split("|")
+                    if len(parts) >= 2 and parts[0] == "oauth2":
+                        # Custom OAuth2: use the connection name directly
+                        provider = parts[1]
+                        logger.debug(f"Token Vault: extracted provider '{provider}' from user_id")
+
                 # Try Token Exchange (preferred, RFC 8693)
                 refresh_tok = decrypt_secret(conn_obj.auth0_refresh_token)
                 exchange_attempted = bool(refresh_tok and provider)
