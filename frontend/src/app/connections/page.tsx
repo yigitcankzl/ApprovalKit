@@ -495,31 +495,169 @@ function ConnectionsContent() {
 
       {infoPopup && (() => {
         const conn = connections.find(c => c.id === infoPopup);
-        const label = conn ? (SERVICE_LABEL[conn.service.toLowerCase()] || conn.service) : "";
+        const service = conn?.service?.toLowerCase() || "";
+        const label = conn ? (SERVICE_LABEL[service] || conn.service) : "";
+        const tenantSlug = auth0Domain.replace(".us.auth0.com", "").replace(".auth0.com", "");
+        const dashboardUrl = `https://manage.auth0.com/dashboard/us/${tenantSlug}/connections/social`;
+
+        const SERVICE_GUIDES: Record<string, { provider_url: string; provider_label: string; steps: string[]; scopes?: string; redirect_note?: string }> = {
+          slack: {
+            provider_url: "https://api.slack.com/apps",
+            provider_label: "Slack App Dashboard",
+            steps: [
+              "Go to api.slack.com/apps → Create New App → From scratch",
+              "App Home → Bot User must exist — if not, go to OAuth & Permissions → Bot Token Scopes → add chat:write (this auto-creates the bot)",
+              "OAuth & Permissions → Redirect URLs → add: https://" + auth0Domain + "/login/callback",
+              "Basic Information → copy Client ID and Client Secret",
+              "Auth0 Dashboard → Authentication → Social → Create Connection → Sign in with Slack",
+              "Paste Client ID and Client Secret from Slack",
+              "Purpose: select 'Authentication and Connected Accounts for Token Vault'",
+              "Applications tab → enable your web application → Save Changes",
+            ],
+            scopes: "chat:write, channels:read, users:read",
+          },
+          github: {
+            provider_url: "https://github.com/settings/developers",
+            provider_label: "GitHub Developer Settings",
+            steps: [
+              "Go to github.com/settings/developers → OAuth Apps → New OAuth App",
+              "Authorization callback URL: https://" + auth0Domain + "/login/callback",
+              "Copy Client ID and generate Client Secret",
+              "Auth0 Dashboard → Authentication → Social → GitHub → enter credentials",
+              "Purpose: select 'Authentication and Connected Accounts for Token Vault'",
+              "Applications tab → enable your web application → Save Changes",
+            ],
+            scopes: "repo, read:org, read:user",
+          },
+          gmail: {
+            provider_url: "https://console.cloud.google.com/apis/credentials",
+            provider_label: "Google Cloud Console",
+            steps: [
+              "Go to console.cloud.google.com → APIs & Services → Credentials → Create OAuth Client ID",
+              "Application type: Web application",
+              "Authorized redirect URI: https://" + auth0Domain + "/login/callback",
+              "Copy Client ID and Client Secret",
+              "Auth0 Dashboard → Authentication → Social → Google → enter credentials",
+              "Purpose: select 'Authentication and Connected Accounts for Token Vault'",
+              "Applications tab → enable your web application → Save Changes",
+            ],
+            scopes: "gmail.send, gmail.readonly",
+          },
+          google: {
+            provider_url: "https://console.cloud.google.com/apis/credentials",
+            provider_label: "Google Cloud Console",
+            steps: [
+              "Go to console.cloud.google.com → APIs & Services → Credentials → Create OAuth Client ID",
+              "Authorized redirect URI: https://" + auth0Domain + "/login/callback",
+              "Enable Google Drive API in APIs & Services → Library",
+              "Auth0 Dashboard → Authentication → Social → Google → enter credentials",
+              "Purpose: select 'Authentication and Connected Accounts for Token Vault'",
+              "Applications tab → enable your web application → Save Changes",
+            ],
+            scopes: "drive.file, drive.readonly",
+          },
+          "google-drive": {
+            provider_url: "https://console.cloud.google.com/apis/credentials",
+            provider_label: "Google Cloud Console",
+            steps: [
+              "Uses the same Google OAuth connection — if Google is already configured, this works automatically",
+              "Make sure Google Drive API is enabled: APIs & Services → Library → Google Drive API → Enable",
+              "Auth0 → Social → Google connection → verify drive scope is included",
+            ],
+            scopes: "drive.file, drive.readonly",
+          },
+          stripe: {
+            provider_url: "https://dashboard.stripe.com/settings/connect",
+            provider_label: "Stripe Dashboard",
+            steps: [
+              "Go to dashboard.stripe.com → Settings → Connect (or Platform) settings",
+              "Redirect URI: https://" + auth0Domain + "/login/callback",
+              "Copy Client ID (starts with ca_) from Connect settings",
+              "Copy Secret Key from Developers → API Keys",
+              "Auth0 Dashboard → Authentication → Social → Create Custom → set up as OAuth2",
+              "Authorization URL: https://connect.stripe.com/oauth/authorize",
+              "Token URL: https://connect.stripe.com/oauth/token",
+              "Applications tab → enable your web application → Save Changes",
+            ],
+            scopes: "read_write",
+          },
+          salesforce: {
+            provider_url: "https://login.salesforce.com/",
+            provider_label: "Salesforce Setup",
+            steps: [
+              "Salesforce → Setup → App Manager → New Connected App",
+              "Enable OAuth Settings → Callback URL: https://" + auth0Domain + "/login/callback",
+              "Select scopes: Full access (full), Perform requests (api)",
+              "Copy Consumer Key and Consumer Secret",
+              "Auth0 Dashboard → Authentication → Social → Salesforce → enter credentials",
+              "Purpose: select 'Authentication and Connected Accounts for Token Vault'",
+              "Applications tab → enable your web application → Save Changes",
+            ],
+            scopes: "full, api",
+          },
+        };
+
+        const guide = SERVICE_GUIDES[service] || null;
+
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setInfoPopup(null)}>
-            <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-xl p-6 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
+            <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-xl p-6 max-w-lg w-full mx-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">Configure {label}</h3>
-                <button onClick={() => setInfoPopup(null)} className="text-zinc-400 hover:text-zinc-600 dark:text-zinc-400"><X className="h-4 w-4" /></button>
+                <button onClick={() => setInfoPopup(null)} className="text-zinc-400 hover:text-zinc-600"><X className="h-4 w-4" /></button>
               </div>
-              <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
-                <strong>{label}</strong> requires a Social Connection in your Auth0 tenant. Once configured, the OAuth connect button will appear here.
-              </p>
-              <ol className="text-sm text-zinc-600 dark:text-zinc-400 space-y-2 mb-5">
-                <li className="flex gap-2"><span className="font-bold text-zinc-400">1.</span> Open Auth0 Dashboard</li>
-                <li className="flex gap-2"><span className="font-bold text-zinc-400">2.</span> Go to <em>Authentication → Social</em></li>
-                <li className="flex gap-2"><span className="font-bold text-zinc-400">3.</span> Add <strong>{label}</strong> connection</li>
-                <li className="flex gap-2"><span className="font-bold text-zinc-400">4.</span> Enable it for this application</li>
-              </ol>
-              <a
-                href={`https://manage.auth0.com/dashboard/us/${auth0Domain.replace(".us.auth0.com", "").replace(".auth0.com", "")}/connections/social`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block w-full text-center bg-zinc-900 text-white text-sm font-medium py-2 rounded-lg hover:bg-zinc-800 transition-colors"
-              >
-                Open Auth0 Dashboard →
-              </a>
+
+              {guide ? (
+                <>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
+                    Connect <strong>{label}</strong> to Auth0 Token Vault so the agent can execute actions on your behalf without ever seeing your credentials.
+                  </p>
+
+                  <div className="space-y-2 mb-4">
+                    {guide.steps.map((step, i) => (
+                      <div key={i} className="flex gap-2.5 text-sm">
+                        <span className="font-bold text-zinc-300 dark:text-zinc-600 shrink-0 w-5 text-right">{i + 1}.</span>
+                        <span className="text-zinc-600 dark:text-zinc-400">{step}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {guide.scopes && (
+                    <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-lg p-3 mb-4">
+                      <div className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wider mb-1">Required Scopes</div>
+                      <code className="text-xs text-zinc-600 dark:text-zinc-300">{guide.scopes}</code>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <a href={guide.provider_url} target="_blank" rel="noopener noreferrer"
+                      className="flex-1 text-center bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-sm font-medium py-2 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors">
+                      {guide.provider_label} ↗
+                    </a>
+                    <a href={dashboardUrl} target="_blank" rel="noopener noreferrer"
+                      className="flex-1 text-center bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-sm font-medium py-2 rounded-lg hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors">
+                      Auth0 Dashboard ↗
+                    </a>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
+                    <strong>{label}</strong> requires a Social Connection in your Auth0 tenant.
+                  </p>
+                  <ol className="text-sm text-zinc-600 dark:text-zinc-400 space-y-2 mb-5">
+                    <li className="flex gap-2"><span className="font-bold text-zinc-400">1.</span> Create OAuth credentials at the service provider</li>
+                    <li className="flex gap-2"><span className="font-bold text-zinc-400">2.</span> Add redirect URL: https://{auth0Domain}/login/callback</li>
+                    <li className="flex gap-2"><span className="font-bold text-zinc-400">3.</span> Auth0 Dashboard → Authentication → Social → add connection</li>
+                    <li className="flex gap-2"><span className="font-bold text-zinc-400">4.</span> Select &apos;Connected Accounts for Token Vault&apos; as purpose</li>
+                    <li className="flex gap-2"><span className="font-bold text-zinc-400">5.</span> Applications tab → enable your web app → Save Changes</li>
+                  </ol>
+                  <a href={dashboardUrl} target="_blank" rel="noopener noreferrer"
+                    className="block w-full text-center bg-zinc-900 text-white text-sm font-medium py-2 rounded-lg hover:bg-zinc-800 transition-colors">
+                    Open Auth0 Dashboard ↗
+                  </a>
+                </>
+              )}
             </div>
           </div>
         );
