@@ -15,8 +15,7 @@ import {
   DoorOpen, ClipboardList, UserCheck, Headphones, Lock, Clock,
   Stethoscope, Pill, Microscope, BookOpen, Award, Coins,
   FileSignature, ShieldCheck, Lightbulb, Wrench, UserSearch,
-  MessageSquare, FileText, Zap, TreePine, Link2, ExternalLink,
-  CircleDot,
+  MessageSquare, FileText, Zap, TreePine, ExternalLink,
 } from "lucide-react";
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -131,16 +130,6 @@ export default function DemoAgentPage() {
       setSetupDone(true);
     } catch {}
     setSettingUp(false);
-  };
-
-  const handleConnect = async (connId: string) => {
-    if (!connId) return;
-    try {
-      const data = await api.getConnectUrl(connId);
-      if (data?.url) {
-        window.open(data.url, "_blank");
-      }
-    } catch {}
   };
 
   if (loading) {
@@ -283,8 +272,8 @@ export default function DemoAgentPage() {
             <div className="text-center">
               <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">Connect Your Accounts</h2>
               <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 max-w-lg">
-                This agent needs access to the following services via Auth0 Token Vault.
-                Connect each service with your own account — the agent never sees your credentials.
+                This agent needs the following services connected via Auth0 Token Vault.
+                Go to Connections to add your service and authorize with your own account — the agent never sees your credentials.
               </p>
             </div>
 
@@ -313,10 +302,10 @@ export default function DemoAgentPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => conn.id && handleConnect(conn.id)}
+                      onClick={() => router.push(`/connections?highlight=${conn.slug}`)}
                       className="h-7 text-xs"
                     >
-                      <Link2 className="h-3 w-3 mr-1" /> Connect
+                      <ExternalLink className="h-3 w-3 mr-1" /> Go to Connections
                     </Button>
                   )}
                 </div>
@@ -327,7 +316,7 @@ export default function DemoAgentPage() {
               <Button variant="outline" size="sm" onClick={checkConnections} disabled={checkingConns}>
                 {checkingConns ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Refresh status"}
               </Button>
-              {connections.some(c => c.connected) && !allConnected && (
+              {connections.some(c => c.connected) && (
                 <p className="text-xs text-zinc-400">
                   {connections.filter(c => c.connected).length}/{connections.length} connected
                 </p>
