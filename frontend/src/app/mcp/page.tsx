@@ -1,13 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { api } from "@/lib/api";
 import {
-  Copy, Check, Eye, EyeOff, Terminal, Plug, Bot,
-  CheckCircle2, Laptop, Smartphone, Code2, Blocks,
+  Copy, Check, Terminal, Bot, Laptop, Code2, Blocks,
 } from "lucide-react";
 
 function CopyBlock({ code, label }: { code: string; label?: string }) {
@@ -30,49 +27,11 @@ function CopyBlock({ code, label }: { code: string; label?: string }) {
   );
 }
 
-function SecretValue({ value }: { value: string }) {
-  const [visible, setVisible] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const copy = async () => {
-    await navigator.clipboard.writeText(value);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-  return (
-    <div className="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800 rounded-lg px-3 py-1.5">
-      <code className="flex-1 text-xs font-mono text-zinc-700 dark:text-zinc-300 break-all">
-        {visible ? value : "\u2022".repeat(Math.min(value.length, 32))}
-      </code>
-      <button onClick={() => setVisible(v => !v)} className="p-1 text-zinc-400 hover:text-zinc-600">
-        {visible ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-      </button>
-      <button onClick={copy} className="p-1 text-zinc-400 hover:text-zinc-600">
-        {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
-      </button>
-    </div>
-  );
-}
-
-interface Credentials {
-  api_key: string;
-  hmac_secret: string;
-  workspace_id: string;
-  name: string;
-}
 
 export default function MCPPage() {
-  const [creds, setCreds] = useState<Credentials | null>(null);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    api.getCredentials()
-      .then((c: Credentials) => setCreds(c))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
-
-  const apiKey = creds?.api_key || "YOUR_API_KEY";
-  const hmacSecret = creds?.hmac_secret || "YOUR_HMAC_SECRET";
+  const apiKey = "YOUR_API_KEY";
+  const hmacSecret = "YOUR_HMAC_SECRET";
 
   const claudeDesktopConfig = JSON.stringify({
     mcpServers: {
@@ -144,34 +103,15 @@ export default function MCPPage() {
         </CardContent>
       </Card>
 
-      {/* Credentials */}
+      {/* Credentials note */}
       <Card className="mb-6">
         <CardContent className="p-5">
-          <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-3">Your Credentials</h2>
-          {loading ? (
-            <div className="text-sm text-zinc-400">Loading...</div>
-          ) : creds ? (
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs text-zinc-500 mb-1 block">API Key</label>
-                <SecretValue value={creds.api_key} />
-              </div>
-              <div>
-                <label className="text-xs text-zinc-500 mb-1 block">HMAC Secret</label>
-                <SecretValue value={creds.hmac_secret} />
-              </div>
-              <div>
-                <label className="text-xs text-zinc-500 mb-1 block">API URL</label>
-                <code className="text-xs font-mono text-zinc-600 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 rounded px-2 py-1">
-                  http://localhost:8000
-                </code>
-              </div>
-            </div>
-          ) : (
-            <p className="text-sm text-zinc-400">
-              Complete <a href="/setup" className="text-blue-500 hover:underline">Setup</a> first to get credentials.
-            </p>
-          )}
+          <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-2">Credentials</h2>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            Your <strong>API Key</strong> and <strong>HMAC Secret</strong> were shown once during workspace setup.
+            Replace the placeholder values in the configs below with your actual keys.
+            If you lost them, go to <a href="/connect" className="text-blue-500 hover:underline">Connect Agent</a> to regenerate.
+          </p>
         </CardContent>
       </Card>
 
