@@ -1190,7 +1190,9 @@ async def clear_demo_data(
 ):
     """Remove specific demo resources by ID. If IDs not given, delete all for agent."""
     agent_id = body.agent_id
-    delete_rules = body.rule_ids is None  # delete all if no specific IDs
+    # If IDs list is provided (even empty), only delete those specific IDs
+    # If IDs list is None (field not sent), delete all matching
+    delete_rules = body.rule_ids is None
     delete_approvers = body.approver_ids is None
     delete_connections = body.connection_ids is None
 

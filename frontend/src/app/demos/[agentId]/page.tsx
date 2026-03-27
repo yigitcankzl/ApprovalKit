@@ -177,9 +177,9 @@ export default function DemoAgentPage() {
     try {
       await api.clearDemoData({
         agent_id: agentId,
-        rule_ids: selectedRuleIds.size > 0 ? Array.from(selectedRuleIds) : undefined,
-        approver_ids: selectedApproverIds.size > 0 ? Array.from(selectedApproverIds) : undefined,
-        connection_ids: selectedConnIds.size > 0 ? Array.from(selectedConnIds) : undefined,
+        rule_ids: Array.from(selectedRuleIds),
+        approver_ids: Array.from(selectedApproverIds),
+        connection_ids: Array.from(selectedConnIds),
       });
       if (selectedRuleIds.size > 0) setSetupDone(false);
       if (selectedConnIds.size > 0) { setConnections([]); setAllConnected(false); }
