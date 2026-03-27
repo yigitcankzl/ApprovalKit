@@ -909,18 +909,20 @@ async def _execute_tool_async(agent_id: str, tool_name: str, tool_args: dict, wo
 def _execute_tool(agent_id: str, tool_name: str, tool_args: dict, workspace_id: str) -> dict:
     """Sync wrapper for async tool execution."""
     import asyncio
+    import concurrent.futures
+
+    def _run():
+        loop = asyncio.new_event_loop()
+        try:
+            return loop.run_until_complete(
+                _execute_tool_async(agent_id, tool_name, tool_args, workspace_id)
+            )
+        finally:
+            loop.close()
+
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # We're already in an async context — use a new thread
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as pool:
-                return pool.submit(
-                    asyncio.run,
-                    _execute_tool_async(agent_id, tool_name, tool_args, workspace_id)
-                ).result(timeout=15)
-        else:
-            return asyncio.run(_execute_tool_async(agent_id, tool_name, tool_args, workspace_id))
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            return pool.submit(_run).result(timeout=15)
     except Exception as e:
         logger.error(f"Tool execution error: {e}")
         return {"success": False, "error": str(e)}
