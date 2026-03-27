@@ -118,13 +118,23 @@ export const api = {
   clearDemoData: () => fetchAPI("/api/v1/demo/seed", { method: "DELETE" }),
 
   // Agent Chat
-  chatWithAgent: (agentId: string, message: string, agentTitle: string = "") =>
+  chatWithAgent: (agentId: string, message: string, agentTitle: string = "", sessionId: string = "") =>
     fetchAPI(`/api/v1/demo/agents/${agentId}/chat`, {
       method: "POST",
-      body: JSON.stringify({ message, agent_title: agentTitle }),
+      body: JSON.stringify({ message, agent_title: agentTitle, session_id: sessionId }),
     }),
   getAgentSuggestions: (agentId: string) =>
     fetchAPI(`/api/v1/demo/agents/${agentId}/suggestions`),
+  clearAgentSession: (agentId: string, sessionId: string) =>
+    fetchAPI(`/api/v1/demo/agents/${agentId}/session/${sessionId}`, { method: "DELETE" }),
+
+  // AI API Key (encrypted server-side)
+  saveAIKey: (apiKey: string) =>
+    fetchAPI("/api/v1/workspace/ai-key", { method: "POST", body: JSON.stringify({ api_key: apiKey }) }),
+  deleteAIKey: () =>
+    fetchAPI("/api/v1/workspace/ai-key", { method: "DELETE" }),
+  getAIKeyStatus: () =>
+    fetchAPI("/api/v1/workspace/ai-key/status"),
 
   // Credentials
   getCredentials: () => fetchAPI("/api/v1/workspace/credentials"),

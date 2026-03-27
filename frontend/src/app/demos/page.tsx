@@ -35,16 +35,11 @@ const CATEGORY_META: Record<string, { label: string; color: string; icon: React.
   hr: { label: "Human Resources", color: "bg-purple-500", icon: Users },
   customer_service: { label: "Customer Service", color: "bg-orange-500", icon: Headphones },
   healthcare: { label: "Healthcare & Clinical", color: "bg-red-500", icon: Heart },
-  education: { label: "Education", color: "bg-indigo-500", icon: GraduationCap },
   legal: { label: "Legal & Compliance", color: "bg-slate-500", icon: Scale },
-  real_estate: { label: "Real Estate", color: "bg-amber-500", icon: Home },
-  media: { label: "Media & Content", color: "bg-pink-500", icon: Film },
-  energy: { label: "Energy & Environment", color: "bg-lime-500", icon: Leaf },
 };
 
 const CATEGORY_ORDER = [
-  "finance", "devops", "hr", "customer_service", "healthcare",
-  "education", "legal", "real_estate", "media", "energy",
+  "finance", "devops", "hr", "customer_service", "healthcare", "legal",
 ];
 
 export default function DemosPage() {
@@ -94,8 +89,8 @@ export default function DemosPage() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Demo Agents</h1>
         <p className="text-zinc-500 dark:text-zinc-400 mt-1">
-          36 industry-specific AI agents with interactive approval flows.
-          Click &quot;Try this one&quot; to open the chat interface and test any agent live.
+          10 industry-specific AI agents powered by Claude. Each agent has a conversational chat interface
+          that triggers real ApprovalKit approval flows. Click any agent to start chatting.
         </p>
 
         {/* Seed all button */}
