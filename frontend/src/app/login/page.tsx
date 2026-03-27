@@ -163,7 +163,7 @@ export default function LoginPage() {
                     </li>
                     <li className="flex gap-2">
                       <span className="text-zinc-400 font-bold">c.</span>
-                      <span>Check permissions: <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded">read:users</code> <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded">read:connections</code></span>
+                      <span>Check permissions: <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded">read:users</code> <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded">update:users</code> <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded">read:connections</code> <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded">create:connections</code> <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded">update:connections</code></span>
                     </li>
                     <li className="flex gap-2">
                       <span className="text-zinc-400 font-bold">d.</span>
