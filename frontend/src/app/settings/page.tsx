@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { FormError } from "@/components/ui/form-error";
-import { CheckCircle2, Shield, AlertCircle, Save, Loader2 } from "lucide-react";
+import { CheckCircle2, Shield, Save, Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
 
 export default function SettingsPage() {
@@ -94,127 +94,118 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Setup Guide */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5 text-blue-600" /> Setup Guide</CardTitle>
-          <CardDescription>Follow these steps in your Auth0 Dashboard before filling in the fields below.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ol className="space-y-4 text-sm text-zinc-700 dark:text-zinc-300">
-            <li className="flex gap-3">
-              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-xs font-bold flex items-center justify-center">1</span>
-              <div>
-                <p className="font-medium">Create an M2M Application</p>
-                <p className="text-zinc-500 dark:text-zinc-400 mt-0.5">Auth0 Dashboard &rarr; Applications &rarr; Create Application &rarr; Machine to Machine. A popup asks &quot;Select an API&quot; &rarr; pick <code className="text-xs bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded">Auth0 Management API</code>. Check permissions: <code className="text-xs bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded">read:users update:users read:connections create:connections</code> &rarr; Authorize</p>
-                <p className="text-green-700 dark:text-green-400 text-xs font-medium mt-1">On the next page: copy <strong>Client ID</strong> + <strong>Client Secret</strong> (click Reveal) &rarr; paste below</p>
-              </div>
-            </li>
-            <li className="flex gap-3">
-              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-xs font-bold flex items-center justify-center">2</span>
-              <div>
-                <p className="font-medium">Create a Web Application</p>
-                <p className="text-zinc-500 dark:text-zinc-400 mt-0.5">Applications &rarr; Create Application &rarr; Regular Web Application. In Settings tab:</p>
-                <ul className="text-zinc-500 dark:text-zinc-400 mt-1 ml-3 space-y-0.5 list-disc text-xs">
-                  <li>Allowed Callback URLs: <code className="bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded">http://localhost:3000/auth/callback</code></li>
-                  <li>Allowed Logout URLs: <code className="bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded">http://localhost:3000</code></li>
-                  <li>Advanced Settings &rarr; Grant Types &rarr; Enable <strong>CIBA</strong> + <strong>Token Exchange</strong></li>
-                </ul>
-                <p className="text-green-700 dark:text-green-400 text-xs font-medium mt-1">Copy from this app page: <strong>Client ID</strong> and <strong>Client Secret</strong> &rarr; paste below as Web App credentials</p>
-              </div>
-            </li>
-            <li className="flex gap-3">
-              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-xs font-bold flex items-center justify-center">3</span>
-              <div>
-                <p className="font-medium">Enable Token Vault</p>
-                <p className="text-zinc-500 dark:text-zinc-400 mt-0.5">For each social connection (Stripe, GitHub, etc.): Authentication &rarr; Social &rarr; [Connection] &rarr; Advanced &rarr; Enable Token Vault. This lets ApprovalKit exchange tokens via RFC 8693.</p>
-              </div>
-            </li>
-            <li className="flex gap-3">
-              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-xs font-bold flex items-center justify-center">4</span>
-              <div>
-                <p className="font-medium">Enable Guardian (for CIBA push approvals)</p>
-                <p className="text-zinc-500 dark:text-zinc-400 mt-0.5">Security &rarr; Multi-factor Auth &rarr; Push via Auth0 Guardian &rarr; Enable. Each approver must install the Guardian app and enroll via the Approvers page.</p>
-              </div>
-            </li>
-            <li className="flex gap-3">
-              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-zinc-200 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 text-xs font-bold flex items-center justify-center">5</span>
-              <div>
-                <p className="font-medium text-zinc-500 dark:text-zinc-400">FGA (Optional)</p>
-                <p className="text-zinc-400 dark:text-zinc-500 mt-0.5">For fine-grained role-based access: Auth0 FGA Dashboard &rarr; Create Store &rarr; copy Store ID, Client ID, Client Secret. Without FGA, all authenticated users have full access.</p>
-              </div>
-            </li>
-          </ol>
-        </CardContent>
-      </Card>
-
       {/* Edit credentials */}
       <Card>
         <CardHeader>
           <CardTitle>Auth0 Credentials</CardTitle>
-          <CardDescription>Paste the values from the steps above. Only changed fields will be updated.</CardDescription>
+          <CardDescription>Only changed fields will be updated. Secrets are stored in HashiCorp Vault.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+
+          {/* Auth0 Domain */}
+          <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <p className="text-xs text-blue-700 dark:text-blue-300 font-medium mb-1">Auth0 Dashboard &rarr; Settings &rarr; General &rarr; Tenant Name</p>
+            <p className="text-xs text-blue-600 dark:text-blue-400">Enter your tenant name. The <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">.us.auth0.com</code> suffix is added automatically.</p>
+          </div>
           <div>
-            <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Auth0 Domain *</label>
-            <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-1">Your Auth0 tenant domain. Find it at Settings &rarr; General &rarr; Domain.</p>
-            <Input placeholder="your-tenant.us.auth0.com" value={tenant} onChange={(e) => setTenant(e.target.value)} />
+            <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Auth0 Tenant Name *</label>
+            <div className="flex items-center gap-0 mt-1">
+              <Input
+                placeholder="dev-xxxxxxxx"
+                value={tenant.replace(/\.us\.auth0\.com$/, "")}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/\.us\.auth0\.com$/, "").trim();
+                  setTenant(raw ? `${raw}.us.auth0.com` : "");
+                }}
+                className="rounded-r-none font-mono text-xs"
+              />
+              <span className="px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border border-l-0 border-zinc-200 dark:border-zinc-700 rounded-r-md text-xs text-zinc-500 dark:text-zinc-400 whitespace-nowrap">.us.auth0.com</span>
+            </div>
           </div>
 
+          {/* M2M Application */}
           <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4">
-            <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-1">M2M Application (Step 1)</p>
-            <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-3">Used for Token Vault exchange and Management API calls.</p>
+            <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg mb-3">
+              <p className="text-xs text-blue-700 dark:text-blue-300 font-medium">Applications &rarr; Create Application &rarr; Machine to Machine</p>
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">A popup asks &quot;Select an API&quot; &rarr; pick <strong>Auth0 Management API</strong>. Check permissions: <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">read:users</code> <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">update:users</code> <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">read:connections</code> <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">create:connections</code> &rarr; Authorize</p>
+              <p className="text-xs text-green-700 dark:text-green-400 font-medium mt-1">On the next page, copy Client ID and Client Secret (click Reveal):</p>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">M2M Client ID</label>
-                <Input placeholder="From Applications > Your M2M App > Settings" value={m2mClientId} onChange={(e) => setM2mClientId(e.target.value)} className="mt-1 font-mono text-xs" />
+                <Input placeholder="PsP2e0l..." value={m2mClientId} onChange={(e) => setM2mClientId(e.target.value)} className="mt-1 font-mono text-xs" />
               </div>
               <div>
                 <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">M2M Client Secret</label>
-                <Input type="password" placeholder="Click 'Reveal' in Auth0 to copy" value={m2mClientSecret} onChange={(e) => setM2mClientSecret(e.target.value)} className="mt-1 font-mono text-xs" />
+                <Input type="password" placeholder="JgHrS7TD..." value={m2mClientSecret} onChange={(e) => setM2mClientSecret(e.target.value)} className="mt-1 font-mono text-xs" />
               </div>
             </div>
           </div>
 
+          {/* Web Application */}
           <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4">
-            <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-1">Web Application (Step 2)</p>
-            <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-3">Used for user login, CIBA push notifications, and Connected Accounts OAuth flow.</p>
+            <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg mb-3">
+              <p className="text-xs text-blue-700 dark:text-blue-300 font-medium">Applications &rarr; Create Application &rarr; Regular Web Application</p>
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">In Settings tab set:</p>
+              <ul className="text-xs text-blue-600 dark:text-blue-400 mt-1 ml-3 list-disc space-y-0.5">
+                <li>Allowed Callback URLs: <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">http://localhost:3000/auth/callback</code></li>
+                <li>Allowed Logout URLs: <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">http://localhost:3000</code></li>
+                <li>Advanced Settings &rarr; Grant Types &rarr; Enable <strong>CIBA</strong> + <strong>Token Exchange</strong></li>
+              </ul>
+              <p className="text-xs text-green-700 dark:text-green-400 font-medium mt-1">Copy Client ID and Client Secret from the Settings tab:</p>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Web App Client ID</label>
-                <Input placeholder="From Applications > Your Web App > Settings" value={webClientId} onChange={(e) => setWebClientId(e.target.value)} className="mt-1 font-mono text-xs" />
+                <Input placeholder="GVNbXp..." value={webClientId} onChange={(e) => setWebClientId(e.target.value)} className="mt-1 font-mono text-xs" />
               </div>
               <div>
                 <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Web App Client Secret</label>
-                <Input type="password" placeholder="Click 'Reveal' in Auth0 to copy" value={webClientSecret} onChange={(e) => setWebClientSecret(e.target.value)} className="mt-1 font-mono text-xs" />
+                <Input type="password" placeholder="KRLgl7..." value={webClientSecret} onChange={(e) => setWebClientSecret(e.target.value)} className="mt-1 font-mono text-xs" />
               </div>
             </div>
           </div>
 
+          {/* Token Vault + Guardian reminder */}
           <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4">
-            <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-1">FGA — Fine-Grained Authorization (Step 5, Optional)</p>
-            <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-3">Leave blank to allow all authenticated users full access. Configure for role-based permissions.</p>
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="text-xs text-zinc-600 dark:text-zinc-400">Store ID</label>
-                <Input placeholder="01KMG..." value={fgaStoreId} onChange={(e) => setFgaStoreId(e.target.value)} className="mt-1 font-mono text-xs" />
-              </div>
-              <div>
-                <label className="text-xs text-zinc-600 dark:text-zinc-400">Client ID</label>
-                <Input placeholder="FAYoXr..." value={fgaClientId} onChange={(e) => setFgaClientId(e.target.value)} className="mt-1 font-mono text-xs" />
-              </div>
-              <div>
-                <label className="text-xs text-zinc-600 dark:text-zinc-400">Client Secret</label>
-                <Input type="password" placeholder="7SaTTI..." value={fgaClientSecret} onChange={(e) => setFgaClientSecret(e.target.value)} className="mt-1 font-mono text-xs" />
-              </div>
+            <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+              <p className="text-xs text-amber-700 dark:text-amber-300 font-medium">Don&apos;t forget these two steps in Auth0 Dashboard:</p>
+              <ul className="text-xs text-amber-600 dark:text-amber-400 mt-1 ml-3 list-disc space-y-0.5">
+                <li><strong>Token Vault:</strong> Authentication &rarr; Social &rarr; each connection &rarr; Advanced &rarr; Enable Token Vault</li>
+                <li><strong>Guardian:</strong> Security &rarr; Multi-factor Auth &rarr; Push via Auth0 Guardian &rarr; Enable</li>
+              </ul>
             </div>
+          </div>
+
+          {/* FGA */}
+          <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4">
+            <details className="group">
+              <summary className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide cursor-pointer hover:text-zinc-700 dark:hover:text-zinc-300">
+                FGA — Fine-Grained Authorization (Optional)
+              </summary>
+              <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1 mb-3">Without FGA, all authenticated users get full access. Add FGA for role-based permissions.</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-xs text-zinc-600 dark:text-zinc-400">Store ID</label>
+                  <Input placeholder="01KMG6..." value={fgaStoreId} onChange={(e) => setFgaStoreId(e.target.value)} className="mt-1 font-mono text-xs" />
+                </div>
+                <div>
+                  <label className="text-xs text-zinc-600 dark:text-zinc-400">Client ID</label>
+                  <Input placeholder="FAYoXr..." value={fgaClientId} onChange={(e) => setFgaClientId(e.target.value)} className="mt-1 font-mono text-xs" />
+                </div>
+                <div>
+                  <label className="text-xs text-zinc-600 dark:text-zinc-400">Client Secret</label>
+                  <Input type="password" placeholder="7SaTTI..." value={fgaClientSecret} onChange={(e) => setFgaClientSecret(e.target.value)} className="mt-1 font-mono text-xs" />
+                </div>
+              </div>
+            </details>
           </div>
 
           <FormError message={error} />
 
           {success && (
             <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg text-sm text-green-700 dark:text-green-400">
-              <CheckCircle2 className="h-4 w-4" /> Credentials updated successfully.
+              <CheckCircle2 className="h-4 w-4" /> Credentials updated successfully. Secrets stored in Vault.
             </div>
           )}
 
