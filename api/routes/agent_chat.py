@@ -54,7 +54,10 @@ async def chat_with_agent(
     elif workspace.ai_api_key_encrypted:
         api_key = decrypt_secret(workspace.ai_api_key_encrypted) or ""
 
-    result = process_message(agent_id, req.message, req.agent_title, req.session_id, api_key=api_key)
+    result = process_message(
+        agent_id, req.message, req.agent_title, req.session_id,
+        api_key=api_key, workspace_id=str(workspace.owner_auth0_sub or workspace.id),
+    )
     return ChatResponse(**result)
 
 

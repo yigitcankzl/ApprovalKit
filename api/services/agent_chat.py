@@ -847,6 +847,54 @@ AGENT_SUGGESTIONS: dict[str, list[str]] = {
 }
 
 
+# ── Tool Execution (server-side) ──────────────────────────────────────────────
+
+def _execute_tool(agent_id: str, tool_name: str, tool_args: dict, workspace_id: str) -> dict:
+    """Execute an ApprovalKit action server-side and return the result.
+
+    This is the agentic loop — tool calls are executed here, not on the frontend.
+    The result is fed back to Gemini so it knows what happened.
+    """
+    action = _map_tool_to_action(agent_id, tool_name, tool_args)
+    if not action:
+        return {"success": False, "error": f"Unknown tool: {tool_name}"}
+
+    import httpx
+
+    try:
+        # Call ApprovalKit's test-request endpoint internally
+        resp = httpx.post(
+            "http://localhost:8000/api/v1/test-request",
+            json={
+                "connection": action["connection"],
+                "action": action["action"],
+                "params": action["params"],
+            },
+            headers={"X-User-Sub": workspace_id},
+            timeout=10,
+        )
+
+        if resp.status_code in (200, 201, 202):
+            data = resp.json()
+            return {
+                "success": True,
+                "status": data.get("status", "submitted"),
+                "job_id": data.get("job_id"),
+                "message": data.get("message", ""),
+                "rule": data.get("rule"),
+                "model": data.get("model"),
+                "connection": action["connection"],
+                "action": action["action"],
+                "params": action["params"],
+            }
+        else:
+            error_detail = resp.json().get("detail", resp.text[:200]) if resp.headers.get("content-type", "").startswith("application/json") else resp.text[:200]
+            return {"success": False, "error": f"HTTP {resp.status_code}: {error_detail}"}
+    except Exception as e:
+        logger.error(f"Tool execution error: {e}")
+        return {"success": False, "error": str(e)}
+
+
 # ── Gemini Helpers ────────────────────────────────────────────────────────────
 
 def _convert_schema_for_gemini(schema: dict) -> dict:
@@ -887,20 +935,16 @@ def _build_gemini_contents(history: list[dict]) -> list[dict]:
 
 # ── Main Processing ──────────────────────────────────────────────────────────
 
-def process_message(agent_id: str, message: str, agent_title: str = "", session_id: str = "", api_key: str = "") -> dict:
-    """Process a user message through Gemini API (google.genai SDK).
+def process_message(agent_id: str, message: str, agent_title: str = "", session_id: str = "", api_key: str = "", workspace_id: str = "") -> dict:
+    """Agentic loop: Gemini thinks → calls tool → backend executes → result fed back → Gemini responds.
 
-    api_key: User-provided Gemini API key (stored encrypted in Vault/DB).
+    The LLM never just "suggests" an action — it executes it server-side and
+    responds with full knowledge of the outcome.
 
-    Returns:
-        {
-            "response": str,
-            "action": {"connection": ..., "action": ..., "params": {...}} | None,
-            "suggestions": list[str],
-            "type": "chat" | "action",
-            "session_id": str
-        }
+    Max 5 tool calls per turn to prevent infinite loops.
     """
+    MAX_TOOL_ROUNDS = 5
+
     if not session_id:
         session_id = str(uuid.uuid4())
 
@@ -924,7 +968,7 @@ def process_message(agent_id: str, message: str, agent_title: str = "", session_
 
         client = genai.Client(api_key=api_key)
 
-        # Build function declarations for Gemini
+        # Build function declarations
         function_declarations = []
         for t in tools:
             params_schema = _convert_schema_for_gemini(t["input_schema"])
@@ -936,40 +980,76 @@ def process_message(agent_id: str, message: str, agent_title: str = "", session_
 
         gemini_tools = [types.Tool(function_declarations=function_declarations)] if function_declarations else []
 
-        # Build conversation contents
+        config = types.GenerateContentConfig(
+            system_instruction=system_prompt,
+            tools=gemini_tools,
+            temperature=0.7,
+        )
+
+        # Build conversation contents from history
         contents = _build_gemini_contents(history)
         contents.append({"role": "user", "parts": [{"text": message}]})
 
-        response = client.models.generate_content(
-            model="models/gemini-2.5-flash",
-            contents=contents,
-            config=types.GenerateContentConfig(
-                system_instruction=system_prompt,
-                tools=gemini_tools,
-                temperature=0.7,
-            ),
-        )
+        # ── Agentic Loop ─────────────────────────────────────────────────
+        all_text_parts = []
+        all_actions = []
 
-        # Process response
-        text_parts = []
-        action = None
+        for _round in range(MAX_TOOL_ROUNDS):
+            response = client.models.generate_content(
+                model="models/gemini-2.5-flash",
+                contents=contents,
+                config=config,
+            )
 
-        if response.candidates and response.candidates[0].content:
-            for part in response.candidates[0].content.parts:
+            if not response.candidates or not response.candidates[0].content:
+                break
+
+            response_parts = response.candidates[0].content.parts
+            has_function_call = False
+            function_response_parts = []
+
+            for part in response_parts:
                 if part.text:
-                    text_parts.append(part.text)
+                    all_text_parts.append(part.text)
                 elif part.function_call:
+                    has_function_call = True
                     fc = part.function_call
                     tool_args = dict(fc.args) if fc.args else {}
-                    action = _map_tool_to_action(agent_id, fc.name, tool_args)
-                    if action:
-                        text_parts.append(f"\n\n[Executing: {fc.name}]")
 
-        response_text = "\n".join(text_parts).strip()
+                    logger.info(f"Agent {agent_id} calling tool: {fc.name}({tool_args})")
+
+                    # Execute the tool server-side
+                    result = _execute_tool(agent_id, fc.name, tool_args, workspace_id)
+                    all_actions.append({
+                        "tool": fc.name,
+                        "args": tool_args,
+                        "result": result,
+                    })
+
+                    logger.info(f"Tool result: {result.get('status', 'error')} — {result.get('message', result.get('error', ''))}")
+
+                    # Build function response to feed back to Gemini
+                    function_response_parts.append(types.Part.from_function_response(
+                        name=fc.name,
+                        response=result,
+                    ))
+
+            if not has_function_call:
+                # No more tool calls — Gemini is done
+                break
+
+            # Feed tool results back to Gemini for next round
+            # Add the model's response (with function calls) to contents
+            contents.append(response.candidates[0].content)
+            # Add function results
+            contents.append(types.Content(role="user", parts=function_response_parts))
+
+        # ── Build final response ─────────────────────────────────────────
+        response_text = "\n".join(all_text_parts).strip()
 
         # Update session history
         history.append({"role": "user", "content": message})
-        history.append({"role": "model", "content": response_text or "Processing..."})
+        history.append({"role": "model", "content": response_text or "Done."})
 
         # Trim history
         if len(history) > MAX_HISTORY * 2:
@@ -977,11 +1057,26 @@ def process_message(agent_id: str, message: str, agent_title: str = "", session_
 
         suggestions = AGENT_SUGGESTIONS.get(agent_id, [])[:3]
 
+        # Build action summary for frontend
+        action = None
+        if all_actions:
+            last_successful = next((a for a in reversed(all_actions) if a["result"].get("success")), None)
+            if last_successful:
+                mapped = _map_tool_to_action(agent_id, last_successful["tool"], last_successful["args"])
+                if mapped:
+                    action = {
+                        **mapped,
+                        "job_id": last_successful["result"].get("job_id"),
+                        "status": last_successful["result"].get("status"),
+                        "executed": True,
+                    }
+
         return {
-            "response": response_text or "Processing your request...",
+            "response": response_text or "Done.",
             "action": action,
+            "actions_taken": len(all_actions),
             "suggestions": suggestions,
-            "type": "action" if action else "chat",
+            "type": "action" if all_actions else "chat",
             "session_id": session_id,
         }
 

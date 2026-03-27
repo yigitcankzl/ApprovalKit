@@ -429,11 +429,39 @@ export function AgentChat({ agent }: { agent: DemoAgent }) {
         setSuggestions(res.suggestions);
       }
 
-      // If there's an action, execute it
+      // If actions were executed server-side, show the result
       if (res.type === "action" && res.action) {
-        await sleep(500);
-        await executeAction(res.action);
-        return;
+        const a = res.action;
+        if (a.status === "auto_approved") {
+          addMsg("result", `Auto-approved! ${a.connection}/${a.action} executed via Token Vault.`);
+        } else if (a.status === "pending" && a.job_id) {
+          addMsg("approval", `Approval required. Waiting for approval...`, {
+            jobId: a.job_id,
+            status: "pending",
+            params: a.params,
+          });
+          // Start polling for approval result
+          let attempts = 0;
+          const approvalMsgId = messages[messages.length - 1]?.id;
+          pollRef.current = setInterval(async () => {
+            try {
+              const s = await api.getJobStatus(a.job_id);
+              const terminal = ["approved", "rejected", "timeout", "blocked"];
+              if (terminal.includes(s.status)) {
+                stopPoll();
+                if (approvalMsgId) updateMsg(approvalMsgId, { meta: { status: s.status } });
+                if (s.status === "approved") {
+                  addMsg("result", `Approved! Action executed via Token Vault.`);
+                } else {
+                  addMsg("error", `Request ${s.status}.`);
+                }
+                setIsProcessing(false);
+              }
+            } catch {}
+            if (++attempts > 90) { stopPoll(); setIsProcessing(false); }
+          }, 2000);
+          return; // Don't clear processing — poll will handle it
+        }
       }
     } catch {
       setIsTyping(false);
