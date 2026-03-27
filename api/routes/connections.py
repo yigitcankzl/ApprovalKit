@@ -36,14 +36,32 @@ settings = get_settings()
 _auth0_connections_cache: dict[str, set[str]] = {}
 
 
-async def _get_auth0_configured_connections(ws_config: WorkspaceConfig, workspace_id: str = "") -> set[str]:
-    """Fetch configured social connections from Auth0 Management API using workspace credentials."""
+async def _get_auth0_configured_connections(ws_config: WorkspaceConfig, workspace_id: str = "") -> dict[str, str]:
+    """Fetch configured social connections from Auth0 Management API.
+
+    Returns a dict mapping service name → Auth0 connection name.
+    E.g. {"slack": "sign-in-with-slack", "github": "github", "google": "google-oauth2"}
+    """
     domain = ws_config.auth0_domain
     client_id = ws_config.auth0_client_id
     client_secret = ws_config.auth0_client_secret
 
     if not domain or not client_id:
-        return set()
+        return {}
+
+    # Strategy → our service name mapping
+    _strategy_to_service = {
+        "github": "github", "google-oauth2": "google", "oauth2": None,  # custom — match by name
+        "slack": "slack", "salesforce": "salesforce", "stripe": "stripe",
+        "windowslive": "microsoft", "dropbox": "dropbox", "discord": "discord",
+        "bitbucket": "bitbucket", "box": "box", "figma": "figma",
+    }
+    # Known name patterns for custom oauth2 connections
+    _name_to_service = {
+        "slack": "slack", "sign-in-with-slack": "slack", "slack-oauth-2": "slack",
+        "stripe": "stripe", "salesforce": "salesforce",
+        "google-drive": "google-drive",
+    }
 
     try:
         async with httpx.AsyncClient(timeout=10) as client:
@@ -57,7 +75,7 @@ async def _get_auth0_configured_connections(ws_config: WorkspaceConfig, workspac
                 },
             )
             if token_resp.status_code != 200:
-                return set()
+                return {}
             mgmt_token = token_resp.json().get("access_token", "")
 
             conns_resp = await client.get(
@@ -66,12 +84,33 @@ async def _get_auth0_configured_connections(ws_config: WorkspaceConfig, workspac
                 params={"fields": "name,strategy", "per_page": "100"},
             )
             if conns_resp.status_code != 200:
-                return set()
+                return {}
 
-            names = {c["name"] for c in conns_resp.json()}
-            return names
-    except Exception:
-        return set()
+            result: dict[str, str] = {}
+            for c in conns_resp.json():
+                name = c["name"]
+                strategy = c.get("strategy", "")
+
+                # Try strategy mapping first
+                service = _strategy_to_service.get(strategy)
+                if service:
+                    result[service] = name
+                    if service == "google":
+                        result["gmail"] = name
+                        result["google-drive"] = name
+                    if service == "microsoft":
+                        result["outlook"] = name
+                    continue
+
+                # For custom oauth2, match by name
+                matched_service = _name_to_service.get(name.lower())
+                if matched_service:
+                    result[matched_service] = name
+
+            return result
+    except Exception as e:
+        logger.warning(f"Failed to fetch Auth0 connections for {domain}: {e}")
+        return {}
 
 router = APIRouter(prefix="/api/v1/connections", tags=["connections"])
 
@@ -230,8 +269,9 @@ async def list_connections(workspace: Workspace = Depends(get_current_workspace)
     out = []
     for c in conns:
         d = _conn_to_dict(c)
-        auth0_name = _AUTH0_CONNECTION.get(c.service.lower(), c.service.lower())
-        d["is_auth0_configured"] = auth0_name in auth0_conns
+        service = c.service.lower()
+        d["is_auth0_configured"] = service in auth0_conns
+        d["auth0_connection_name"] = auth0_conns.get(service, "")
         out.append(d)
     return out
 
@@ -338,15 +378,17 @@ async def get_connect_url(connection_id: str, request: Request, workspace: Works
         raise HTTPException(status_code=404, detail="Connection not found")
 
     service = conn.service.lower()
-    auth0_connection = _AUTH0_CONNECTION.get(service)
+    ws_config = await get_workspace_config(workspace.id, db)
+
+    # Look up the real Auth0 connection name from tenant
+    auth0_conns = await _get_auth0_configured_connections(ws_config, str(workspace.id))
+    auth0_connection = auth0_conns.get(service) or _AUTH0_CONNECTION.get(service)
     if not auth0_connection:
         raise HTTPException(
             status_code=400,
-            detail=f"Service '{service}' does not support Auth0 OAuth connect. "
-                   f"Supported: {', '.join(_AUTH0_CONNECTION.keys())}",
+            detail=f"Service '{service}' is not configured in your Auth0 tenant ({ws_config.auth0_domain}). "
+                   f"Add it under Authentication → Social in your Auth0 Dashboard.",
         )
-
-    ws_config = await get_workspace_config(workspace.id, db)
     user_token = request.headers.get("X-User-Token")
     login_refresh_token = request.headers.get("X-Refresh-Token")
     callback_url = f"{ws_config.callback_base_url}/api/v1/connections/connected-accounts/callback"
