@@ -266,8 +266,20 @@ async def list_connections(workspace: Workspace = Depends(get_current_workspace)
         ).order_by(ServiceConnection.name)
     )
     conns = result.scalars().all()
-    ws_config = await get_workspace_config(workspace.id, db)
-    auth0_conns = await _get_auth0_configured_connections(ws_config, str(workspace.id))
+    # Use login tenant for connection status check
+    from api.services.workspace_config import WorkspaceConfig
+    login_config = WorkspaceConfig(
+        auth0_domain=settings.AUTH0_DOMAIN,
+        auth0_client_id=settings.AUTH0_CLIENT_ID,
+        auth0_client_secret=settings.AUTH0_CLIENT_SECRET,
+        auth0_web_client_id=settings.AUTH0_WEB_CLIENT_ID or settings.AUTH0_CLIENT_ID,
+        auth0_web_client_secret=settings.AUTH0_WEB_CLIENT_SECRET or settings.AUTH0_CLIENT_SECRET,
+        auth0_audience="", auth0_mgmt_api_audience=f"https://{settings.AUTH0_DOMAIN}/api/v2/",
+        fga_api_url="", fga_store_id="", fga_model_id="",
+        fga_client_id="", fga_client_secret="", credentials_key="",
+        callback_base_url=settings.CALLBACK_BASE_URL, frontend_url=settings.FRONTEND_URL,
+    )
+    auth0_conns = await _get_auth0_configured_connections(login_config, "login")
     out = []
     for c in conns:
         d = _conn_to_dict(c)
@@ -319,16 +331,15 @@ async def oauth_callback(
     if not conn:
         return RedirectResponse(url=f"{settings.FRONTEND_URL}/connections?error=connection_not_found")
 
-    # Get workspace-specific Auth0 config
-    ws_config = await get_workspace_config(conn.workspace_id, db)
-    callback_url = f"{ws_config.callback_base_url}/api/v1/connections/oauth/callback"
+    # Always use login tenant for OAuth callback
+    callback_url = f"{settings.CALLBACK_BASE_URL}/api/v1/connections/oauth/callback"
 
     async with httpx.AsyncClient(timeout=15) as client:
-        # Exchange authorization code for tokens
-        web_client_id = ws_config.auth0_web_client_id
-        web_client_secret = ws_config.auth0_web_client_secret
+        # Exchange authorization code for tokens — login tenant
+        web_client_id = settings.AUTH0_WEB_CLIENT_ID or settings.AUTH0_CLIENT_ID
+        web_client_secret = settings.AUTH0_WEB_CLIENT_SECRET or settings.AUTH0_CLIENT_SECRET
         token_resp = await client.post(
-            f"https://{ws_config.auth0_domain}/oauth/token",
+            f"https://{settings.AUTH0_DOMAIN}/oauth/token",
             json={
                 "grant_type":    "authorization_code",
                 "client_id":     web_client_id,
@@ -346,7 +357,7 @@ async def oauth_callback(
 
         # Fetch user profile to get sub (auth0_user_id) and display name
         userinfo_resp = await client.get(
-            f"https://{ws_config.auth0_domain}/userinfo",
+            f"https://{settings.AUTH0_DOMAIN}/userinfo",
             headers={"Authorization": f"Bearer {access_token}"},
         )
         if userinfo_resp.status_code != 200:
@@ -380,58 +391,55 @@ async def get_connect_url(connection_id: str, request: Request, workspace: Works
         raise HTTPException(status_code=404, detail="Connection not found")
 
     service = conn.service.lower()
-    ws_config = await get_workspace_config(workspace.id, db)
+    # Always use login tenant for OAuth flows — Connected Accounts + Token Vault
+    # requires tokens from the same tenant as login
+    login_domain = settings.AUTH0_DOMAIN
+    login_web_client_id = settings.AUTH0_WEB_CLIENT_ID or settings.AUTH0_CLIENT_ID
+    login_web_client_secret = settings.AUTH0_WEB_CLIENT_SECRET or settings.AUTH0_CLIENT_SECRET
 
-    # Look up the real Auth0 connection name from tenant
-    auth0_conns = await _get_auth0_configured_connections(ws_config, str(workspace.id))
+    # Look up the real Auth0 connection name from login tenant
+    from api.services.workspace_config import WorkspaceConfig
+    login_config = WorkspaceConfig(
+        auth0_domain=login_domain,
+        auth0_client_id=settings.AUTH0_CLIENT_ID,
+        auth0_client_secret=settings.AUTH0_CLIENT_SECRET,
+        auth0_web_client_id=login_web_client_id,
+        auth0_web_client_secret=login_web_client_secret,
+        auth0_audience=settings.AUTH0_AUDIENCE,
+        auth0_mgmt_api_audience=settings.AUTH0_MGMT_API_AUDIENCE or f"https://{login_domain}/api/v2/",
+        fga_api_url="", fga_store_id="", fga_model_id="",
+        fga_client_id="", fga_client_secret="", credentials_key="",
+        callback_base_url=settings.CALLBACK_BASE_URL,
+        frontend_url=settings.FRONTEND_URL,
+    )
+    auth0_conns = await _get_auth0_configured_connections(login_config, "login")
     auth0_connection = auth0_conns.get(service) or _AUTH0_CONNECTION.get(service)
     if not auth0_connection:
         raise HTTPException(
             status_code=400,
-            detail=f"Service '{service}' is not configured in your Auth0 tenant ({ws_config.auth0_domain}). "
+            detail=f"Service '{service}' is not configured in Auth0 tenant ({login_domain}). "
                    f"Add it under Authentication → Social in your Auth0 Dashboard.",
         )
     user_token = request.headers.get("X-User-Token")
     login_refresh_token = request.headers.get("X-Refresh-Token")
-    callback_url = f"{ws_config.callback_base_url}/api/v1/connections/connected-accounts/callback"
+    callback_url = f"{settings.CALLBACK_BASE_URL}/api/v1/connections/connected-accounts/callback"
     scope = _SERVICE_SCOPE.get(service, _DEFAULT_SCOPE)
 
-    logger.debug(f"connect-url: domain={ws_config.auth0_domain} user_token={'present' if user_token else 'MISSING'}")
+    logger.debug(f"connect-url: domain={login_domain} user_token={'present' if user_token else 'MISSING'}")
 
     # Save login refresh token on connection (needed for Token Exchange)
     if login_refresh_token:
         conn.auth0_refresh_token = encrypt_secret(login_refresh_token)
         await db.commit()
 
-    # Try Connected Accounts API (Token Vault flow)
-    # First try user token, then try getting a token from workspace's own tenant
+    # Try Connected Accounts API (Token Vault flow) with user's login token
     me_token = user_token
-    if not me_token or True:  # Always try workspace token — user token may be from different tenant
-        try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                # Get M2M token with My Account API audience from workspace's tenant
-                token_resp = await client.post(
-                    f"https://{ws_config.auth0_domain}/oauth/token",
-                    json={
-                        "grant_type": "client_credentials",
-                        "client_id": ws_config.auth0_client_id,
-                        "client_secret": ws_config.auth0_client_secret,
-                        "audience": f"https://{ws_config.auth0_domain}/me/",
-                    },
-                )
-                if token_resp.status_code == 200:
-                    me_token = token_resp.json().get("access_token")
-                    logger.info(f"Got workspace M2M token for Connected Accounts API")
-                else:
-                    logger.warning(f"Failed to get M2M token: {token_resp.status_code} {token_resp.text[:200]}")
-        except Exception as e:
-            logger.warning(f"Failed to get workspace M2M token: {e}")
 
     if me_token:
         try:
             async with httpx.AsyncClient(timeout=15) as client:
                 resp = await client.post(
-                    f"https://{ws_config.auth0_domain}/me/v1/connected-accounts/connect",
+                    f"https://{login_domain}/me/v1/connected-accounts/connect",
                     headers={"Authorization": f"Bearer {me_token}"},
                     json={
                         "connection": auth0_connection,
@@ -457,11 +465,11 @@ async def get_connect_url(connection_id: str, request: Request, workspace: Works
         except Exception as e:
             logger.warning(f"Connected Accounts API exception: {e}")
 
-    # Fallback: standard authorize URL (login flow)
+    # Fallback: standard authorize URL (login flow) — always use login tenant
     if "offline_access" not in scope:
         scope = f"{scope} offline_access"
-    legacy_callback = f"{ws_config.callback_base_url}/api/v1/connections/oauth/callback"
-    client_id = ws_config.auth0_web_client_id
+    legacy_callback = f"{settings.CALLBACK_BASE_URL}/api/v1/connections/oauth/callback"
+    client_id = login_web_client_id
     params = urlencode({
         "client_id":     client_id,
         "response_type": "code",
@@ -470,7 +478,7 @@ async def get_connect_url(connection_id: str, request: Request, workspace: Works
         "state":         f"{connection_id}:{workspace.id}",
         "redirect_uri":  legacy_callback,
     })
-    url = f"https://{ws_config.auth0_domain}/authorize?{params}"
+    url = f"https://{login_domain}/authorize?{params}"
     return {"url": url, "service": service, "connection": auth0_connection, "flow": "authorize"}
 
 
@@ -536,13 +544,12 @@ async def connected_accounts_callback(
     if not conn:
         return RedirectResponse(url=f"{settings.FRONTEND_URL}/connections?error=connection_not_found")
 
-    ws_config = await get_workspace_config(conn.workspace_id, db)
-    callback_url = f"{ws_config.callback_base_url}/api/v1/connections/connected-accounts/callback"
+    callback_url = f"{settings.CALLBACK_BASE_URL}/api/v1/connections/connected-accounts/callback"
 
-    # Complete the Connected Accounts flow
+    # Complete the Connected Accounts flow — login tenant
     async with httpx.AsyncClient(timeout=15) as client:
         complete_resp = await client.post(
-            f"https://{ws_config.auth0_domain}/me/v1/connected-accounts/complete",
+            f"https://{settings.AUTH0_DOMAIN}/me/v1/connected-accounts/complete",
             headers={"Authorization": f"Bearer {user_token}"},
             json={
                 "auth_session": auth_session,
