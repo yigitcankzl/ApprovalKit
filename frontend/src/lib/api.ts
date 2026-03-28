@@ -20,8 +20,8 @@ async function fetchAPI(path: string, options?: RequestInit) {
   if (!res.ok) {
     const error = await res.json().catch(() => ({ detail: "Request failed" }));
     const msg = error.detail || `HTTP ${res.status}`;
-    // Redirect to setup if workspace not found for this user
-    if (res.status === 404 && msg.includes("No workspace") && typeof window !== "undefined" && !window.location.pathname.startsWith("/setup") && !window.location.pathname.startsWith("/settings")) {
+    // Redirect to setup if workspace not found — but only if user sub is loaded (avoid race condition)
+    if (res.status === 404 && msg.includes("No workspace") && _userSub && typeof window !== "undefined" && !window.location.pathname.startsWith("/setup") && !window.location.pathname.startsWith("/settings")) {
       window.location.href = "/setup";
       return new Promise(() => {}); // never resolves — page is navigating
     }
