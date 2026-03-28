@@ -9,7 +9,8 @@ import { api } from "@/lib/api";
 import type { DashboardStats } from "@/types";
 import {
   CheckCircle2, XCircle, ShieldOff, Clock, KeyRound, Users,
-  Activity, AlertTriangle, Radio,
+  Activity, AlertTriangle, Radio, ShieldCheck, Gauge, CircleDot,
+  TrendingUp, Zap,
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -24,18 +25,32 @@ interface LiveEvent {
   timestamp: string; exec_note?: string; note?: string;
 }
 
-const EVENT_COLORS: Record<string, string> = {
-  requested: "bg-blue-50 dark:bg-blue-950/300",
-  approved:  "bg-green-50 dark:bg-green-950/300",
-  rejected:  "bg-red-50 dark:bg-red-950/300",
-  blocked:   "bg-orange-500",
-  timeout:   "bg-yellow-500",
-  ciba_sent: "bg-purple-500",
-  step_up_triggered: "bg-yellow-500",
-  step_up: "bg-yellow-500",
-  pre_approved: "bg-emerald-500",
-  partial_approved: "bg-teal-500",
-  escalated: "bg-orange-600",
+const EVENT_BADGE: Record<string, { variant: "success" | "danger" | "warning" | "info" | "default"; }> = {
+  requested:          { variant: "info" },
+  approved:           { variant: "success" },
+  rejected:           { variant: "danger" },
+  blocked:            { variant: "warning" },
+  timeout:            { variant: "warning" },
+  ciba_sent:          { variant: "info" },
+  step_up_triggered:  { variant: "warning" },
+  step_up:            { variant: "warning" },
+  pre_approved:       { variant: "success" },
+  partial_approved:   { variant: "info" },
+  escalated:          { variant: "danger" },
+};
+
+const EVENT_DOT: Record<string, string> = {
+  requested:          "bg-blue-500",
+  approved:           "bg-green-500",
+  rejected:           "bg-red-500",
+  blocked:            "bg-orange-500",
+  timeout:            "bg-yellow-500",
+  ciba_sent:          "bg-purple-500",
+  step_up_triggered:  "bg-yellow-500",
+  step_up:            "bg-yellow-500",
+  pre_approved:       "bg-emerald-500",
+  partial_approved:   "bg-teal-500",
+  escalated:          "bg-orange-600",
 };
 
 export default function DashboardPage() {
@@ -128,128 +143,297 @@ export default function DashboardPage() {
 
   const cibaPercent = Math.round((stats.ciba_usage / stats.ciba_limit) * 100);
 
-  const statCards = [
-    { title: "Total Actions (7d)", value: stats.total_actions_week, icon: Activity,       color: "text-zinc-600 dark:text-zinc-400" },
-    { title: "Approved",           value: stats.approved,           icon: CheckCircle2,   color: "text-green-600" },
-    { title: "Rejected",           value: stats.rejected,           icon: XCircle,        color: "text-red-600" },
-    { title: "Blocked",            value: stats.blocked,            icon: ShieldOff,      color: "text-orange-600" },
-    { title: "Timed Out",          value: stats.timed_out,          icon: Clock,          color: "text-yellow-600" },
-    { title: "Pre-Approvals",      value: stats.active_pre_approvals, icon: KeyRound,     color: "text-blue-600" },
-    { title: "Delegations",        value: stats.active_delegations, icon: Users,          color: "text-purple-600" },
-    { title: "Scope Creep",        value: stats.scope_creep_alerts, icon: AlertTriangle,  color: "text-red-600" },
+  const statCards: {
+    title: string;
+    value: number;
+    icon: typeof Activity;
+    iconColor: string;
+    bg: string;
+    border: string;
+  }[] = [
+    {
+      title: "Total Actions (7d)", value: stats.total_actions_week,
+      icon: TrendingUp, iconColor: "text-indigo-600 dark:text-indigo-400",
+      bg: "bg-indigo-50/60 dark:bg-indigo-950/10",
+      border: "border-indigo-200/60 dark:border-indigo-900/40",
+    },
+    {
+      title: "Approved", value: stats.approved,
+      icon: CheckCircle2, iconColor: "text-green-600 dark:text-green-400",
+      bg: "bg-green-50/60 dark:bg-green-950/10",
+      border: "border-green-200/60 dark:border-green-900/40",
+    },
+    {
+      title: "Rejected", value: stats.rejected,
+      icon: XCircle, iconColor: "text-red-600 dark:text-red-400",
+      bg: "bg-red-50/60 dark:bg-red-950/10",
+      border: "border-red-200/60 dark:border-red-900/40",
+    },
+    {
+      title: "Blocked", value: stats.blocked,
+      icon: ShieldOff, iconColor: "text-orange-600 dark:text-orange-400",
+      bg: "bg-orange-50/60 dark:bg-orange-950/10",
+      border: "border-orange-200/60 dark:border-orange-900/40",
+    },
+    {
+      title: "Timed Out", value: stats.timed_out,
+      icon: Clock, iconColor: "text-yellow-600 dark:text-yellow-400",
+      bg: "bg-yellow-50/60 dark:bg-yellow-950/10",
+      border: "border-yellow-200/60 dark:border-yellow-900/40",
+    },
+    {
+      title: "Pre-Approvals", value: stats.active_pre_approvals,
+      icon: KeyRound, iconColor: "text-blue-600 dark:text-blue-400",
+      bg: "bg-blue-50/60 dark:bg-blue-950/10",
+      border: "border-blue-200/60 dark:border-blue-900/40",
+    },
+    {
+      title: "Delegations", value: stats.active_delegations,
+      icon: Users, iconColor: "text-purple-600 dark:text-purple-400",
+      bg: "bg-purple-50/60 dark:bg-purple-950/10",
+      border: "border-purple-200/60 dark:border-purple-900/40",
+    },
+    {
+      title: "Scope Creep", value: stats.scope_creep_alerts,
+      icon: AlertTriangle, iconColor: "text-rose-600 dark:text-rose-400",
+      bg: "bg-rose-50/60 dark:bg-rose-950/10",
+      border: "border-rose-200/60 dark:border-rose-900/40",
+    },
   ];
 
+  const securityChecks: { label: string; ok: boolean; detail?: string }[] = [
+    { label: "HMAC Request Signing", ok: security?.hmac.ok ?? true, detail: security?.hmac.detail },
+    { label: "Pydantic Validation", ok: true, detail: "Always enforced" },
+    { label: "FGA Access Control", ok: security?.fga.ok ?? false, detail: security?.fga.detail },
+    { label: "Scope Creep Detection", ok: stats.scope_creep_alerts === 0, detail: stats.scope_creep_alerts > 0 ? `${stats.scope_creep_alerts} alerts` : "Clear" },
+    { label: "Auth0 Token Vault", ok: security?.token_vault.ok ?? false, detail: security?.token_vault.detail },
+    { label: "Credentials Isolation", ok: security?.credentials_key.ok ?? false, detail: security?.credentials_key.detail },
+    { label: "Sentry Error Tracking", ok: security?.sentry.ok ?? false, detail: security?.sentry.detail },
+  ];
+
+  const cibaColor = cibaPercent >= 80 ? "red" : cibaPercent >= 50 ? "yellow" : "green";
+  const cibaBarClass = {
+    red: "bg-red-500",
+    yellow: "bg-yellow-500",
+    green: "bg-green-500",
+  }[cibaColor];
+  const cibaTrackGlow = {
+    red: "shadow-[inset_0_0_6px_rgba(239,68,68,0.15)]",
+    yellow: "shadow-[inset_0_0_6px_rgba(234,179,8,0.15)]",
+    green: "shadow-[inset_0_0_6px_rgba(34,197,94,0.15)]",
+  }[cibaColor];
+
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Permission Dashboard</h1>
-        <p className="text-zinc-500 dark:text-zinc-400 mt-1">Workspace overview — access controlled by FGA role</p>
+    <div className="space-y-8">
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-purple-600 to-blue-600 dark:from-indigo-400 dark:via-purple-400 dark:to-blue-400">
+          Permission Dashboard
+        </h1>
+        <p className="text-zinc-500 dark:text-zinc-400 mt-1.5 text-sm">
+          Workspace overview — access controlled by FGA role
+        </p>
       </div>
 
-      {/* Stats grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {statCards.map((stat) => (
-          <Card key={stat.title}>
-            <CardContent className="pt-6">
+      {/* Section: Stats */}
+      <section>
+        <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-3">
+          Activity Summary
+        </p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {statCards.map((stat) => (
+            <div
+              key={stat.title}
+              className={`rounded-xl border ${stat.border} ${stat.bg} p-4 transition-colors`}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                  {stat.title}
+                </span>
+                <stat.icon className={`h-4 w-4 ${stat.iconColor} opacity-70`} />
+              </div>
+              <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 tabular-nums">
+                {stat.value}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Bottom panels */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+        {/* Live Activity Feed — takes up more space */}
+        <section className="lg:col-span-5">
+          <Card className="w-full border-zinc-200/80 dark:border-zinc-800/80">
+            <CardHeader className="pb-0">
               <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-zinc-500 dark:text-zinc-400">{stat.title}</p>
-                  <p className="text-3xl font-bold text-zinc-900 dark:text-zinc-100 mt-1">{stat.value}</p>
-                </div>
-                <stat.icon className={`h-8 w-8 ${stat.color}`} />
+                <CardTitle className="flex items-center gap-2.5 text-base">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
+                  </span>
+                  Live Activity
+                </CardTitle>
+                <span className="text-[10px] font-medium uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+                  Stream
+                </span>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-4">
+              <div className="space-y-1 max-h-[340px] overflow-y-auto pr-1">
+                {events.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-zinc-400 dark:text-zinc-500">
+                    <Radio className="h-6 w-6 mb-2 opacity-40" />
+                    <p className="text-sm">Waiting for events...</p>
+                  </div>
+                ) : (
+                  events.map((ev, i) => {
+                    const badge = EVENT_BADGE[ev.type] ?? { variant: "default" as const };
+                    const dot = EVENT_DOT[ev.type] ?? "bg-zinc-400";
+                    return (
+                      <div
+                        key={`${ev.job_id}-${i}`}
+                        className="group flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
+                      >
+                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dot}`} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">
+                            {ev.connection}<span className="text-zinc-400 dark:text-zinc-500 mx-1">:</span>{ev.action}
+                          </p>
+                          {ev.exec_note && (
+                            <p className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate mt-0.5">
+                              {ev.exec_note}
+                            </p>
+                          )}
+                        </div>
+                        <Badge variant={badge.variant} className="text-[10px] flex-shrink-0">
+                          {ev.type.replace(/_/g, " ")}
+                        </Badge>
+                        <span className="text-[10px] tabular-nums text-zinc-400 dark:text-zinc-500 flex-shrink-0 w-16 text-right">
+                          {new Date(ev.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </CardContent>
           </Card>
-        ))}
-      </div>
+        </section>
 
-      {/* CIBA + Security + Live Feed — items-start so short cards are not stretched to tallest column */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        <Card className="w-full">
-          <CardHeader><CardTitle>CIBA Quota Usage</CardTitle></CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="flex justify-between text-sm">
-                <span className="text-zinc-500 dark:text-zinc-400">{stats.ciba_usage} / {stats.ciba_limit} requests/hour</span>
-                <Badge variant={cibaPercent >= 80 ? "danger" : cibaPercent >= 50 ? "warning" : "success"}>{cibaPercent}%</Badge>
-              </div>
-              <div className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-full h-3">
-                <div className={`h-3 rounded-full transition-all ${cibaPercent >= 80 ? "bg-red-50 dark:bg-red-950/300" : cibaPercent >= 50 ? "bg-yellow-500" : "bg-green-50 dark:bg-green-950/300"}`}
-                  style={{ width: `${Math.min(cibaPercent, 100)}%` }} />
-              </div>
-              <p className="text-xs text-zinc-400">Auth0 allows 500 CIBA requests/hour per tenant. Warning at 80%.</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="w-full">
-          <CardHeader><CardTitle>Security Status</CardTitle></CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <SecurityRow label="HMAC Request Signing" ok={security?.hmac.ok ?? true} detail={security?.hmac.detail} />
-              <SecurityRow label="Pydantic Validation" ok={true} detail="Always enforced" />
-              <SecurityRow label="FGA Access Control" ok={security?.fga.ok ?? false} detail={security?.fga.detail} />
-              <div className="flex items-start justify-between py-2 border-b border-zinc-100 dark:border-zinc-800">
-                <span className="text-sm text-zinc-600 dark:text-zinc-400">Scope Creep Detection</span>
-                <Badge variant={stats.scope_creep_alerts > 0 ? "warning" : "success"}>
-                  {stats.scope_creep_alerts > 0 ? `${stats.scope_creep_alerts} alerts` : "Clear"}
+        {/* Security Status */}
+        <section className="lg:col-span-4">
+          <Card className="w-full border-zinc-200/80 dark:border-zinc-800/80">
+            <CardHeader className="pb-0">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <ShieldCheck className="h-4 w-4 text-green-500" />
+                  Security Status
+                </CardTitle>
+                <Badge
+                  variant={securityChecks.every((c) => c.ok) ? "success" : "warning"}
+                >
+                  {securityChecks.filter((c) => c.ok).length}/{securityChecks.length} Active
                 </Badge>
               </div>
-              <SecurityRow label="Auth0 Token Vault" ok={security?.token_vault.ok ?? false} detail={security?.token_vault.detail} />
-              <SecurityRow
-                label="Credentials Key Isolation"
-                ok={security?.credentials_key.ok ?? false}
-                detail={security?.credentials_key.detail}
-              />
-              <SecurityRow
-                label="Sentry Error Tracking"
-                ok={security?.sentry.ok ?? false}
-                detail={security?.sentry.detail}
-                isLast
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="w-full">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Radio className="h-4 w-4 text-green-500 animate-pulse" /> Live Activity
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {events.length === 0 ? (
-                <p className="text-sm text-zinc-400 text-center py-8">Waiting for events…</p>
-              ) : (
-                events.map((ev, i) => (
-                  <div key={i} className="flex items-center gap-2 text-xs">
-                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${EVENT_COLORS[ev.type] ?? "bg-zinc-400"}`} />
-                    <span className="text-zinc-500 dark:text-zinc-400 font-mono">{ev.connection}:{ev.action}</span>
-                    <Badge variant={ev.type === "approved" ? "success" : ev.type === "rejected" ? "danger" : "default"} className="text-xs">
-                      {ev.type}
-                    </Badge>
-                    <span className="text-zinc-300 dark:text-zinc-600 ml-auto">{new Date(ev.timestamp).toLocaleTimeString()}</span>
+            </CardHeader>
+            <CardContent className="pt-4">
+              <div className="space-y-0.5">
+                {securityChecks.map((check) => (
+                  <div
+                    key={check.label}
+                    className="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
+                  >
+                    {check.ok ? (
+                      <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
+                    ) : (
+                      <XCircle className="h-4 w-4 text-red-400 flex-shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-zinc-700 dark:text-zinc-300">{check.label}</p>
+                      {check.detail && (
+                        <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-0.5 truncate">
+                          {check.detail}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </section>
 
-    </div>
-  );
-}
+        {/* CIBA Quota */}
+        <section className="lg:col-span-3">
+          <Card className="w-full border-zinc-200/80 dark:border-zinc-800/80">
+            <CardHeader className="pb-0">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Gauge className="h-4 w-4 text-indigo-500" />
+                  CIBA Quota
+                </CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-5">
+              <div className="flex flex-col items-center">
+                {/* Circular-ish visual */}
+                <div className="relative w-28 h-28 mb-4">
+                  <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                    <circle
+                      cx="50" cy="50" r="42"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="8"
+                      className="text-zinc-100 dark:text-zinc-800"
+                    />
+                    <circle
+                      cx="50" cy="50" r="42"
+                      fill="none"
+                      strokeWidth="8"
+                      strokeLinecap="round"
+                      strokeDasharray={`${Math.min(cibaPercent, 100) * 2.64} 264`}
+                      className={
+                        cibaPercent >= 80
+                          ? "text-red-500"
+                          : cibaPercent >= 50
+                            ? "text-yellow-500"
+                            : "text-green-500"
+                      }
+                      stroke="currentColor"
+                      style={{ transition: "stroke-dasharray 0.6s ease" }}
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 tabular-nums">
+                      {cibaPercent}%
+                    </span>
+                  </div>
+                </div>
 
-function SecurityRow({ label, ok, detail, isLast = false }: { label: string; ok: boolean; detail?: string; isLast?: boolean }) {
-  return (
-    <div className={`flex items-start justify-between py-2 ${isLast ? "" : "border-b border-zinc-100 dark:border-zinc-800"}`}>
-      <div>
-        <span className="text-sm text-zinc-600 dark:text-zinc-400">{label}</span>
-        {detail && <p className="text-xs text-zinc-400 mt-0.5">{detail}</p>}
+                {/* Linear bar below */}
+                <div className="w-full space-y-2">
+                  <div className="flex justify-between text-xs text-zinc-500 dark:text-zinc-400">
+                    <span>{stats.ciba_usage} used</span>
+                    <span>{stats.ciba_limit} limit</span>
+                  </div>
+                  <div className={`w-full bg-zinc-100 dark:bg-zinc-800 rounded-full h-2 ${cibaTrackGlow}`}>
+                    <div
+                      className={`h-2 rounded-full transition-all duration-500 ${cibaBarClass}`}
+                      style={{ width: `${Math.min(cibaPercent, 100)}%` }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-zinc-400 dark:text-zinc-500 text-center mt-2">
+                    Auth0 allows {stats.ciba_limit} CIBA requests/hour per tenant. Warning at 80%.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+
       </div>
-      <Badge variant={ok ? "success" : "danger"} className="ml-4 flex-shrink-0">{ok ? "Active" : "Inactive"}</Badge>
     </div>
   );
 }

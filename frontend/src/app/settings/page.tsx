@@ -71,9 +71,11 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-2xl">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Settings</h1>
-        <p className="text-zinc-500 dark:text-zinc-400 mt-1">Manage your workspace credentials</p>
+      <div className="mb-12">
+        <h1 className="text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-emerald-500">
+          Settings
+        </h1>
+        <p className="text-zinc-500 dark:text-zinc-400 mt-2 text-sm">Manage your workspace credentials</p>
       </div>
 
       {/* Current status */}

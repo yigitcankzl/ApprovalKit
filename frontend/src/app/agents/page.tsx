@@ -289,9 +289,11 @@ kit.gate("your-connection", "your-action", {"key": "value"})`;
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Agents</h1>
-        <p className="text-zinc-500 dark:text-zinc-400 mt-1">
+      <div className="mb-12">
+        <h1 className="text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-emerald-500">
+          Agents
+        </h1>
+        <p className="text-zinc-500 dark:text-zinc-400 mt-2 text-sm">
           Create agents, get API keys, and test approval flows.
         </p>
       </div>

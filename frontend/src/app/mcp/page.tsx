@@ -61,18 +61,13 @@ export default function MCPPage() {
   return (
     <div className="max-w-3xl mx-auto">
       {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-            <Blocks className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">MCP Server</h1>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              Connect any AI agent to ApprovalKit via Model Context Protocol
-            </p>
-          </div>
-        </div>
+      <div className="mb-12">
+        <h1 className="text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-emerald-500">
+          MCP Server
+        </h1>
+        <p className="text-zinc-500 dark:text-zinc-400 mt-2 text-sm">
+          Connect any AI agent to ApprovalKit via Model Context Protocol
+        </p>
       </div>
 
       {/* What is MCP */}

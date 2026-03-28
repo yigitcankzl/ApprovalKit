@@ -154,13 +154,14 @@ function ApproversContent() {
 
   return (
     <div>
-      <div className="mb-8 flex items-center justify-between">
-
+      <div className="mb-12 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Approvers</h1>
-          <p className="text-zinc-500 dark:text-zinc-400 mt-1">Manage who can approve agent actions</p>
+          <h1 className="text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-emerald-500">
+            Approvers
+          </h1>
+          <p className="text-zinc-500 dark:text-zinc-400 mt-2 text-sm">Manage who can approve agent actions</p>
         </div>
-        <Button onClick={openCreate}>
+        <Button onClick={openCreate} className="shadow-md hover:shadow-lg transition-shadow duration-200">
           <Plus className="h-4 w-4 mr-2" /> Add Approver
         </Button>
       </div>

@@ -108,12 +108,11 @@ export default function DocsPage() {
 
         {/* Header */}
         <div>
-          <div className="flex items-center gap-2 mb-4">
-            <BookOpen className="h-6 w-6 text-zinc-700 dark:text-zinc-300" />
-            <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">Documentation</h1>
-          </div>
-          <p className="text-zinc-500 dark:text-zinc-400 text-lg">
-            Human approval middleware for AI agents — plug in with one decorator.
+          <h1 className="text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-emerald-500 mb-2">
+            Documentation
+          </h1>
+          <p className="text-zinc-500 dark:text-zinc-400 text-sm">
+            Human approval middleware for AI agents — plug in with one line of code.
           </p>
         </div>
 
