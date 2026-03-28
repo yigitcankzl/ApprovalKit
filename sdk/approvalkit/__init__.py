@@ -80,6 +80,68 @@ class ApprovalKit:
         self.timeout = timeout
         self.http_timeout = http_timeout
 
+    @classmethod
+    def from_config(cls, path: str, base_url: str = "http://localhost:8000") -> "ApprovalKit":
+        """
+        Load agent config from a YAML file, bootstrap everything on the server
+        (agent, connections, approvers, rules), and return a ready-to-use kit.
+
+        Usage:
+            kit = ApprovalKit.from_config("approvalkit.yaml")
+            kit.gate("stripe-prod", "charge", {"amount": 349})
+
+        The YAML file should look like:
+
+            agent:
+              name: My Agent
+            connections:
+              - slug: stripe-prod
+                service: stripe
+                actions: [charge, refund]
+            approvers:
+              - name: Manager
+                email: manager@company.com
+                role: manager
+            rules:
+              - name: Large charges
+                connection: stripe-prod
+                action: charge
+                model: specific
+                approvers: [manager]
+        """
+        import yaml
+
+        with open(path) as f:
+            config = yaml.safe_load(f)
+
+        payload = {
+            "agent": config.get("agent", {}),
+            "connections": config.get("connections", []),
+            "approvers": config.get("approvers", []),
+            "rules": config.get("rules", []),
+        }
+
+        r = requests.post(
+            f"{base_url.rstrip('/')}/api/v1/agents/bootstrap",
+            json=payload,
+            timeout=15,
+        )
+        r.raise_for_status()
+        data = r.json()
+
+        api_key = data.get("api_key", "")
+        hmac_secret = data.get("hmac_secret", "")
+        agent_name = config.get("agent", {}).get("name", "agent")
+
+        _log.info(f"Bootstrapped agent '{agent_name}' — {data.get('created', {})}")
+
+        return cls(
+            base_url=base_url,
+            api_key=api_key,
+            hmac_secret=hmac_secret,
+            user_id=agent_name,
+        )
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------

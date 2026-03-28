@@ -106,12 +106,50 @@ kit = ApprovalKit(
     user_id="${agentName}",
 )
 
-# Gate any action — connection and action match your dashboard rules
-@kit.requires_approval(connection="your-connection", action="your-action")
-def do_something(**params):
-    pass  # Token Vault executes after approval
+# One line per action — Token Vault executes after approval
+kit.gate("stripe-prod", "charge", {"amount": 349, "customer": "alice@example.com"})
+kit.gate("gmail-prod", "send_email", {"recipient": "bob@test.com", "subject": "Hello"})
+kit.gate("github-main", "deploy", {"ref": "v2.0", "environment": "production"})`;
 
-do_something(amount=100, recipient="user@example.com")`;
+  const yamlTemplate = `agent:
+  name: ${newAgent?.name || "my-agent"}
+
+connections:
+  - slug: stripe-prod
+    service: stripe
+    actions: [charge, refund]
+  - slug: gmail-prod
+    service: gmail
+    actions: [send_email]
+
+approvers:
+  - name: Manager
+    email: manager@company.com
+    role: manager
+
+rules:
+  - name: Charges over $500
+    connection: stripe-prod
+    action: charge
+    model: specific
+    approvers: [manager]
+    conditions:
+      - field: amount
+        operator: gte
+        value: 500
+  - name: All emails
+    connection: gmail-prod
+    action: send_email
+    model: any_one
+    approvers: [manager]`;
+
+  const fromConfigSnippet = `from approvalkit import ApprovalKit
+
+# One line — bootstraps agent, connections, approvers, rules from YAML
+kit = ApprovalKit.from_config("approvalkit.yaml", base_url="${baseUrl}")
+
+# Then just gate actions
+kit.gate("stripe-prod", "charge", {"amount": 349, "customer": "alice@example.com"})`;
 
   if (loading) {
     return (
@@ -198,6 +236,43 @@ do_something(amount=100, recipient="user@example.com")`;
         <CardContent className="p-5">
           <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-3">Install SDK</h2>
           <CopyBlock code={`pip install "approvalkit @ git+https://github.com/yigitcankzl/ApprovalKit.git#subdirectory=sdk"`} />
+        </CardContent>
+      </Card>
+
+      {/* from_config — zero-config bootstrap */}
+      <Card className="mb-6 border-blue-200 dark:border-blue-800">
+        <CardContent className="p-5 space-y-4">
+          <div>
+            <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-1">Zero-Config Setup</h2>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Define your agent, connections, approvers, and rules in a YAML file.
+              One line bootstraps everything — no dashboard needed.
+            </p>
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">approvalkit.yaml</p>
+              <button
+                onClick={() => {
+                  const blob = new Blob([yamlTemplate], { type: "text/yaml" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = "approvalkit.yaml";
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                className="text-[10px] text-blue-500 hover:text-blue-600 font-medium"
+              >
+                Download template
+              </button>
+            </div>
+            <CopyBlock code={yamlTemplate} />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Your agent code</p>
+            <CopyBlock code={fromConfigSnippet} />
+          </div>
         </CardContent>
       </Card>
 
