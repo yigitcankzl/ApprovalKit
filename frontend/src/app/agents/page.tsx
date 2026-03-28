@@ -296,90 +296,75 @@ kit.gate("your-connection", "your-action", {"key": "value"})`;
         </p>
       </div>
 
-      {/* Create agent */}
+      {/* Create & Connect — collapsible */}
       <Card className="mb-6">
-        <CardContent className="p-5">
-          <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-3">Create Agent</h2>
-          <div className="flex gap-2">
-            <input
-              value={name}
-              onChange={e => setName(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && handleCreate()}
-              placeholder="e.g. shopping-bot, deploy-agent, hr-assistant"
-              className="flex-1 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400"
-            />
-            <Button onClick={() => { handleCreate(); setShowHowTo(true); }} disabled={creating || !name.trim()}>
-              {creating ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <><Plus className="h-4 w-4 mr-1.5" /> Create &amp; Connect</>
-              )}
-            </Button>
-          </div>
-
-          {/* Show key after creation */}
-          {newAgent && (
-            <div className="mt-4 p-4 rounded-xl border border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20 space-y-3">
-              <div className="flex items-start gap-3">
-                <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-sm font-semibold text-green-800 dark:text-green-300">
-                    Agent &ldquo;{newAgent.name}&rdquo; created
-                  </p>
-                  <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
-                    Save this API key — it is shown only once.
-                  </p>
-                </div>
-              </div>
-              <SecretField label="API Key" value={newAgent.api_key} />
-              {hmacSecret && <SecretField label="HMAC Secret" value={hmacSecret} />}
-              <button
-                onClick={() => setNewAgent(null)}
-                className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
-              >
-                Dismiss
-              </button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* How to connect — collapsible */}
-      <div className="mb-6">
         <button
           onClick={() => setShowHowTo(v => !v)}
-          className="flex items-center gap-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 transition-colors w-full"
+          className="w-full flex items-center justify-between p-5 text-left"
         >
-          <Code2 className="h-4 w-4" />
-          <span>How to connect your agent</span>
-          <ChevronDown className={`h-4 w-4 ml-auto transition-transform ${showHowTo ? "rotate-180" : ""}`} />
+          <div className="flex items-center gap-3">
+            <div className="p-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-lg">
+              <Plug className="h-4 w-4 text-zinc-600 dark:text-zinc-400" />
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Create &amp; Connect Agent</h2>
+              <p className="text-xs text-zinc-400">Get an API key and integrate in 3 steps</p>
+            </div>
+          </div>
+          <ChevronDown className={`h-4 w-4 text-zinc-400 transition-transform ${showHowTo ? "rotate-180" : ""}`} />
         </button>
         {showHowTo && (
-          <div className="mt-3 space-y-3">
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">1. Install SDK</p>
-                <CopyBlock code={`pip install "approvalkit @ git+https://github.com/yigitcankzl/ApprovalKit.git#subdirectory=sdk"`} />
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">2. Set environment variables</p>
-                <CopyBlock code={envSnippet} />
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">3. Use in your agent</p>
-                <CopyBlock code={codeSnippet(newAgent?.name || active?.name || "my-agent")} />
-                <p className="text-xs text-zinc-400 mt-2">
-                  Set up rules and connections from the <a href="/rules" className="text-blue-500 hover:underline">Rules</a> and <a href="/connections" className="text-blue-500 hover:underline">Connections</a> pages.
-                </p>
-              </CardContent>
-            </Card>
-          </div>
+          <CardContent className="pt-0 px-5 pb-5 space-y-4 border-t border-zinc-100 dark:border-zinc-800">
+            {/* Create agent */}
+            <div>
+              <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">1. Create agent</p>
+              <div className="flex gap-2">
+                <input
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && handleCreate()}
+                  placeholder="e.g. shopping-bot, deploy-agent, hr-assistant"
+                  className="flex-1 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400"
+                />
+                <Button onClick={handleCreate} disabled={creating || !name.trim()}>
+                  {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="h-4 w-4 mr-1.5" /> Create</>}
+                </Button>
+              </div>
+              {newAgent && (
+                <div className="mt-3 p-3 rounded-xl border border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold text-green-800 dark:text-green-300">
+                        Agent &ldquo;{newAgent.name}&rdquo; created — save this key, shown only once.
+                      </p>
+                    </div>
+                  </div>
+                  <SecretField label="API Key" value={newAgent.api_key} />
+                  {hmacSecret && <SecretField label="HMAC Secret" value={hmacSecret} />}
+                </div>
+              )}
+            </div>
+
+            {/* Install SDK */}
+            <div>
+              <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">2. Install SDK</p>
+              <CopyBlock code={`pip install "approvalkit @ git+https://github.com/yigitcankzl/ApprovalKit.git#subdirectory=sdk"`} />
+            </div>
+
+            {/* Env vars */}
+            <div>
+              <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">3. Set env vars &amp; use</p>
+              <CopyBlock code={envSnippet} />
+              <div className="mt-2" />
+              <CopyBlock code={codeSnippet(newAgent?.name || active?.name || "my-agent")} />
+              <p className="text-xs text-zinc-400 mt-2">
+                Set up rules and connections from the <a href="/rules" className="text-blue-500 hover:underline">Rules</a> and <a href="/connections" className="text-blue-500 hover:underline">Connections</a> pages.
+              </p>
+            </div>
+          </CardContent>
         )}
-      </div>
+      </Card>
 
       {/* Agent list + detail */}
       {agents.length === 0 && !newAgent ? (
