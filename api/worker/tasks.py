@@ -269,10 +269,17 @@ async def _process_job(job_id: str):
                     original_model=rule.model.value,
                     effective_model=rule.step_up_model.value)
 
-        # Get workspace Auth0 credentials for CIBA
+        # Get workspace Auth0 credentials for CIBA (using separate session to avoid transaction conflicts)
         from api.services.workspace_config import get_workspace_config
-        ws_config = await get_workspace_config(job.workspace_id, session)
-        # Store in module-level for _send_ciba to use
+        ws_session = await _get_db_session()
+        try:
+            ws_config = await get_workspace_config(job.workspace_id, ws_session)
+        finally:
+            await ws_session.close()
+            engine2 = ws_session.bind
+            if engine2:
+                await engine2.dispose()
+
         global _current_ws_ciba
         _current_ws_ciba = {
             "domain": ws_config.auth0_domain,
@@ -296,8 +303,11 @@ async def _process_job(job_id: str):
 
         approval_result = await processor(job, rule)
 
-        async with session.begin():
-            result = await session.execute(select(ApprovalJob).where(ApprovalJob.id == uuid.UUID(job_id)))
+        # Use fresh session for post-CIBA DB updates (avoids transaction conflicts)
+        post_session = await _get_db_session()
+        try:
+          async with post_session.begin():
+            result = await post_session.execute(select(ApprovalJob).where(ApprovalJob.id == uuid.UUID(job_id)))
             job = result.scalar_one_or_none()
 
             if approval_result["status"] == "approved":
@@ -313,7 +323,7 @@ async def _process_job(job_id: str):
                     action=job.action,
                     params=job.final_params or job.params,
                     workspace_id=str(job.workspace_id),
-                    db=session,
+                    db=post_session,
                     approver_auth0_id=approver_auth0_id,
                 )
                 exec_note = None
@@ -359,7 +369,7 @@ async def _process_job(job_id: str):
                     note=exec_note,
                     modified_params=mask_params(job.final_params) if params_changed else None,
                 )
-                session.add(audit)
+                post_session.add(audit)
                 await _publish("approved", job, exec_note=exec_note or "")
 
             elif approval_result["status"] == "rejected":
@@ -371,7 +381,7 @@ async def _process_job(job_id: str):
                     workspace_id=job.workspace_id,
                     event_type=AuditEventType.REJECTED,
                 )
-                session.add(audit)
+                post_session.add(audit)
                 await _publish("rejected", job)
 
             elif approval_result["status"] == "timeout":
@@ -385,10 +395,10 @@ async def _process_job(job_id: str):
                         event_type=AuditEventType.ESCALATED,
                         note=f"Escalated to approver {rule.escalate_to}",
                     )
-                    session.add(audit)
+                    post_session.add(audit)
 
                     # Process escalation
-                    escalation_result = await _process_escalation(job, rule, session)
+                    escalation_result = await _process_escalation(job, rule, post_session)
                     if escalation_result["status"] == "approved":
                         job.state = JobState.APPROVED
                         job.completed_at = datetime.utcnow()
@@ -405,9 +415,14 @@ async def _process_job(job_id: str):
                         event_type=AuditEventType.TIMEOUT,
                         note="Timed out — no escalation configured",
                     )
-                    session.add(audit)
+                    post_session.add(audit)
 
-        logger.info(f"Job {job_id} completed with state: {job.state.value}")
+          logger.info(f"Job {job_id} completed with state: {job.state.value}")
+        finally:
+          post_engine = post_session.bind
+          await post_session.close()
+          if post_engine:
+              await post_engine.dispose()
 
     finally:
         engine = session.bind
