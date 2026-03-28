@@ -154,16 +154,16 @@ async def setup_workspace(body: WorkspaceSetupRequest, request: Request, db: Asy
         owner_auth0_sub=user_sub or None,
         auth0_domain=body.auth0_domain,
         auth0_m2m_client_id=body.auth0_m2m_client_id,
-        auth0_m2m_client_secret="vault",      # Marker — real secret in Vault
+        auth0_m2m_client_secret=encrypt_secret(body.auth0_m2m_client_secret) if body.auth0_m2m_client_secret else None,
         auth0_web_client_id=body.auth0_web_client_id,
-        auth0_web_client_secret="vault",      # Marker — real secret in Vault
+        auth0_web_client_secret=encrypt_secret(body.auth0_web_client_secret) if body.auth0_web_client_secret else None,
         auth0_audience=body.auth0_audience,
         auth0_mgmt_api_audience=f"https://{domain}/api/v2/" if domain else None,
         fga_api_url=body.fga_api_url,
         fga_store_id=body.fga_store_id,
         fga_model_id=body.fga_model_id,
         fga_client_id=body.fga_client_id,
-        fga_client_secret="vault",            # Marker — real secret in Vault
+        fga_client_secret=encrypt_secret(body.fga_client_secret) if body.fga_client_secret else None,
     )
     db.add(workspace)
     await db.commit()
