@@ -124,13 +124,20 @@ async def submit_approval_request(
     )
 
     if not rule:
-        # No rule = auto-approve
-        response = ApprovalResponse(
+        # No rule = auto-approve, execute via Token Vault immediately
+        from api.services.token_vault import token_vault_service
+        exec_result = await token_vault_service.execute_action(
+            connection=request.connection,
+            action=request.action,
+            params=request.params,
+            workspace_id=str(workspace.id),
+            db=db,
+        )
+        return ApprovalResponse(
             job_id=str(uuid.uuid4()),
             status="approved",
-            message="No matching rule — auto-approved",
+            message="No matching rule — auto-approved and executed",
         )
-        return response
 
     # Blackout check
     if is_in_blackout(rule):
@@ -275,7 +282,21 @@ async def dashboard_test_request(
 
     rule = await find_matching_rule(workspace.id, body.connection, body.action, body.params, db)
     if not rule:
-        return {"job_id": None, "status": "auto_approved", "message": "No matching rule — would auto-approve"}
+        # Auto-approve: execute via Token Vault immediately
+        from api.services.token_vault import token_vault_service
+        exec_result = await token_vault_service.execute_action(
+            connection=body.connection,
+            action=body.action,
+            params=body.params,
+            workspace_id=str(workspace.id),
+            db=db,
+        )
+        return {
+            "job_id": None,
+            "status": "auto_approved",
+            "message": "No matching rule — auto-approved and executed",
+            "execution": exec_result,
+        }
     if is_in_blackout(rule):
         raise HTTPException(status_code=403, detail="Blackout window active")
 
