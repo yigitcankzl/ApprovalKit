@@ -13,11 +13,12 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  // No tenant cookie — if trying to auth, redirect to login page to enter credentials first
+  // No tenant cookie and no env config — can't use Auth0 SDK
   const isAuthRoute = req.nextUrl.pathname.startsWith("/auth/");
-  if (isAuthRoute && !process.env.AUTH0_DOMAIN) {
+  if (isAuthRoute) {
+    // No way to handle auth without a configured client
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
-  return await auth0.middleware(req);
+  return NextResponse.next();
 }
