@@ -73,7 +73,8 @@ export const auth0: Auth0Client = defaultDomain
 
 export function getAuth0ClientFromCookieValue(cookieValue: string): Auth0Client {
   if (!cookieValue || cookieValue === "default") {
-    return auth0 || buildAuth0Client({ domain: "noop", clientId: "noop", clientSecret: "noop" });
+    if (auth0) return auth0;
+    throw new Error("No tenant cookie and no default Auth0 client");
   }
 
   try {
@@ -82,8 +83,9 @@ export function getAuth0ClientFromCookieValue(cookieValue: string): Auth0Client 
     console.log(`[auth0] Cookie decoded: domain=${config.domain} clientId=${config.clientId ? 'present' : 'MISSING'}`);
 
     if (!config.domain || !config.clientId) {
-      console.warn("[auth0] Cookie missing domain or clientId, falling back to default");
-      return auth0 || buildAuth0Client({ domain: "noop", clientId: "noop", clientSecret: "noop" });
+      console.warn("[auth0] Cookie missing domain or clientId");
+      if (auth0) return auth0;
+      throw new Error("Cookie has no domain/clientId and no default Auth0 client");
     }
 
     const cacheKey = config.domain;
@@ -101,8 +103,9 @@ export function getAuth0ClientFromCookieValue(cookieValue: string): Auth0Client 
     }
 
     return client;
-  } catch {
-    return auth0 || buildAuth0Client({ domain: "noop", clientId: "noop", clientSecret: "noop" });
+  } catch (e) {
+    console.error("[auth0] Cookie decrypt/parse failed:", e);
+    throw e; // Don't silently fall back — bubble up so we know what's wrong
   }
 }
 
@@ -116,7 +119,8 @@ export async function getAuth0ClientFromRequest(): Promise<Auth0Client> {
   } catch {
     // cookies() not available (e.g., during build)
   }
-  return auth0;
+  if (auth0) return auth0;
+  throw new Error("No Auth0 client available — user must login first");
 }
 
 // ── Cookie helpers (for login page) ──────────────────────────────────────────
