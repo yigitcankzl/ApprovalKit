@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import {
-  Copy, Check, Eye, EyeOff, Loader2, CheckCircle2, Plug, Plus,
+  Copy, Check, Eye, EyeOff, Loader2, CheckCircle2, Plug, Plus, FileCode, Terminal,
 } from "lucide-react";
 
 function SecretField({ label, value }: { label: string; value: string }) {
@@ -96,13 +96,12 @@ export default function ConnectPage() {
     setCreating(false);
   };
 
-  const snippet = (agentName: string) =>
-`# Set these env vars first:
-# export APPROVALKIT_URL=${baseUrl}
-# export APPROVALKIT_API_KEY=ak_...
-# export APPROVALKIT_HMAC_SECRET=...
+  const envSnippet = `export APPROVALKIT_URL=${baseUrl}
+export APPROVALKIT_API_KEY=ak_...
+export APPROVALKIT_HMAC_SECRET=...`;
 
-from approvalkit import ApprovalKit
+  const manualSnippet = (agentName: string) =>
+`from approvalkit import ApprovalKit
 import os
 
 kit = ApprovalKit(
@@ -117,7 +116,6 @@ kit.gate("your-connection", "your-action", {"key": "value"})`;
   const yamlTemplate = `agent:
   name: ${newAgent?.name || "my-agent"}
 
-# These get auto-created on first run
 connections:
   - slug: stripe-prod
     service: stripe
@@ -147,13 +145,9 @@ rules:
     model: any_one
     approvers: [manager]`;
 
-  const envSnippet = `export APPROVALKIT_URL=${baseUrl}
-export APPROVALKIT_API_KEY=ak_...      # from step above
-export APPROVALKIT_HMAC_SECRET=...     # from step above`;
-
   const fromConfigSnippet = `from approvalkit import ApprovalKit
 
-kit = ApprovalKit.from_config("approvalkit.yaml")  # reads env vars + bootstraps rules
+kit = ApprovalKit.from_config("approvalkit.yaml")
 
 kit.gate("stripe-prod", "charge", {"amount": 349, "customer": "alice@example.com"})`;
 
@@ -166,7 +160,7 @@ kit.gate("stripe-prod", "charge", {"amount": 349, "customer": "alice@example.com
   }
 
   return (
-    <div className="max-w-2xl">
+    <div>
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
@@ -175,46 +169,16 @@ kit.gate("stripe-prod", "charge", {"amount": 349, "customer": "alice@example.com
           </div>
           <div>
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Connect Your Agent</h1>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">Create an agent, get an API key, paste the snippet.</p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">Two ways to integrate — pick whichever fits your workflow.</p>
           </div>
         </div>
       </div>
 
-      {/* Already created agent — show key + snippet */}
-      {newAgent && (
-        <Card className="mb-6 border-green-200 dark:border-green-800">
-          <CardContent className="p-5 space-y-4">
-            <div className="flex items-start gap-3">
-              <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 shrink-0" />
-              <div>
-                <p className="text-sm font-semibold text-green-800 dark:text-green-300">
-                  Agent &ldquo;{newAgent.name}&rdquo; created
-                </p>
-                <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
-                  Save this API key — it is shown only once.
-                </p>
-              </div>
-            </div>
-            <SecretField label="API Key" value={newAgent.api_key} />
-            {hmacSecret && <SecretField label="HMAC Secret" value={hmacSecret} />}
-            <div>
-              <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Ready-to-use snippet</p>
-              <CopyBlock code={snippet(newAgent.name)} />
-            </div>
-            <button
-              onClick={() => setNewAgent(null)}
-              className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
-            >
-              Dismiss
-            </button>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Create new agent */}
+      {/* Step 0: Create agent + get key */}
       <Card className="mb-6">
         <CardContent className="p-5">
-          <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-3">Create Agent</h2>
+          <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-1">First, create an agent and get your API key</h2>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-3">Each agent gets its own key. You can manage them on the <a href="/agents" className="text-blue-500 hover:underline">Agents</a> page.</p>
           <div className="flex gap-2">
             <input
               value={name}
@@ -231,9 +195,41 @@ kit.gate("stripe-prod", "charge", {"amount": 349, "customer": "alice@example.com
               )}
             </Button>
           </div>
-          <p className="text-xs text-zinc-400 mt-2">
-            Each agent gets its own API key. You can revoke or regenerate keys from the <a href="/agents" className="text-blue-500 hover:underline">Agents</a> page.
-          </p>
+
+          {/* Show key after creation */}
+          {newAgent && (
+            <div className="mt-4 p-4 rounded-xl border border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20 space-y-3">
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-green-800 dark:text-green-300">
+                    Agent &ldquo;{newAgent.name}&rdquo; created
+                  </p>
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
+                    Save this API key — it is shown only once.
+                  </p>
+                </div>
+              </div>
+              <SecretField label="API Key" value={newAgent.api_key} />
+              {hmacSecret && <SecretField label="HMAC Secret" value={hmacSecret} />}
+            </div>
+          )}
+
+          {/* Existing agents */}
+          {agents.length > 0 && !newAgent && (
+            <div className="mt-4 space-y-1.5">
+              <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Your agents</p>
+              {agents.map(a => (
+                <div key={a.id} className="flex items-center justify-between p-2.5 rounded-lg border border-zinc-100 dark:border-zinc-800">
+                  <div className="flex items-center gap-2.5">
+                    <div className={`w-2 h-2 rounded-full ${a.is_active ? "bg-green-500" : "bg-zinc-300"}`} />
+                    <span className="text-sm text-zinc-700 dark:text-zinc-300">{a.name}</span>
+                  </div>
+                  <span className="text-[10px] text-zinc-400 font-mono">{a.id.slice(0, 8)}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -245,71 +241,88 @@ kit.gate("stripe-prod", "charge", {"amount": 349, "customer": "alice@example.com
         </CardContent>
       </Card>
 
-      {/* from_config — zero-config bootstrap */}
-      <Card className="mb-6 border-blue-200 dark:border-blue-800">
-        <CardContent className="p-5 space-y-4">
-          <div>
-            <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-1">Zero-Config Setup</h2>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Define your agent, connections, approvers, and rules in a YAML file.
-              One line bootstraps everything — no dashboard needed.
-            </p>
-          </div>
-          <div>
-            <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Set env vars</p>
-            <CopyBlock code={envSnippet} />
-          </div>
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">approvalkit.yaml</p>
-              <button
-                onClick={() => {
-                  const blob = new Blob([yamlTemplate], { type: "text/yaml" });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = "approvalkit.yaml";
-                  a.click();
-                  URL.revokeObjectURL(url);
-                }}
-                className="text-[10px] text-blue-500 hover:text-blue-600 font-medium"
-              >
-                Download template
-              </button>
-            </div>
-            <CopyBlock code={yamlTemplate} />
-          </div>
-          <div>
-            <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Your agent code</p>
-            <CopyBlock code={fromConfigSnippet} />
-          </div>
-        </CardContent>
-      </Card>
+      {/* Two paths side by side */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
-      {/* Existing agents */}
-      {agents.length > 0 && (
-        <Card>
-          <CardContent className="p-5">
-            <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-3">
-              Your Agents
-            </h2>
-            <div className="space-y-2">
-              {agents.map(a => (
-                <div key={a.id} className="flex items-center justify-between p-3 rounded-lg border border-zinc-200 dark:border-zinc-700">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-2 h-2 rounded-full ${a.is_active ? "bg-green-500" : "bg-zinc-300"}`} />
-                    <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">{a.name}</span>
-                  </div>
-                  <span className="text-[10px] text-zinc-400 font-mono">{a.id.slice(0, 8)}</span>
-                </div>
-              ))}
+        {/* Path A: Manual / inline */}
+        <Card className="border-zinc-300 dark:border-zinc-600">
+          <CardContent className="p-5 space-y-4">
+            <div className="flex items-center gap-2.5">
+              <div className="p-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-lg">
+                <Terminal className="h-4 w-4 text-zinc-600 dark:text-zinc-400" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Manual Setup</h2>
+                <p className="text-xs text-zinc-400">Set env vars, call kit.gate() directly</p>
+              </div>
             </div>
-            <p className="text-xs text-zinc-400 mt-3">
-              Manage keys and permissions on the <a href="/agents" className="text-blue-500 hover:underline">Agents</a> page.
+
+            <div>
+              <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">1. Set env vars</p>
+              <CopyBlock code={envSnippet} />
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">2. Use in your agent</p>
+              <CopyBlock code={manualSnippet(newAgent?.name || "my-agent")} />
+            </div>
+
+            <p className="text-xs text-zinc-400">
+              Create rules and connections from the dashboard.
             </p>
           </CardContent>
         </Card>
-      )}
+
+        {/* Path B: from_config YAML */}
+        <Card className="border-blue-200 dark:border-blue-700">
+          <CardContent className="p-5 space-y-4">
+            <div className="flex items-center gap-2.5">
+              <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                <FileCode className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">YAML Config</h2>
+                <p className="text-xs text-zinc-400">Define everything in a file, bootstrap in one line</p>
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">1. Set env vars (same as manual)</p>
+              <CopyBlock code={envSnippet} />
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">2. Create approvalkit.yaml</p>
+                <button
+                  onClick={() => {
+                    const blob = new Blob([yamlTemplate], { type: "text/yaml" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = "approvalkit.yaml";
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="text-[10px] text-blue-500 hover:text-blue-600 font-medium"
+                >
+                  Download template
+                </button>
+              </div>
+              <CopyBlock code={yamlTemplate} />
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">3. Use in your agent</p>
+              <CopyBlock code={fromConfigSnippet} />
+            </div>
+
+            <p className="text-xs text-zinc-400">
+              Connections, approvers, and rules are auto-created on first run. No dashboard needed.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
