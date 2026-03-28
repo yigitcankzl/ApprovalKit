@@ -246,7 +246,7 @@ function ApproversContent() {
 
 function ApproversList({ approvers, expandedId, setExpandedId, approverName, handleLinkAccount, openEdit, handleDelete, delegatingId, setDelegatingId, delegateTo, setDelegateTo, delegateFrom, setDelegateFrom, delegateUntil, setDelegateUntil, delegateSaving, handleDelegate, loadApprovers, setError }: any) {
   const [showDemo, setShowDemo] = useState(false);
-  const isDemoApprover = (a: Approver) => a.email?.endsWith("@demo.approvalkit.io") || a.email?.endsWith("@medcore-hospital.com");
+  const isDemoApprover = (a: Approver) => a.email?.endsWith("@demo.approvalkit.io");
   const userApprovers = approvers.filter((a: Approver) => !isDemoApprover(a));
   const demoApprovers = approvers.filter((a: Approver) => isDemoApprover(a));
 
