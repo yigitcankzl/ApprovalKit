@@ -246,8 +246,9 @@ function ApproversContent() {
 
 function ApproversList({ approvers, expandedId, setExpandedId, approverName, handleLinkAccount, openEdit, handleDelete, delegatingId, setDelegatingId, delegateTo, setDelegateTo, delegateFrom, setDelegateFrom, delegateUntil, setDelegateUntil, delegateSaving, handleDelegate, loadApprovers, setError }: any) {
   const [showDemo, setShowDemo] = useState(false);
-  const userApprovers = approvers.filter((a: Approver) => !a.auth0_user_id?.startsWith("demo|"));
-  const demoApprovers = approvers.filter((a: Approver) => a.auth0_user_id?.startsWith("demo|"));
+  const isDemoApprover = (a: Approver) => a.email?.endsWith("@demo.approvalkit.io") || a.email?.endsWith("@medcore-hospital.com");
+  const userApprovers = approvers.filter((a: Approver) => !isDemoApprover(a));
+  const demoApprovers = approvers.filter((a: Approver) => isDemoApprover(a));
 
   const renderApprover = (a: Approver) => (
             <Card key={a.id} className="hover:border-zinc-300 dark:border-zinc-600 transition-colors">
