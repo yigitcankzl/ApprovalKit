@@ -509,6 +509,7 @@ function ConnectionsContent() {
               "OAuth & Permissions → Bot Token Scopes → add: chat:write, channels:read, users:read (this also creates the Bot User automatically)",
               "OAuth & Permissions → User Token Scopes → add: identity.basic, identity.email",
               "OAuth & Permissions → Redirect URLs → add: https://" + auth0Domain + "/login/callback",
+              "OAuth & Permissions → scroll to Advanced Token Security → Opt in to Token Rotation → Enable (required for Token Vault refresh tokens)",
               "Basic Information → App Credentials → copy Client ID and Client Secret (click Show to reveal secret)",
               "Auth0 Dashboard → Authentication → Social → Create Connection → Sign in with Slack",
               "Paste Client ID and Client Secret from Slack App",
