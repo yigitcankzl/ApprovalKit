@@ -1048,14 +1048,15 @@ class TokenVaultService:
                         creds = {"api_key": token, "token": token, "access_token": token}
                         logger.info(f"Token Vault: Token Exchange succeeded for {connection}")
                     else:
-                        logger.warning(f"Token Vault: Token Exchange failed for {connection} — user must reconnect")
-                        return {
-                            "success": False,
-                            "reason": "token_exchange_failed",
-                            "error": f"Token Exchange failed for '{connection}' — refresh token expired or revoked. Reconnect via /connections.",
-                            "connection": connection,
-                            "action": action,
-                        }
+                        logger.warning(f"Token Vault: Token Exchange failed for {connection} — trying Management API fallback")
+
+                # Fallback: Management API (get token from identities[])
+                if creds is None and conn_obj.connected_auth0_user_id:
+                    auth0_uid = conn_obj.connected_auth0_user_id
+                    mgmt_token = await self.get_token_from_auth0(provider or service, auth0_uid)
+                    if mgmt_token:
+                        creds = {"api_key": mgmt_token, "token": mgmt_token, "access_token": mgmt_token}
+                        logger.info(f"Token Vault: Management API fallback succeeded for {connection}")
 
                 # Credential Vault: M2M client_credentials (Amadeus, Twilio, AWS, etc.)
                 # Credentials stored ONLY in HashiCorp Vault — never in our DB.
