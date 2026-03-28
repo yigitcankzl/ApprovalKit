@@ -25,6 +25,10 @@ OPERATORS = {
     "in": lambda a, b: a in b,
     "not_in": lambda a, b: a not in b,
     "contains": lambda a, b: b in a,
+    "starts_with": lambda a, b: str(a).startswith(str(b)),
+    "ends_with": lambda a, b: str(a).endswith(str(b)),
+    "regex": lambda a, b: bool(re.search(str(b), str(a))),
+    "between": lambda a, b: b[0] <= a <= b[1] if isinstance(b, (list, tuple)) and len(b) == 2 else False,
 }
 
 
@@ -54,6 +58,12 @@ def evaluate_condition(condition: dict, params: dict) -> bool:
     op = condition.get("operator", "eq")
     expected = condition.get("value")
 
+    # exists/not_exists don't need a value comparison
+    if op == "exists":
+        return _resolve_field(params, field) is not None
+    if op == "not_exists":
+        return _resolve_field(params, field) is None
+
     actual = _resolve_field(params, field)
     if actual is None:
         return False
@@ -63,8 +73,13 @@ def evaluate_condition(condition: dict, params: dict) -> bool:
         return False
 
     try:
+        # Coerce types for numeric comparison
         if isinstance(expected, (int, float)) and isinstance(actual, str):
             actual = type(expected)(actual)
+        # Coerce between values
+        if op == "between" and isinstance(expected, (list, tuple)):
+            if isinstance(actual, str):
+                actual = float(actual)
         return op_func(actual, expected)
     except (TypeError, ValueError):
         return False

@@ -36,9 +36,20 @@ function conditionToText(c: Condition): string {
     lt: "is less than",
     lte: "is at most",
     in: "is in",
+    not_in: "is not in",
     contains: "contains",
+    starts_with: "starts with",
+    ends_with: "ends with",
+    regex: "matches",
+    between: "is between",
+    exists: "exists",
+    not_exists: "does not exist",
   };
-  return `${c.field} ${ops[c.operator] || c.operator} ${c.value}`;
+  if (c.operator === "exists" || c.operator === "not_exists") {
+    return `${c.field} ${ops[c.operator]}`;
+  }
+  const val = Array.isArray(c.value) ? c.value.join(", ") : c.value;
+  return `${c.field} ${ops[c.operator] || c.operator} ${val}`;
 }
 
 export function LivePreview(props: LivePreviewProps) {
