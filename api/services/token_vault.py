@@ -176,6 +176,10 @@ async def _execute_github(action: str, params: dict, creds: dict) -> dict:
 
             workflow = params.get("workflow", "deploy.yml")
             inputs   = params.get("inputs", {})
+            if not inputs:
+                # Auto-map known params to workflow inputs
+                _skip = {"ref", "branch", "workflow", "inputs", "owner", "repo", "environment"}
+                inputs = {k: str(v) for k, v in params.items() if k not in _skip and v is not None}
 
             r = await c.post(
                 f"/repos/{owner}/{repo}/actions/workflows/{workflow}/dispatches",
