@@ -15,7 +15,7 @@ import {
   DoorOpen, ClipboardList, UserCheck, Headphones, Lock, Clock,
   Stethoscope, Pill, Microscope, BookOpen, Award, Coins,
   FileSignature, ShieldCheck, Lightbulb, Wrench, UserSearch,
-  MessageSquare, FileText, Zap, TreePine, Plug, Trash2,
+  MessageSquare, FileText, Zap, TreePine, Plug, Trash2, Info, ChevronDown,
 } from "lucide-react";
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -63,6 +63,7 @@ export default function DemoAgentPage() {
   const [allConnected, setAllConnected] = useState(false);
   const [checkingConns, setCheckingConns] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [resetItems, setResetItems] = useState<{rules: any[]; approvers: any[]; conns: any[]}>({rules: [], approvers: [], conns: []});
   const [selectedRuleIds, setSelectedRuleIds] = useState<Set<string>>(new Set());
@@ -253,10 +254,20 @@ export default function DemoAgentPage() {
             )}
           </div>
         </div>
-        {/* Info banner */}
-        <div className="mt-3 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-zinc-200 dark:border-zinc-700">
-          <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">{agent.description}</p>
-        </div>
+        {/* Info banner — collapsible */}
+        <button
+          onClick={() => setShowInfo(v => !v)}
+          className="mt-3 w-full flex items-center gap-2 text-left text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
+        >
+          <Info className="h-3.5 w-3.5" />
+          <span>About this agent</span>
+          <ChevronDown className={`h-3 w-3 ml-auto transition-transform ${showInfo ? "rotate-180" : ""}`} />
+        </button>
+        {showInfo && (
+          <div className="mt-2 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-zinc-200 dark:border-zinc-700">
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">{agent.description}</p>
+          </div>
+        )}
       </div>
 
       {/* Content based on step */}
