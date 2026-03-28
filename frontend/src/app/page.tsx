@@ -1,233 +1,318 @@
 "use client";
 
 import Link from "next/link";
-import { Shield, ArrowRight, Zap, Lock, Users, GitBranch, FlaskConical, FileText } from "lucide-react";
+import { useState, useEffect } from "react";
+import {
+  Shield, ArrowRight, Lock, Smartphone, CheckCircle2,
+  XCircle, AlertTriangle, CreditCard, Mail, GitBranch,
+  ChevronDown, Zap, Eye, EyeOff, Bot,
+} from "lucide-react";
 
-const features = [
-  {
-    icon: Lock,
-    title: "Token Vault",
-    desc: "Credentials never reach your agent. Auth0 executes the action after approval.",
-  },
-  {
-    icon: Zap,
-    title: "CIBA Push",
-    desc: "Approvers get a Guardian push notification on their phone. One tap to approve or deny.",
-  },
-  {
-    icon: Shield,
-    title: "FGA Access Control",
-    desc: "Fine-grained authorization — admins, approvers, agents each see only what they own.",
-  },
-  {
-    icon: Users,
-    title: "Flexible Approval Models",
-    desc: "Any-one, specific, all-of-n, k-of-n quorum, or sequential chain — pick per rule.",
-  },
-  {
-    icon: GitBranch,
-    title: "Rule Engine",
-    desc: "Blackout windows, cooldown limits, scope creep detection, escalation chains.",
-  },
-  {
-    icon: FlaskConical,
-    title: "Simulation Mode",
-    desc: "Test your rules without sending real notifications. Instant feedback loop.",
-  },
+// ── Animated terminal ────────────────────────────────────────────────────────
+
+function TypedLine({ text, delay, onDone }: { text: string; delay: number; onDone?: () => void }) {
+  const [shown, setShown] = useState(0);
+  const [started, setStarted] = useState(false);
+
+  useEffect(() => {
+    const t1 = setTimeout(() => setStarted(true), delay);
+    return () => clearTimeout(t1);
+  }, [delay]);
+
+  useEffect(() => {
+    if (!started || shown >= text.length) {
+      if (started && shown >= text.length && onDone) onDone();
+      return;
+    }
+    const t = setTimeout(() => setShown(s => s + 1), 18);
+    return () => clearTimeout(t);
+  }, [started, shown, text, onDone]);
+
+  if (!started) return null;
+  return <span>{text.slice(0, shown)}<span className="animate-pulse">|</span></span>;
+}
+
+function LiveDemo() {
+  const [step, setStep] = useState(0);
+
+  const steps = [
+    { type: "agent", text: 'kit.gate("stripe-prod", "charge", {"amount": 8500, "customer": "alice@example.com"})' },
+    { type: "system", text: "Rule matched: [Expense] Large ($5000+) -- step-up to all_of_n" },
+    { type: "system", text: "Guardian push sent to Manager..." },
+    { type: "approve", text: "Manager approved" },
+    { type: "system", text: "Guardian push sent to CFO..." },
+    { type: "approve", text: "CFO approved" },
+    { type: "system", text: "Token Vault: exchanged refresh token for Stripe access token" },
+    { type: "success", text: "Stripe charge $8,500 executed. Agent never saw the token." },
+  ];
+
+  const colors: Record<string, string> = {
+    agent: "text-blue-400",
+    system: "text-zinc-400",
+    approve: "text-green-400",
+    success: "text-emerald-300 font-semibold",
+  };
+
+  const icons: Record<string, React.ReactNode> = {
+    agent: <Bot className="h-3 w-3 text-blue-400 shrink-0 mt-1" />,
+    system: <Zap className="h-3 w-3 text-zinc-500 shrink-0 mt-1" />,
+    approve: <CheckCircle2 className="h-3 w-3 text-green-400 shrink-0 mt-1" />,
+    success: <Shield className="h-3 w-3 text-emerald-400 shrink-0 mt-1" />,
+  };
+
+  return (
+    <div className="rounded-xl overflow-hidden border border-zinc-800 shadow-2xl shadow-black/30">
+      <div className="bg-zinc-900 px-4 py-2.5 flex items-center gap-2">
+        <div className="h-3 w-3 rounded-full bg-red-500/70" />
+        <div className="h-3 w-3 rounded-full bg-yellow-500/70" />
+        <div className="h-3 w-3 rounded-full bg-green-500/70" />
+        <span className="ml-2 text-xs text-zinc-500">approval_flow.py</span>
+      </div>
+      <div className="bg-zinc-950 px-5 py-4 font-mono text-xs leading-relaxed min-h-[220px] space-y-1.5">
+        {steps.slice(0, step + 1).map((s, i) => (
+          <div key={i} className={`flex items-start gap-2 ${colors[s.type]}`}>
+            {icons[s.type]}
+            {i === step ? (
+              <TypedLine
+                text={s.text}
+                delay={i === 0 ? 800 : 200}
+                onDone={() => {
+                  if (step < steps.length - 1) {
+                    setTimeout(() => setStep(st => st + 1), 600);
+                  }
+                }}
+              />
+            ) : (
+              <span>{s.text}</span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Before / After comparison ────────────────────────────────────────────────
+
+function ComparisonCard({ type }: { type: "without" | "with" }) {
+  const isWithout = type === "without";
+  return (
+    <div className={`rounded-xl border p-6 ${
+      isWithout
+        ? "border-red-200 dark:border-red-900 bg-red-50/50 dark:bg-red-950/10"
+        : "border-green-200 dark:border-green-900 bg-green-50/50 dark:bg-green-950/10"
+    }`}>
+      <div className="flex items-center gap-2 mb-4">
+        {isWithout ? (
+          <XCircle className="h-5 w-5 text-red-500" />
+        ) : (
+          <CheckCircle2 className="h-5 w-5 text-green-500" />
+        )}
+        <h3 className={`text-sm font-bold ${isWithout ? "text-red-800 dark:text-red-300" : "text-green-800 dark:text-green-300"}`}>
+          {isWithout ? "Without ApprovalKit" : "With ApprovalKit"}
+        </h3>
+      </div>
+      <ul className="space-y-2.5">
+        {(isWithout ? [
+          { icon: <Eye className="h-3.5 w-3.5" />, text: "Agent holds your Stripe API key in memory" },
+          { icon: <AlertTriangle className="h-3.5 w-3.5" />, text: "Agent can charge any amount, anytime" },
+          { icon: <EyeOff className="h-3.5 w-3.5" />, text: "No audit trail, no way to know what happened" },
+          { icon: <XCircle className="h-3.5 w-3.5" />, text: "Compromised agent = compromised credentials" },
+        ] : [
+          { icon: <Lock className="h-3.5 w-3.5" />, text: "Agent never sees credentials (Token Vault)" },
+          { icon: <Smartphone className="h-3.5 w-3.5" />, text: "You approve on your phone before anything executes" },
+          { icon: <Shield className="h-3.5 w-3.5" />, text: "Step-up: $50 = manager, $5000 = manager + CFO" },
+          { icon: <CheckCircle2 className="h-3.5 w-3.5" />, text: "Full audit trail, PII masked, scope creep alerts" },
+        ]).map((item, i) => (
+          <li key={i} className={`flex items-start gap-2 text-xs ${
+            isWithout ? "text-red-700 dark:text-red-400" : "text-green-700 dark:text-green-400"
+          }`}>
+            <span className="mt-0.5 shrink-0">{item.icon}</span>
+            {item.text}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// ── Supported services ───────────────────────────────────────────────────────
+
+const services = [
+  { name: "Stripe", icon: CreditCard, color: "text-purple-500" },
+  { name: "Gmail", icon: Mail, color: "text-red-500" },
+  { name: "GitHub", icon: GitBranch, color: "text-zinc-700 dark:text-zinc-300" },
+  { name: "Slack", icon: Zap, color: "text-yellow-500" },
+  { name: "Salesforce", icon: Shield, color: "text-blue-500" },
 ];
 
-const steps = [
-  { n: "01", title: "Install the SDK", code: "pip install ./sdk" },
-  { n: "02", title: "Add one decorator", code: "@kit.requires_approval(...)" },
-  { n: "03", title: "Human approves on phone", code: "Auth0 Guardian push →  ✓ Approve" },
-];
-
-function Arrow() {
-  return <span className="text-zinc-300 dark:text-zinc-600 text-lg font-light select-none">→</span>;
-}
-function ArrowLeft() {
-  return <span className="text-zinc-300 dark:text-zinc-600 text-lg font-light select-none">←</span>;
-}
+// ── Main page ────────────────────────────────────────────────────────────────
 
 export default function WelcomePage() {
   return (
     <div className="min-h-screen">
 
       {/* Hero */}
-      <section className="pt-16 pb-20 text-center max-w-3xl mx-auto px-4">
-        <div className="inline-flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-xs font-medium px-3 py-1.5 rounded-full mb-6">
-          <Shield className="h-3.5 w-3.5" />
-          Auth0 Token Vault · CIBA · FGA
-        </div>
+      <section className="pt-12 pb-16 max-w-5xl mx-auto px-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
+          {/* Left: text */}
+          <div>
+            <div className="inline-flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 text-xs font-medium px-3 py-1.5 rounded-full mb-5">
+              Built on Auth0 Token Vault + CIBA + FGA
+            </div>
 
-        <h1 className="text-5xl font-bold text-zinc-900 dark:text-zinc-100 leading-tight tracking-tight mb-6">
-          Human approval middleware
-          <br />
-          <span className="text-zinc-400">for AI agents</span>
-        </h1>
+            <h1 className="text-4xl lg:text-5xl font-bold text-zinc-900 dark:text-zinc-100 leading-[1.1] tracking-tight mb-5">
+              Your AI agent
+              <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-emerald-500">
+                asks before it acts
+              </span>
+            </h1>
 
-        <p className="text-lg text-zinc-500 dark:text-zinc-400 mb-10 leading-relaxed">
-          One decorator. Any agent. Any action.
-          <br />
-          Your agent asks — a human approves — the platform executes.
-          <br />
-          The token <em>never</em> reaches the agent.
-        </p>
+            <p className="text-base text-zinc-500 dark:text-zinc-400 mb-8 leading-relaxed max-w-md">
+              ApprovalKit is a human approval layer for AI agents.
+              One line of code. Push notification to your phone.
+              Approve or deny. Token Vault executes — agent never sees the credentials.
+            </p>
 
-        <div className="flex items-center justify-center gap-4 flex-wrap">
-          <Link
-            href="/dashboard"
-            className="inline-flex items-center gap-2 bg-zinc-900 text-white px-6 py-3 rounded-lg text-sm font-medium hover:bg-zinc-700 transition-colors"
-          >
-            Open Dashboard
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-          <Link
-            href="/docs"
-            className="inline-flex items-center gap-2 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 dark:text-zinc-600 px-6 py-3 rounded-lg text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800 dark:bg-zinc-800/50 transition-colors"
-          >
-            <FileText className="h-4 w-4" />
-            Read the Docs
-          </Link>
+            <div className="flex items-center gap-3 flex-wrap">
+              <Link
+                href="/demos"
+                className="inline-flex items-center gap-2 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 px-5 py-3 rounded-lg text-sm font-semibold hover:bg-zinc-700 dark:hover:bg-zinc-200 transition-colors"
+              >
+                Try a Demo
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+              <Link
+                href="/dashboard"
+                className="inline-flex items-center gap-2 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 px-5 py-3 rounded-lg text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+              >
+                Open Dashboard
+              </Link>
+            </div>
+
+            {/* Service logos */}
+            <div className="flex items-center gap-4 mt-8 pt-6 border-t border-zinc-100 dark:border-zinc-800">
+              <span className="text-[10px] text-zinc-400 uppercase tracking-wider font-semibold">Works with</span>
+              {services.map(s => (
+                <div key={s.name} className="flex items-center gap-1.5" title={s.name}>
+                  <s.icon className={`h-4 w-4 ${s.color}`} />
+                  <span className="text-xs text-zinc-500 dark:text-zinc-400 hidden sm:inline">{s.name}</span>
+                </div>
+              ))}
+              <span className="text-xs text-zinc-400">+ 10 more</span>
+            </div>
+          </div>
+
+          {/* Right: live terminal animation */}
+          <div>
+            <LiveDemo />
+          </div>
         </div>
       </section>
 
-      {/* How it works */}
-      <section className="max-w-3xl mx-auto px-4 mb-20">
-        <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-widest text-center mb-8">
+      {/* Before / After */}
+      <section className="max-w-4xl mx-auto px-4 mb-16">
+        <h2 className="text-center text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-6">
+          Why this matters
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <ComparisonCard type="without" />
+          <ComparisonCard type="with" />
+        </div>
+      </section>
+
+      {/* How it works — visual flow */}
+      <section className="max-w-4xl mx-auto px-4 mb-16">
+        <h2 className="text-center text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-8">
           How it works
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
-          {steps.map((s) => (
-            <div key={s.n} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl p-5">
-              <span className="text-3xl font-bold text-zinc-100">{s.n}</span>
-              <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mt-2 mb-3">{s.title}</p>
-              <code className="text-xs bg-zinc-950 text-green-400 px-3 py-1.5 rounded block font-mono">
-                {s.code}
-              </code>
+        <div className="flex flex-col md:flex-row items-stretch gap-3">
+          {[
+            { n: "1", title: "Agent calls gate()", sub: "One line of code", color: "border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/10", accent: "text-blue-600 dark:text-blue-400" },
+            { n: "2", title: "Rule engine evaluates", sub: "Conditions, step-up, budget", color: "border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900", accent: "text-zinc-700 dark:text-zinc-300" },
+            { n: "3", title: "Guardian push sent", sub: "Approver sees on phone", color: "border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/10", accent: "text-amber-600 dark:text-amber-400" },
+            { n: "4", title: "Human approves", sub: "Or denies / modifies params", color: "border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/10", accent: "text-green-600 dark:text-green-400" },
+            { n: "5", title: "Token Vault executes", sub: "Agent never sees the token", color: "border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/10", accent: "text-emerald-600 dark:text-emerald-400" },
+          ].map((s, i) => (
+            <div key={i} className="flex items-center gap-3 flex-1">
+              <div className={`rounded-xl border p-4 flex-1 ${s.color}`}>
+                <div className={`text-2xl font-bold ${s.accent} opacity-30`}>{s.n}</div>
+                <p className={`text-sm font-semibold ${s.accent} mt-1`}>{s.title}</p>
+                <p className="text-[11px] text-zinc-400 mt-0.5">{s.sub}</p>
+              </div>
+              {i < 4 && <ArrowRight className="h-4 w-4 text-zinc-300 dark:text-zinc-600 shrink-0 hidden md:block" />}
             </div>
           ))}
-        </div>
-
-        {/* Architecture diagram */}
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-2xl p-8">
-          <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest text-center mb-8">Architecture</p>
-          <div className="flex flex-col gap-4">
-            {/* Row 1 */}
-            <div className="flex items-center justify-center gap-2 flex-wrap">
-              <div className="flex items-center gap-1.5 border border-zinc-200 dark:border-zinc-700 rounded-lg px-4 py-2.5 bg-zinc-50 dark:bg-zinc-800/50">
-                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">AI Agent</span>
-                <span className="text-xs text-zinc-400">(Claude, GPT-4)</span>
-              </div>
-              <Arrow />
-              <div className="flex items-center gap-1.5 border border-zinc-200 dark:border-zinc-700 rounded-lg px-4 py-2.5 bg-zinc-50 dark:bg-zinc-800/50">
-                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">ApprovalKit SDK</span>
-              </div>
-              <Arrow />
-              <div className="flex items-center gap-1.5 border border-zinc-900 rounded-lg px-4 py-2.5 bg-zinc-900">
-                <span className="text-sm font-medium text-white">CIBA Push</span>
-                <span className="text-xs text-zinc-400">(Guardian)</span>
-              </div>
-              <Arrow />
-              <div className="flex items-center gap-1.5 border border-zinc-200 dark:border-zinc-700 rounded-lg px-4 py-2.5 bg-zinc-50 dark:bg-zinc-800/50">
-                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Human approves</span>
-              </div>
-            </div>
-            {/* Connector */}
-            <div className="flex justify-end pr-[6.5rem]">
-              <div className="flex flex-col items-center">
-                <div className="w-px h-4 bg-zinc-300" />
-                <span className="text-xs text-zinc-400">approved</span>
-                <div className="w-px h-4 bg-zinc-300" />
-              </div>
-            </div>
-            {/* Row 2 */}
-            <div className="flex items-center justify-end gap-2 flex-wrap">
-              <div className="flex items-center gap-1.5 border border-zinc-200 dark:border-zinc-700 rounded-lg px-4 py-2.5 bg-zinc-50 dark:bg-zinc-800/50">
-                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">GitHub / Stripe API</span>
-              </div>
-              <ArrowLeft />
-              <div className="flex items-center gap-1.5 border-2 border-blue-400 rounded-lg px-4 py-2.5 bg-blue-50 dark:bg-blue-950/30">
-                <span className="text-sm font-medium text-blue-700 dark:text-blue-400">Auth0 Token Vault</span>
-                <span className="text-xs text-blue-400">retrieves token</span>
-              </div>
-            </div>
-          </div>
-          <p className="text-xs text-zinc-400 text-center mt-6">
-            The token <strong>never reaches the agent</strong> — Auth0 Token Vault executes the action server-side after approval.
-          </p>
         </div>
       </section>
 
       {/* Code snippet */}
-      <section className="max-w-2xl mx-auto px-4 mb-20">
-        <div className="rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-700 shadow-sm">
-          <div className="bg-zinc-900 px-4 py-2 flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full bg-red-50 dark:bg-red-950/300/70" />
+      <section className="max-w-2xl mx-auto px-4 mb-16">
+        <h2 className="text-center text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-6">
+          Integration
+        </h2>
+        <div className="rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800 shadow-sm">
+          <div className="bg-zinc-900 px-4 py-2.5 flex items-center gap-2">
+            <div className="h-3 w-3 rounded-full bg-red-500/70" />
             <div className="h-3 w-3 rounded-full bg-yellow-500/70" />
-            <div className="h-3 w-3 rounded-full bg-green-50 dark:bg-green-950/300/70" />
-            <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">shopping_bot.py</span>
+            <div className="h-3 w-3 rounded-full bg-green-500/70" />
+            <span className="ml-2 text-xs text-zinc-500">your_agent.py</span>
           </div>
-          <pre className="bg-zinc-950 text-zinc-100 text-sm font-mono px-6 py-5 overflow-x-auto leading-relaxed">{`from approvalkit import ApprovalKit, ApprovalDenied
+          <pre className="bg-zinc-950 text-zinc-100 text-sm font-mono px-6 py-5 overflow-x-auto leading-relaxed">{`from approvalkit import ApprovalKit
+import os
 
 kit = ApprovalKit(
-    base_url="http://localhost:8000",
-    api_key="...",
-    hmac_secret="...",
+    base_url=os.environ["APPROVALKIT_URL"],
+    api_key=os.environ["APPROVALKIT_API_KEY"],
+    hmac_secret=os.environ["APPROVALKIT_HMAC_SECRET"],
 )
 
-# Add one decorator — everything else stays the same
-@kit.requires_approval(connection="stripe-prod", action="charge")
-def charge_customer(amount: int, customer: str):
-    stripe.charge(amount=amount, customer=customer)
-
-# Bot calls it normally — ApprovalKit handles the rest
-charge_customer(349, "alice@example.com")
-# → push sent to approver's phone
-# → human taps Approve
-# → function executes`}</pre>
+# That's it. One line per action.
+kit.gate("stripe-prod", "charge", {"amount": 349, "customer": "alice@example.com"})
+kit.gate("gmail-prod", "send_email", {"to": "bob@test.com", "subject": "Invoice"})
+kit.gate("github-main", "deploy", {"ref": "v2.0", "env": "production"})`}</pre>
         </div>
       </section>
 
-      {/* Features grid */}
-      <section className="max-w-4xl mx-auto px-4 mb-20">
-        <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-widest text-center mb-8">
-          Everything you need
+      {/* Features — compact */}
+      <section className="max-w-4xl mx-auto px-4 mb-16">
+        <h2 className="text-center text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-8">
+          Built for production
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {features.map((f) => (
-            <div key={f.title} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl p-5 hover:border-zinc-300 transition-colors">
-              <f.icon className="h-5 w-5 text-zinc-700 dark:text-zinc-300 dark:text-zinc-600 mb-3" />
-              <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-1">{f.title}</p>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">{f.desc}</p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[
+            { title: "5 Approval Models", sub: "any-one, specific, sequential, all-of-n, k-of-n" },
+            { title: "Step-up Auth", sub: "Auto-escalate based on amount, type, risk" },
+            { title: "Scope Creep Detection", sub: "Alerts on new actions or 3x amount anomaly" },
+            { title: "Budget Limits", sub: "Daily, weekly, monthly spend caps per agent" },
+            { title: "Blackout Windows", sub: "Block actions during off-hours" },
+            { title: "Partial Approval", sub: "Approver can modify params before approving" },
+            { title: "Delegation", sub: "Out of office? Route to backup approver" },
+            { title: "PII Masking", sub: "Emails and names masked in audit logs" },
+          ].map(f => (
+            <div key={f.title} className="rounded-xl border border-zinc-200 dark:border-zinc-700 p-4 bg-white dark:bg-zinc-900">
+              <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">{f.title}</p>
+              <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">{f.sub}</p>
             </div>
           ))}
         </div>
       </section>
 
       {/* CTA */}
-      <section className="max-w-xl mx-auto px-4 pb-20 text-center">
-        <div className="bg-zinc-900 rounded-2xl p-10">
-          <h2 className="text-2xl font-bold text-white mb-3">Ready to integrate?</h2>
+      <section className="max-w-xl mx-auto px-4 pb-16 text-center">
+        <div className="bg-gradient-to-br from-zinc-900 to-zinc-800 dark:from-zinc-800 dark:to-zinc-900 rounded-2xl p-10 border border-zinc-700">
+          <h2 className="text-2xl font-bold text-white mb-2">See it in action</h2>
           <p className="text-zinc-400 text-sm mb-6">
-            Set up in minutes. Works with any Python agent or framework.
+            Try the demo agents — run scenarios, approve from the web, see Token Vault execute.
           </p>
-          <div className="flex items-center justify-center gap-3 flex-wrap">
-            <Link
-              href="/login"
-              className="inline-flex items-center gap-2 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-zinc-100 dark:bg-zinc-800 transition-colors"
-            >
-              Get Started
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link
-              href="/docs"
-              className="inline-flex items-center gap-2 border border-zinc-700 text-zinc-300 dark:text-zinc-600 px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors"
-            >
-              <FileText className="h-4 w-4" />
-              Documentation
-            </Link>
-          </div>
+          <Link
+            href="/demos"
+            className="inline-flex items-center gap-2 bg-white text-zinc-900 px-6 py-3 rounded-lg text-sm font-semibold hover:bg-zinc-100 transition-colors"
+          >
+            Try Demo Agents
+            <ArrowRight className="h-4 w-4" />
+          </Link>
         </div>
       </section>
 
