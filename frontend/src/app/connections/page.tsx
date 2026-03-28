@@ -508,7 +508,7 @@ function ConnectionsContent() {
               "Go to api.slack.com/apps → Create New App → From scratch → name it and select your workspace",
               "OAuth & Permissions → Bot Token Scopes → add: chat:write, channels:read, users:read (this also creates the Bot User automatically)",
               "OAuth & Permissions → User Token Scopes → add: identity.basic, identity.email",
-              "OAuth & Permissions → Redirect URLs → add the redirect URL shown below",
+              "OAuth & Permissions → Redirect URLs → add: https://" + auth0Domain + "/login/callback",
               "Basic Information → App Credentials → copy Client ID and Client Secret (click Show to reveal secret)",
               "Auth0 Dashboard → Authentication → Social → Create Connection → Sign in with Slack",
               "Paste Client ID and Client Secret from Slack App",
@@ -630,15 +630,6 @@ function ConnectionsContent() {
                     </div>
                   )}
 
-                  <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-4">
-                    <div className="text-[10px] text-blue-500 font-semibold uppercase tracking-wider mb-1">Service Provider Redirect URL</div>
-                    <p className="text-[10px] text-blue-400 mb-1">
-                      Add this to the service&apos;s OAuth redirect URLs (e.g. Slack App → OAuth &amp; Permissions → Redirect URLs):
-                    </p>
-                    <code className="block text-[10px] text-blue-700 dark:text-blue-300 break-all">
-                      {`https://${auth0Domain}/login/callback`}
-                    </code>
-                  </div>
 
                   <div className="flex gap-2">
                     <a href={guide.provider_url} target="_blank" rel="noopener noreferrer"
