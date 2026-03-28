@@ -5,7 +5,7 @@ export type JobState = "pending" | "ciba_sent" | "waiting_approval" | "partially
 export interface Condition {
   field: string;
   operator: string;
-  value: string | number | boolean;
+  value: string | number | boolean | (string | number)[];
 }
 
 export interface Rule {

@@ -18,7 +18,8 @@ const operators = [
   { value: "gte", label: ">=" },
   { value: "lt", label: "<" },
   { value: "lte", label: "<=" },
-  { value: "in", label: "in" },
+  { value: "in", label: "in list" },
+  { value: "not_in", label: "not in list" },
   { value: "contains", label: "contains" },
 ];
 
@@ -44,7 +45,7 @@ export function ConditionBuilder({ conditions, onChange }: ConditionBuilderProps
         <div key={index} className="flex items-center gap-2">
           {index > 0 && <span className="text-xs font-medium text-zinc-400 w-8">AND</span>}
           <Input
-            placeholder="field (e.g. amount)"
+            placeholder="e.g. amount, type, role, billing.country"
             value={condition.field}
             onChange={(e) => updateCondition(index, { field: e.target.value })}
             className="flex-1"
@@ -52,7 +53,7 @@ export function ConditionBuilder({ conditions, onChange }: ConditionBuilderProps
           <Select
             value={condition.operator}
             onChange={(e) => updateCondition(index, { operator: e.target.value })}
-            className="w-32"
+            className="w-36"
           >
             {operators.map((op) => (
               <option key={op.value} value={op.value}>
@@ -61,12 +62,30 @@ export function ConditionBuilder({ conditions, onChange }: ConditionBuilderProps
             ))}
           </Select>
           <Input
-            placeholder="value"
+            placeholder={
+              condition.operator === "in" || condition.operator === "not_in"
+                ? "admin, superadmin"
+                : "500, urgent, true, etc."
+            }
             value={String(condition.value)}
             onChange={(e) => {
               const val = e.target.value;
+              // Parse comma-separated lists for in/not_in
+              if (condition.operator === "in" || condition.operator === "not_in") {
+                const items = val.split(",").map(s => {
+                  const trimmed = s.trim();
+                  const num = Number(trimmed);
+                  return trimmed === "" ? trimmed : isNaN(num) ? trimmed : num;
+                }).filter(s => s !== "");
+                updateCondition(index, { value: items.length > 0 ? items : val });
+                return;
+              }
+              // Boolean
+              if (val === "true") { updateCondition(index, { value: true }); return; }
+              if (val === "false") { updateCondition(index, { value: false }); return; }
+              // Number or string
               const numVal = Number(val);
-              updateCondition(index, { value: isNaN(numVal) ? val : numVal });
+              updateCondition(index, { value: val === "" ? "" : isNaN(numVal) ? val : numVal });
             }}
             className="flex-1"
           />
