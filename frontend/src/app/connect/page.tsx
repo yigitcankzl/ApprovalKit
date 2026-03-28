@@ -96,20 +96,23 @@ export default function ConnectPage() {
     setCreating(false);
   };
 
-  const snippet = (apiKey: string, agentName: string) =>
-`from approvalkit import ApprovalKit
+  const snippet = (agentName: string) =>
+`# Set these env vars first:
+# export APPROVALKIT_URL=${baseUrl}
+# export APPROVALKIT_API_KEY=ak_...
+# export APPROVALKIT_HMAC_SECRET=...
+
+from approvalkit import ApprovalKit
+import os
 
 kit = ApprovalKit(
-    base_url="${baseUrl}",
-    api_key="${apiKey}",
-    hmac_secret="${hmacSecret || "YOUR_HMAC_SECRET"}",
+    base_url=os.environ["APPROVALKIT_URL"],
+    api_key=os.environ["APPROVALKIT_API_KEY"],
+    hmac_secret=os.environ["APPROVALKIT_HMAC_SECRET"],
     user_id="${agentName}",
 )
 
-# One line per action — Token Vault executes after approval
-kit.gate("stripe-prod", "charge", {"amount": 349, "customer": "alice@example.com"})
-kit.gate("gmail-prod", "send_email", {"recipient": "bob@test.com", "subject": "Hello"})
-kit.gate("github-main", "deploy", {"ref": "v2.0", "environment": "production"})`;
+kit.gate("your-connection", "your-action", {"key": "value"})`;
 
   const yamlTemplate = `agent:
   name: ${newAgent?.name || "my-agent"}
@@ -196,7 +199,7 @@ kit.gate("stripe-prod", "charge", {"amount": 349, "customer": "alice@example.com
             {hmacSecret && <SecretField label="HMAC Secret" value={hmacSecret} />}
             <div>
               <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Ready-to-use snippet</p>
-              <CopyBlock code={snippet(newAgent.api_key, newAgent.name)} />
+              <CopyBlock code={snippet(newAgent.name)} />
             </div>
             <button
               onClick={() => setNewAgent(null)}
