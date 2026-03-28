@@ -336,6 +336,32 @@ async def _process_job(job_id: str):
                     exec_note = f"execution_failed: {exec_result.get('error', 'unknown')}"
                 logger.info(f"Token Vault result for job {job_id}: {exec_result}")
 
+                # Execute on_approve_actions (post-approval Token Vault calls)
+                if rule.on_approve_actions:
+                    job_params = job.final_params or job.params
+                    for i, post_action in enumerate(rule.on_approve_actions):
+                        try:
+                            # Render template params: replace {{key}} with job params
+                            rendered_params = {}
+                            for k, v in post_action.get("params", {}).items():
+                                if isinstance(v, str) and "{{" in v:
+                                    for pk, pv in job_params.items():
+                                        v = v.replace(f"{{{{{pk}}}}}", str(pv))
+                                rendered_params[k] = v
+
+                            pa_result = await token_vault_service.execute_action(
+                                connection=post_action["connection"],
+                                action=post_action["action"],
+                                params=rendered_params,
+                                workspace_id=str(job.workspace_id),
+                                db=post_session,
+                            )
+                            logger.info(f"on_approve_action[{i}] {post_action['connection']}/{post_action['action']}: {pa_result.get('success', False)}")
+                            if exec_note and pa_result.get("success"):
+                                exec_note += f" + {post_action['connection']}/{post_action['action']}"
+                        except Exception as e:
+                            logger.warning(f"on_approve_action[{i}] failed: {e}")
+
                 # Record spending for budget tracking
                 if exec_result.get("success"):
                     from api.services.rule_engine import record_spending

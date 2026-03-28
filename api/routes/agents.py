@@ -256,6 +256,7 @@ class BootstrapRule(BaseModel):
     step_up_model: str | None = None
     on_timeout: str | None = None
     escalate_to: str | None = None
+    on_approve_actions: list[dict] | None = None  # [{connection, action, params}]
     blackout_start: str | None = None
     blackout_end: str | None = None
 
@@ -417,6 +418,8 @@ async def bootstrap_agent(
             rule.on_timeout = "escalate"
             if rule_in.escalate_to and rule_in.escalate_to in approver_map:
                 rule.escalate_to = approver_map[rule_in.escalate_to]
+        if rule_in.on_approve_actions:
+            rule.on_approve_actions = rule_in.on_approve_actions
 
         db.add(rule)
         await db.flush()

@@ -51,6 +51,9 @@ class Rule(Base):
     # Structured checklist items the approver must confirm before approving
     # e.g. [{"id": "amount", "label": "I verified the charge amount"}, ...]
     approval_checklist: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # Actions to execute via Token Vault after approval
+    # e.g. [{"connection": "gmail-prod", "action": "send_email", "params": {"to": "...", "subject": "..."}}]
+    on_approve_actions: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     priority: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
