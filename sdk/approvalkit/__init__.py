@@ -81,17 +81,17 @@ class ApprovalKit:
         self.http_timeout = http_timeout
 
     @classmethod
-    def from_config(cls, path: str, base_url: str = "http://localhost:8000") -> "ApprovalKit":
+    def from_config(cls, path: str) -> "ApprovalKit":
         """
-        Load agent config from a YAML file, bootstrap everything on the server
-        (agent, connections, approvers, rules), and return a ready-to-use kit.
+        Load rules from a YAML file, credentials from environment variables.
+        Bootstraps connections, approvers, and rules on the server if defined.
 
-        Usage:
-            kit = ApprovalKit.from_config("approvalkit.yaml")
-            kit.gate("stripe-prod", "charge", {"amount": 349})
+        Environment variables:
+            APPROVALKIT_URL         (default: http://localhost:8000)
+            APPROVALKIT_API_KEY     (required)
+            APPROVALKIT_HMAC_SECRET (required)
 
-        The YAML file should look like:
-
+        YAML file defines agent config + rules:
             agent:
               name: My Agent
             connections:
@@ -109,38 +109,52 @@ class ApprovalKit:
                 model: specific
                 approvers: [manager]
         """
+        import os
         import yaml
 
         with open(path) as f:
             config = yaml.safe_load(f)
 
-        payload = {
-            "agent": config.get("agent", {}),
-            "connections": config.get("connections", []),
-            "approvers": config.get("approvers", []),
-            "rules": config.get("rules", []),
-        }
+        base_url = os.environ.get("APPROVALKIT_URL", "http://localhost:8000").rstrip("/")
+        api_key = os.environ.get("APPROVALKIT_API_KEY", "")
+        hmac_secret = os.environ.get("APPROVALKIT_HMAC_SECRET", "")
 
-        r = requests.post(
-            f"{base_url.rstrip('/')}/api/v1/agents/bootstrap",
-            json=payload,
-            timeout=15,
-        )
-        r.raise_for_status()
-        data = r.json()
+        if not api_key:
+            raise RuntimeError("APPROVALKIT_API_KEY environment variable is required")
 
-        api_key = data.get("api_key", "")
-        hmac_secret = data.get("hmac_secret", "")
         agent_name = config.get("agent", {}).get("name", "agent")
 
-        _log.info(f"Bootstrapped agent '{agent_name}' — {data.get('created', {})}")
-
-        return cls(
+        kit = cls(
             base_url=base_url,
             api_key=api_key,
             hmac_secret=hmac_secret,
             user_id=agent_name,
         )
+
+        # Bootstrap connections/approvers/rules if defined in YAML
+        has_bootstrap = any(config.get(k) for k in ("connections", "approvers", "rules"))
+        if has_bootstrap:
+            payload = {
+                "agent": config.get("agent", {"name": agent_name}),
+                "connections": config.get("connections", []),
+                "approvers": config.get("approvers", []),
+                "rules": config.get("rules", []),
+            }
+            body = json.dumps(payload, separators=(",", ":"))
+            ts, sig = kit._sign(body)
+            r = requests.post(
+                f"{base_url}/api/v1/agents/bootstrap",
+                data=body,
+                headers=kit._headers(ts, sig),
+                timeout=15,
+            )
+            if r.ok:
+                data = r.json()
+                _log.info(f"Bootstrapped: {data.get('created', {})}")
+            else:
+                _log.warning(f"Bootstrap failed ({r.status_code}): {r.text[:200]}")
+
+        return kit
 
     # ------------------------------------------------------------------
     # Internal helpers

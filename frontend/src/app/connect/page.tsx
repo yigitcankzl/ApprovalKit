@@ -114,6 +114,7 @@ kit.gate("github-main", "deploy", {"ref": "v2.0", "environment": "production"})`
   const yamlTemplate = `agent:
   name: ${newAgent?.name || "my-agent"}
 
+# These get auto-created on first run
 connections:
   - slug: stripe-prod
     service: stripe
@@ -143,12 +144,14 @@ rules:
     model: any_one
     approvers: [manager]`;
 
+  const envSnippet = `export APPROVALKIT_URL=${baseUrl}
+export APPROVALKIT_API_KEY=ak_...      # from step above
+export APPROVALKIT_HMAC_SECRET=...     # from step above`;
+
   const fromConfigSnippet = `from approvalkit import ApprovalKit
 
-# One line — bootstraps agent, connections, approvers, rules from YAML
-kit = ApprovalKit.from_config("approvalkit.yaml", base_url="${baseUrl}")
+kit = ApprovalKit.from_config("approvalkit.yaml")  # reads env vars + bootstraps rules
 
-# Then just gate actions
 kit.gate("stripe-prod", "charge", {"amount": 349, "customer": "alice@example.com"})`;
 
   if (loading) {
@@ -248,6 +251,10 @@ kit.gate("stripe-prod", "charge", {"amount": 349, "customer": "alice@example.com
               Define your agent, connections, approvers, and rules in a YAML file.
               One line bootstraps everything — no dashboard needed.
             </p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Set env vars</p>
+            <CopyBlock code={envSnippet} />
           </div>
           <div>
             <div className="flex items-center justify-between mb-2">
