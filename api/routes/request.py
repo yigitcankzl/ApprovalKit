@@ -14,6 +14,7 @@ from api.middleware.auth import verify_hmac_signature
 from api.models.workspace import Workspace
 from api.models.approval_job import ApprovalJob, AuditLog, AuditEventType, JobState
 from api.models.connection import ServiceConnection
+from api.models.agent import RegisteredAgent
 from api.constants import REDIS_KEY_IDEMPOTENCY
 from api.middleware.workspace import get_current_workspace
 from api.services.pii import mask_text, mask_params
@@ -53,8 +54,29 @@ async def submit_approval_request(
     db: AsyncSession = Depends(get_db),
     redis_client: aioredis.Redis = Depends(get_redis),
 ):
-    # Dynamic action scoping: enforce agent's allowed_connections
+    # Auto-discover agent: if request comes with a user_id but no registered agent,
+    # create one automatically so it appears in the dashboard.
     agent = getattr(raw_request.state, "agent", None)
+    if not agent and request.user_id:
+        existing = await db.execute(
+            select(RegisteredAgent).where(
+                RegisteredAgent.workspace_id == workspace.id,
+                RegisteredAgent.name == request.user_id,
+            )
+        )
+        agent = existing.scalar_one_or_none()
+        if not agent:
+            agent = RegisteredAgent(
+                workspace_id=workspace.id,
+                name=request.user_id,
+                description=f"Auto-discovered from first request ({request.connection}/{request.action})",
+                icon="bot",
+                is_active=True,
+            )
+            db.add(agent)
+            await db.flush()
+
+    # Dynamic action scoping: enforce agent's allowed_connections
     if agent and agent.allowed_connections:
         allowed = agent.allowed_connections
         if isinstance(allowed, list) and request.connection not in allowed:
@@ -125,6 +147,7 @@ async def submit_approval_request(
 
     if not rule:
         # No rule = auto-approve, execute via Token Vault immediately
+        await db.commit()  # persist auto-discovered agent (if created above)
         from api.services.token_vault import token_vault_service
         exec_result = await token_vault_service.execute_action(
             connection=request.connection,
