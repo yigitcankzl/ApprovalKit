@@ -1,124 +1,19 @@
 import { Auth0Client } from "@auth0/nextjs-auth0/server";
-import { cookies } from "next/headers";
 
-// ── Cookie encoding (base64 — httpOnly cookie, no client-side access) ───────
-
-const COOKIE_NAME = "ak_tenant";
 const SECRET = process.env.AUTH0_SECRET || "approvalkit-dev-secret";
 
-function encrypt(data: string): string {
-  return btoa(data);
-}
-
-function decrypt(data: string): string {
-  try {
-    return atob(data);
-  } catch {
-    // Try legacy encrypted format — decode will fail, return empty
-    return "";
-  }
-}
-
-// ── Tenant Config Type ───────────────────────────────────────────────────────
-
-export interface TenantConfig {
-  domain: string;
-  clientId: string;
-  clientSecret: string;
-  m2mClientId?: string;
-  m2mClientSecret?: string;
-}
-
-// ── Auth0 Client Cache ───────────────────────────────────────────────────────
-
-const clientCache = new Map<string, Auth0Client>();
-
-function buildAuth0Client(config: TenantConfig): Auth0Client {
-  return new Auth0Client({
-    domain: config.domain,
-    clientId: config.clientId,
-    clientSecret: config.clientSecret,
-    appBaseUrl: process.env.AUTH0_BASE_URL || "http://localhost:3000",
-    secret: SECRET,
-    authorizationParameters: {
-      audience: `https://${config.domain}/me/`,
-      scope: "openid profile email offline_access create:me:connected_accounts read:me:connected_accounts delete:me:connected_accounts",
-    },
-  });
-}
-
-// ── Default client (from env — used as fallback when no tenant cookie) ──────
-
-const defaultDomain = process.env.AUTH0_DOMAIN || process.env.NEXT_PUBLIC_AUTH0_DOMAIN || "";
-const defaultConfig: TenantConfig = {
-  domain: defaultDomain,
-  clientId: process.env.AUTH0_CLIENT_ID || "",
-  clientSecret: process.env.AUTH0_CLIENT_SECRET || "",
-};
-
-// Only build if env vars are actually set — otherwise defer to cookie-based client
-export const auth0: Auth0Client = defaultDomain
-  ? buildAuth0Client(defaultConfig)
-  : (null as unknown as Auth0Client);
-
-// ── Dynamic client from cookie ───────────────────────────────────────────────
-
-export function getAuth0ClientFromCookieValue(cookieValue: string): Auth0Client {
-  if (!cookieValue || cookieValue === "default") {
-    if (auth0) return auth0;
-    throw new Error("No tenant cookie and no default Auth0 client");
-  }
-
-  try {
-    const json = decrypt(cookieValue);
-    const config: TenantConfig = JSON.parse(json);
-    console.log(`[auth0] Cookie decoded: domain=${config.domain} clientId=${config.clientId ? 'present' : 'MISSING'}`);
-
-    if (!config.domain || !config.clientId) {
-      console.warn("[auth0] Cookie missing domain or clientId");
-      if (auth0) return auth0;
-      throw new Error("Cookie has no domain/clientId and no default Auth0 client");
-    }
-
-    const cacheKey = config.domain;
-    if (clientCache.has(cacheKey)) {
-      return clientCache.get(cacheKey)!;
-    }
-
-    const client = buildAuth0Client(config);
-    clientCache.set(cacheKey, client);
-
-    // Evict old entries
-    if (clientCache.size > 50) {
-      const first = clientCache.keys().next().value;
-      if (first) clientCache.delete(first);
-    }
-
-    return client;
-  } catch (e) {
-    console.error("[auth0] Cookie decrypt/parse failed:", e);
-    throw e; // Don't silently fall back — bubble up so we know what's wrong
-  }
-}
+export const auth0 = new Auth0Client({
+  domain: process.env.AUTH0_DOMAIN!,
+  clientId: process.env.AUTH0_CLIENT_ID!,
+  clientSecret: process.env.AUTH0_CLIENT_SECRET!,
+  appBaseUrl: process.env.AUTH0_BASE_URL || "http://localhost:3000",
+  secret: SECRET,
+  authorizationParameters: {
+    audience: `https://${process.env.AUTH0_DOMAIN}/me/`,
+    scope: "openid profile email offline_access create:me:connected_accounts read:me:connected_accounts delete:me:connected_accounts",
+  },
+});
 
 export async function getAuth0ClientFromRequest(): Promise<Auth0Client> {
-  try {
-    const cookieStore = await cookies();
-    const tenantCookie = cookieStore.get(COOKIE_NAME)?.value;
-    if (tenantCookie) {
-      return getAuth0ClientFromCookieValue(tenantCookie);
-    }
-  } catch {
-    // cookies() not available (e.g., during build)
-  }
-  if (auth0) return auth0;
-  throw new Error("No Auth0 client available — user must login first");
+  return auth0;
 }
-
-// ── Cookie helpers (for login page) ──────────────────────────────────────────
-
-export function encryptTenantConfig(config: TenantConfig): string {
-  return encrypt(JSON.stringify(config));
-}
-
-export { COOKIE_NAME, defaultConfig };
