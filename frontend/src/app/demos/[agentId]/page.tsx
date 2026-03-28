@@ -234,7 +234,6 @@ export default function DemoAgentPage() {
                 <h1 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">{agent.title}</h1>
                 <Badge className={`text-[10px] ${catColor}`}>{agent.categoryLabel}</Badge>
               </div>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 max-w-xl truncate">{agent.description}</p>
             </div>
           </div>
 
@@ -253,6 +252,10 @@ export default function DemoAgentPage() {
               </button>
             )}
           </div>
+        </div>
+        {/* Info banner */}
+        <div className="mt-3 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-zinc-200 dark:border-zinc-700">
+          <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">{agent.description}</p>
         </div>
       </div>
 
