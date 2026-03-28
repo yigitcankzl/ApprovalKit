@@ -55,13 +55,13 @@ function buildAuth0Client(config: TenantConfig): Auth0Client {
   });
 }
 
-// ── Default client (from .env) ───────────────────────────────────────────────
+// ── Default client (placeholder — real config comes from cookie) ─────────────
 
-const defaultDomain = process.env.AUTH0_DOMAIN || process.env.NEXT_PUBLIC_AUTH0_DOMAIN || "";
+const defaultDomain = process.env.AUTH0_DOMAIN || process.env.NEXT_PUBLIC_AUTH0_DOMAIN || "placeholder.us.auth0.com";
 const defaultConfig: TenantConfig = {
   domain: defaultDomain,
-  clientId: process.env.AUTH0_CLIENT_ID || "",
-  clientSecret: process.env.AUTH0_CLIENT_SECRET || "",
+  clientId: process.env.AUTH0_CLIENT_ID || "placeholder",
+  clientSecret: process.env.AUTH0_CLIENT_SECRET || "placeholder",
 };
 
 export const auth0 = buildAuth0Client(defaultConfig);

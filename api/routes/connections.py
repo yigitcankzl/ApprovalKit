@@ -412,6 +412,13 @@ async def get_connect_url(connection_id: str, request: Request, workspace: Works
     scope = _SERVICE_SCOPE.get(service, _DEFAULT_SCOPE)
 
     logger.debug(f"connect-url: domain={ws_config.auth0_domain} user_token={'present' if user_token else 'MISSING'}")
+    if user_token:
+        import base64, json as _json
+        try:
+            payload = _json.loads(base64.urlsafe_b64decode(user_token.split(".")[1] + "=="))
+            logger.info(f"connect-url JWT: aud={payload.get('aud')} scope={payload.get('scope')} azp={payload.get('azp')}")
+        except Exception:
+            pass
 
     # Save login refresh token on connection (needed for Token Exchange)
     if login_refresh_token:

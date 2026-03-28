@@ -871,7 +871,7 @@ class TokenVaultService:
         self.m2m_client_id     = settings.AUTH0_CLIENT_ID
         self.m2m_client_secret = settings.AUTH0_CLIENT_SECRET
 
-    async def get_token_via_exchange(self, connection_name: str, refresh_token: str) -> str | None:
+    async def get_token_via_exchange(self, connection_name: str, refresh_token: str, domain: str = "", client_id: str = "", client_secret: str = "") -> str | None:
         """
         Token Vault Token Exchange (RFC 8693).
         Exchanges an Auth0 refresh_token for a fresh external-provider access_token.
@@ -880,16 +880,19 @@ class TokenVaultService:
             logger.warning(f"Token Exchange skipped for {connection_name} — Auth0 circuit breaker OPEN")
             return None
         try:
+            _domain = domain or self.domain
+            _client_id = client_id or self.client_id
+            _client_secret = client_secret or self.client_secret
             async with httpx.AsyncClient(timeout=15) as c:
                 r = await c.post(
-                    f"https://{self.domain}/oauth/token",
+                    f"https://{_domain}/oauth/token",
                     data={
                         "grant_type": "urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token",
                         "subject_token_type": "urn:ietf:params:oauth:token-type:refresh_token",
                         "requested_token_type": "http://auth0.com/oauth/token-type/federated-connection-access-token",
                         "subject_token": refresh_token,
-                        "client_id": self.client_id,
-                        "client_secret": self.client_secret,
+                        "client_id": _client_id,
+                        "client_secret": _client_secret,
                         "connection": connection_name,
                     },
                 )
@@ -903,7 +906,7 @@ class TokenVaultService:
                     logger.warning(f"Token Vault Token Exchange: 401 Unauthorized for {connection_name} — refresh token may be expired. User should reconnect via /connections.")
                     return None
                 elif r.status_code == 403:
-                    logger.warning(f"Token Vault Token Exchange: 403 Forbidden for {connection_name} — insufficient scope or Token Exchange not enabled.")
+                    logger.warning(f"Token Vault Token Exchange: 403 Forbidden for {connection_name} — {r.text}")
                     return None
                 else:
                     if r.status_code >= 500:
@@ -1020,12 +1023,27 @@ class TokenVaultService:
                         provider = parts[1]
                         logger.debug(f"Token Vault: extracted provider '{provider}' from user_id")
 
+                # Get workspace Auth0 credentials for Token Exchange
+                _ws_domain = ""
+                _ws_client_id = ""
+                _ws_client_secret = ""
+                if workspace_id:
+                    try:
+                        import uuid as _uuid
+                        from api.services.workspace_config import get_workspace_config
+                        ws_config = await get_workspace_config(_uuid.UUID(workspace_id) if isinstance(workspace_id, str) else workspace_id, db)
+                        _ws_domain = ws_config.auth0_domain
+                        _ws_client_id = ws_config.auth0_web_client_id or ws_config.auth0_client_id
+                        _ws_client_secret = ws_config.auth0_web_client_secret or ws_config.auth0_client_secret
+                    except Exception as e:
+                        logger.warning(f"Token Vault: failed to get workspace config: {e}")
+
                 # Try Token Exchange (preferred, RFC 8693)
                 refresh_tok = decrypt_secret(conn_obj.auth0_refresh_token)
                 exchange_attempted = bool(refresh_tok and provider)
 
                 if exchange_attempted:
-                    token = await self.get_token_via_exchange(provider, refresh_tok)
+                    token = await self.get_token_via_exchange(provider, refresh_tok, _ws_domain, _ws_client_id, _ws_client_secret)
                     if token:
                         creds = {"api_key": token, "token": token, "access_token": token}
                         logger.info(f"Token Vault: Token Exchange succeeded for {connection}")
