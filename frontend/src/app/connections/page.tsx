@@ -512,6 +512,7 @@ function ConnectionsContent() {
               "Basic Information → App Credentials → copy Client ID and Client Secret (click Show to reveal secret)",
               "Auth0 Dashboard → Authentication → Social → Create Connection → Sign in with Slack",
               "Paste Client ID and Client Secret from Slack App",
+              "Permissions → check identity.basic and identity.email → Additional Scopes → add: chat:write,channels:read,users:read",
               "Purpose: select 'Authentication and Connected Accounts for Token Vault'",
               "Applications tab → enable your Regular Web Application → Save Changes",
             ],
