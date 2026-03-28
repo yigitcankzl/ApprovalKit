@@ -63,6 +63,7 @@ class CIBAService:
     async def poll_ciba_token(
         self, auth_req_id: str, timeout: int = 300,
         *, domain: str = "", client_id: str = "", client_secret: str = "",
+        job_id: str = "",
     ) -> dict:
         domain = domain or settings.AUTH0_DOMAIN
         client_id = client_id or settings.AUTH0_CLIENT_ID
@@ -73,6 +74,15 @@ class CIBAService:
         elapsed = 0
 
         while elapsed < timeout:
+            # Check if job was already decided via web dashboard
+            if job_id:
+                try:
+                    web_status = await self._check_job_state(job_id)
+                    if web_status:
+                        logger.info(f"CIBA poll stopped — job {job_id} already {web_status} via web")
+                        return {"status": web_status, "source": "web_decision"}
+                except Exception as e:
+                    logger.warning(f"Job state check failed: {e}")
             if not auth0_breaker.allow_request():
                 logger.warning("CIBA poll skipped — Auth0 circuit breaker OPEN")
                 await asyncio.sleep(interval)
@@ -125,6 +135,27 @@ class CIBAService:
                     return {"status": "error", "error": error}
 
         return {"status": "timeout"}
+
+
+    async def _check_job_state(self, job_id: str) -> str | None:
+        """Check if a job has reached a terminal state (e.g. via web decision)."""
+        from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+        from sqlalchemy import select
+        from api.models.approval_job import ApprovalJob, JobState
+        import uuid
+
+        engine = create_async_engine(settings.DATABASE_URL, echo=False)
+        session_factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with session_factory() as session:
+            result = await session.execute(
+                select(ApprovalJob.state).where(ApprovalJob.id == uuid.UUID(job_id))
+            )
+            state = result.scalar_one_or_none()
+        await engine.dispose()
+
+        if state in (JobState.APPROVED, JobState.REJECTED, JobState.BLOCKED, JobState.TIMEOUT):
+            return state.value
+        return None
 
 
 ciba_service = CIBAService()

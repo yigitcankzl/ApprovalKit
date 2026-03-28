@@ -3,7 +3,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useUser } from "@auth0/nextjs-auth0/client";
-import { AgentChat, DemoAgent } from "@/components/agent-chat";
+import { ScenarioRunner } from "@/components/scenario-runner";
+import type { DemoAgent } from "@/components/scenario-runner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
@@ -242,7 +243,7 @@ export default function DemoAgentPage() {
           <div className="flex items-center gap-2">
             <StepBadge num={1} label="Setup" active={step === 1} done={step > 1} />
             <StepBadge num={2} label="Connect" active={step === 2} done={step > 2} />
-            <StepBadge num={3} label="Chat" active={step === 3} done={false} />
+            <StepBadge num={3} label="Try It" active={step === 3} done={false} />
             {setupDone && (
               <button
                 onClick={openResetModal}
@@ -424,7 +425,7 @@ export default function DemoAgentPage() {
         )}
 
         {step === 3 && (
-          <AgentChat agent={agent} />
+          <ScenarioRunner agent={agent} />
         )}
       </div>
 

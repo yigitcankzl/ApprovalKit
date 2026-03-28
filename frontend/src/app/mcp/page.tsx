@@ -3,14 +3,16 @@
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Copy, Check, Terminal, Bot, Laptop, Code2, Blocks,
 } from "lucide-react";
 
-function CopyBlock({ code, label }: { code: string; label?: string }) {
+
+function CopyBlock({ code, copyCode, label }: { code: string; copyCode?: string; label?: string }) {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
-    await navigator.clipboard.writeText(code);
+    await navigator.clipboard.writeText(copyCode || code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -27,45 +29,56 @@ function CopyBlock({ code, label }: { code: string; label?: string }) {
   );
 }
 
+function CopyButton({ text, label }: { text: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <Button
+      size="sm"
+      onClick={copy}
+      className={`h-8 px-3 text-xs transition-colors ${
+        copied
+          ? "bg-green-600 hover:bg-green-700 text-white"
+          : ""
+      }`}
+    >
+      {copied ? (
+        <><Check className="h-3.5 w-3.5 mr-1.5" /> Copied to clipboard</>
+      ) : (
+        <><Copy className="h-3.5 w-3.5 mr-1.5" /> {label}</>
+      )}
+    </Button>
+  );
+}
+
 
 export default function MCPPage() {
-
   const apiKey = "YOUR_API_KEY";
   const hmacSecret = "YOUR_HMAC_SECRET";
 
-  const claudeDesktopConfig = JSON.stringify({
+  const makeConfig = (key: string, secret: string) => JSON.stringify({
     mcpServers: {
       approvalkit: {
-        command: "python",
-        args: ["mcp_server.py"],
+        command: "approvalkit-mcp",
         env: {
           APPROVALKIT_URL: "http://localhost:8000",
-          APPROVALKIT_API_KEY: apiKey,
-          APPROVALKIT_HMAC_SECRET: hmacSecret,
+          APPROVALKIT_API_KEY: key,
+          APPROVALKIT_HMAC_SECRET: secret,
         },
       },
     },
   }, null, 2);
 
-  const claudeCodeConfig = `claude mcp add approvalkit \\
-  -e APPROVALKIT_URL=http://localhost:8000 \\
-  -e APPROVALKIT_API_KEY=${apiKey} \\
-  -e APPROVALKIT_HMAC_SECRET=${hmacSecret} \\
-  -- python mcp_server.py`;
+  const makeClaudeCmd = (key: string, secret: string) =>
+    `pip install "approvalkit @ git+https://github.com/yigitcankzl/ApprovalKit.git#subdirectory=sdk" && claude mcp add approvalkit \\\n  -e APPROVALKIT_URL=http://localhost:8000 \\\n  -e APPROVALKIT_API_KEY=${key} \\\n  -e APPROVALKIT_HMAC_SECRET=${secret} \\\n  -- approvalkit-mcp`;
 
-  const cursorConfig = JSON.stringify({
-    mcpServers: {
-      approvalkit: {
-        command: "python",
-        args: ["/path/to/approvalkit/mcp_server.py"],
-        env: {
-          APPROVALKIT_URL: "http://localhost:8000",
-          APPROVALKIT_API_KEY: apiKey,
-          APPROVALKIT_HMAC_SECRET: hmacSecret,
-        },
-      },
-    },
-  }, null, 2);
+  const claudeDesktopConfig = makeConfig(apiKey, hmacSecret);
+  const claudeCodeCmd = makeClaudeCmd(apiKey, hmacSecret);
+  const cursorConfig = makeConfig(apiKey, hmacSecret);
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -108,15 +121,38 @@ export default function MCPPage() {
         <CardContent className="p-5">
           <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-2">Credentials</h2>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            Your <strong>API Key</strong> and <strong>HMAC Secret</strong> were shown once during workspace setup.
-            Replace the placeholder values in the configs below with your actual keys.
-            If you lost them, go to <a href="/connect" className="text-blue-500 hover:underline">Connect Agent</a> to regenerate.
+            Replace <code className="text-xs bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">YOUR_API_KEY</code> and <code className="text-xs bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">YOUR_HMAC_SECRET</code> with your actual keys.
+            Go to <a href="/connect" className="text-blue-500 hover:underline">Connect Agent</a> to get them.
           </p>
         </CardContent>
       </Card>
 
       {/* Setup guides */}
       <div className="space-y-4">
+
+        {/* Claude Code — primary, prominent */}
+        <Card className="border-green-200 dark:border-green-800">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-1.5 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                  <Terminal className="h-4 w-4 text-green-600 dark:text-green-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Claude Code (CLI)</h3>
+                  <p className="text-xs text-zinc-400">Paste in your terminal to set up</p>
+                </div>
+              </div>
+              <Badge variant="success" className="text-[10px]">Recommended</Badge>
+            </div>
+            <CopyBlock code={claudeCodeCmd} label="Terminal" />
+            <div className="mt-3 flex items-center gap-3">
+              <CopyButton text={claudeCodeCmd} label="Copy command" />
+              <span className="text-xs text-zinc-400">Run from the ApprovalKit repo directory</span>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Claude Desktop */}
         <Card>
           <CardContent className="p-5">
@@ -126,35 +162,14 @@ export default function MCPPage() {
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Claude Desktop</h3>
-                <p className="text-xs text-zinc-400">Add to claude_desktop_config.json</p>
+                <p className="text-xs text-zinc-400">Settings &gt; Developer &gt; Edit Config</p>
               </div>
             </div>
-            <ol className="text-sm text-zinc-600 dark:text-zinc-400 space-y-2 mb-4">
-              <li className="flex gap-2"><span className="font-bold text-zinc-400">1.</span> Install MCP SDK: <code className="text-xs bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">pip install mcp</code></li>
-              <li className="flex gap-2"><span className="font-bold text-zinc-400">2.</span> Open Claude Desktop Settings → Developer → Edit Config</li>
-              <li className="flex gap-2"><span className="font-bold text-zinc-400">3.</span> Paste the config below and restart Claude</li>
-            </ol>
             <CopyBlock code={claudeDesktopConfig} label="claude_desktop_config.json" />
           </CardContent>
         </Card>
 
-        {/* Claude Code */}
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-1.5 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                <Terminal className="h-4 w-4 text-green-600 dark:text-green-400" />
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Claude Code (CLI)</h3>
-                <p className="text-xs text-zinc-400">One command setup</p>
-              </div>
-            </div>
-            <CopyBlock code={claudeCodeConfig} label="Terminal" />
-          </CardContent>
-        </Card>
-
-        {/* Cursor */}
+        {/* Cursor / VS Code */}
         <Card>
           <CardContent className="p-5">
             <div className="flex items-center gap-3 mb-4">
@@ -163,7 +178,7 @@ export default function MCPPage() {
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Cursor / VS Code</h3>
-                <p className="text-xs text-zinc-400">Add to .cursor/mcp.json or VS Code MCP settings</p>
+                <p className="text-xs text-zinc-400">Install approvalkit from GitHub, then add to .cursor/mcp.json</p>
               </div>
             </div>
             <CopyBlock code={cursorConfig} label=".cursor/mcp.json" />
@@ -182,16 +197,10 @@ export default function MCPPage() {
                 <p className="text-xs text-zinc-400">Run directly or connect any MCP client</p>
               </div>
             </div>
-            <CopyBlock code={`# Install
-pip install mcp httpx
-
-# Set credentials
-export APPROVALKIT_URL=http://localhost:8000
-export APPROVALKIT_API_KEY=${apiKey}
-export APPROVALKIT_HMAC_SECRET=${hmacSecret}
-
-# Run MCP server (stdio transport)
-python mcp_server.py`} label="Terminal" />
+            <CopyBlock
+              code={`# Install\npip install "approvalkit @ git+https://github.com/yigitcankzl/ApprovalKit.git#subdirectory=sdk"\n\n# Set credentials\nexport APPROVALKIT_URL=http://localhost:8000\nexport APPROVALKIT_API_KEY=${apiKey}\nexport APPROVALKIT_HMAC_SECRET=${hmacSecret}\n\n# Run MCP server (stdio transport)\napprovalkit-mcp`}
+              label="Terminal"
+            />
           </CardContent>
         </Card>
 

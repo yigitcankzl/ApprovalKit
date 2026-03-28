@@ -61,7 +61,7 @@ async def _get_db_session():
 
 _current_ws_ciba: dict = {}  # Set per-job in _process_job
 
-async def _send_ciba(approver, binding_msg: str, rule: Rule, scope: str = "") -> dict:
+async def _send_ciba(approver, binding_msg: str, rule: Rule, scope: str = "", job_id: str = "") -> dict:
     """Shared CIBA initiate → record → poll pattern. Uses workspace credentials."""
     actual = _resolve_delegation(approver)
     ws = _current_ws_ciba
@@ -80,6 +80,7 @@ async def _send_ciba(approver, binding_msg: str, rule: Rule, scope: str = "") ->
         domain=ws.get("domain", ""),
         client_id=ws.get("client_id", ""),
         client_secret=ws.get("client_secret", ""),
+        job_id=job_id,
     )
     return {"status": poll_result["status"], "approver": actual, "token": poll_result.get("access_token")}
 
@@ -88,7 +89,7 @@ async def _process_any_one(job: ApprovalJob, rule: Rule):
     binding_msg = render_binding_message(rule.context_template, job.params)
     for ra in rule.rule_approvers:
         try:
-            result = await _send_ciba(ra.approver, binding_msg, rule, f"{job.connection}:{job.action}")
+            result = await _send_ciba(ra.approver, binding_msg, rule, f"{job.connection}:{job.action}", job_id=str(job.id))
             if result["status"] in ("approved", "rejected"):
                 return result
         except Exception as e:
@@ -101,14 +102,14 @@ async def _process_specific(job: ApprovalJob, rule: Rule):
     if not rule.rule_approvers:
         return {"status": "blocked"}
     binding_msg = render_binding_message(rule.context_template, job.params)
-    return await _send_ciba(rule.rule_approvers[0].approver, binding_msg, rule)
+    return await _send_ciba(rule.rule_approvers[0].approver, binding_msg, rule, job_id=str(job.id))
 
 
 async def _process_sequential(job: ApprovalJob, rule: Rule):
     sorted_approvers = sorted(rule.rule_approvers, key=lambda ra: ra.order)
     binding_msg = render_binding_message(rule.context_template, job.params)
     for ra in sorted_approvers:
-        result = await _send_ciba(ra.approver, binding_msg, rule)
+        result = await _send_ciba(ra.approver, binding_msg, rule, job_id=str(job.id))
         if result["status"] == "rejected":
             return result
         if result["status"] != "approved":
@@ -120,7 +121,7 @@ async def _process_all_of_n(job: ApprovalJob, rule: Rule):
     binding_msg = render_binding_message(rule.context_template, job.params)
     last = None
     for ra in rule.rule_approvers:
-        result = await _send_ciba(ra.approver, binding_msg, rule)
+        result = await _send_ciba(ra.approver, binding_msg, rule, job_id=str(job.id))
         if result["status"] == "rejected":
             return result
         if result["status"] != "approved":
@@ -168,6 +169,7 @@ async def _process_k_of_n(job: ApprovalJob, rule: Rule):
         result = await ciba_service.poll_ciba_token(
             auth_req_id=auth_req_id,
             timeout=min(remaining, rule.timeout_seconds),
+            job_id=str(job.id),
         )
         return approver, result.get("status", "timeout")
 
@@ -309,6 +311,12 @@ async def _process_job(job_id: str):
           async with post_session.begin():
             result = await post_session.execute(select(ApprovalJob).where(ApprovalJob.id == uuid.UUID(job_id)))
             job = result.scalar_one_or_none()
+
+            # If job was already decided via web dashboard, skip worker processing
+            if job.state in (JobState.APPROVED, JobState.REJECTED, JobState.BLOCKED, JobState.TIMEOUT):
+                logger.info(f"Job {job_id} already in terminal state {job.state.value} (likely web decision) — skipping worker update")
+                await _publish(f"job_{job.state.value}", job)
+                return
 
             if approval_result["status"] == "approved":
                 job.state = JobState.APPROVED

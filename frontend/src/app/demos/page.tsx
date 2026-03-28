@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
-import type { DemoAgent } from "@/components/agent-chat";
+import type { DemoAgent } from "@/components/scenario-runner";
 import {
   ArrowRight, Bot, Building2, CheckCircle2, CreditCard, Database,
   Film, FlaskConical, GraduationCap, Heart, Home, Key, Leaf,
