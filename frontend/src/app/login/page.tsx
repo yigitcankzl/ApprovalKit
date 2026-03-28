@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useUser } from "@auth0/nextjs-auth0/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,6 +21,7 @@ function CopyText({ text }: { text: string }) {
 }
 
 export default function LoginPage() {
+  const { user, isLoading: authLoading } = useUser();
   const [tenantInput, setTenantInput] = useState("");
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
@@ -27,6 +29,13 @@ export default function LoginPage() {
   const [m2mClientSecret, setM2mClientSecret] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Already logged in — skip to dashboard
+  useEffect(() => {
+    if (!authLoading && user) {
+      window.location.href = "/dashboard";
+    }
+  }, [authLoading, user]);
 
   const handleLogin = async () => {
     setLoading(true);
