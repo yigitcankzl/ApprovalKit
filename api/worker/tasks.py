@@ -49,18 +49,27 @@ async def _get_db_session():
     return async_session()
 
 
+_current_ws_ciba: dict = {}  # Set per-job in _process_job
+
 async def _send_ciba(approver, binding_msg: str, rule: Rule, scope: str = "") -> dict:
-    """Shared CIBA initiate → record → poll pattern. Returns {"status", "approver", "token?"}."""
+    """Shared CIBA initiate → record → poll pattern. Uses workspace credentials."""
     actual = _resolve_delegation(approver)
+    ws = _current_ws_ciba
     ciba_result = await ciba_service.initiate_ciba_request(
         user_id=actual.auth0_user_id,
         binding_message=binding_msg,
         scope=scope or "openid",
+        domain=ws.get("domain", ""),
+        client_id=ws.get("client_id", ""),
+        client_secret=ws.get("client_secret", ""),
     )
     await rate_limiter.record_ciba_request()
     poll_result = await ciba_service.poll_ciba_token(
         auth_req_id=ciba_result["auth_req_id"],
         timeout=rule.timeout_seconds,
+        domain=ws.get("domain", ""),
+        client_id=ws.get("client_id", ""),
+        client_secret=ws.get("client_secret", ""),
     )
     return {"status": poll_result["status"], "approver": actual, "token": poll_result.get("access_token")}
 
@@ -249,6 +258,17 @@ async def _process_job(job_id: str):
                 await _publish("step_up_triggered", job,
                     original_model=rule.model.value,
                     effective_model=rule.step_up_model.value)
+
+        # Get workspace Auth0 credentials for CIBA
+        from api.services.workspace_config import get_workspace_config
+        ws_config = await get_workspace_config(job.workspace_id, session)
+        # Store in module-level for _send_ciba to use
+        global _current_ws_ciba
+        _current_ws_ciba = {
+            "domain": ws_config.auth0_domain,
+            "client_id": ws_config.auth0_client_id,
+            "client_secret": ws_config.auth0_client_secret,
+        }
 
         # Process based on approval model
         processor = MODEL_PROCESSORS.get(effective_model)
