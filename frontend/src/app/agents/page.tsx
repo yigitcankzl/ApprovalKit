@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Bot, CheckCircle2, XCircle, Loader2, Plus, Trash2, RefreshCw, Play,
-  Copy, Check, Eye, EyeOff, ChevronRight, Plug,
+  Copy, Check, Eye, EyeOff, ChevronRight, ChevronDown, Plug, Code2,
 } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -275,6 +275,8 @@ kit = ApprovalKit(
 
 kit.gate("your-connection", "your-action", {"key": "value"})`;
 
+  const [showHowTo, setShowHowTo] = useState(false);
+
   const active = agents.find((a) => a.id === activeId);
 
   if (loading) {
@@ -347,6 +349,43 @@ kit.gate("your-connection", "your-action", {"key": "value"})`;
           )}
         </CardContent>
       </Card>
+
+      {/* How to connect — collapsible */}
+      <div className="mb-6">
+        <button
+          onClick={() => setShowHowTo(v => !v)}
+          className="flex items-center gap-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 transition-colors w-full"
+        >
+          <Code2 className="h-4 w-4" />
+          <span>How to connect your agent</span>
+          <ChevronDown className={`h-4 w-4 ml-auto transition-transform ${showHowTo ? "rotate-180" : ""}`} />
+        </button>
+        {showHowTo && (
+          <div className="mt-3 space-y-3">
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">1. Install SDK</p>
+                <CopyBlock code={`pip install "approvalkit @ git+https://github.com/yigitcankzl/ApprovalKit.git#subdirectory=sdk"`} />
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">2. Set environment variables</p>
+                <CopyBlock code={envSnippet} />
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">3. Use in your agent</p>
+                <CopyBlock code={codeSnippet(newAgent?.name || active?.name || "my-agent")} />
+                <p className="text-xs text-zinc-400 mt-2">
+                  Set up rules and connections from the <a href="/rules" className="text-blue-500 hover:underline">Rules</a> and <a href="/connections" className="text-blue-500 hover:underline">Connections</a> pages.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+      </div>
 
       {/* Agent list + detail */}
       {agents.length === 0 && !newAgent ? (
