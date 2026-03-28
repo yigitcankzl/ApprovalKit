@@ -1064,19 +1064,31 @@ async def seed_demo_data(
     for a in result.scalars().all():
         existing_approvers[a.auth0_user_id] = a.id
 
+    # Use real user's Auth0 ID for all approvers so CIBA Guardian push works
+    # In demo mode, all approvers map to the logged-in user's phone
+    effective_user_id = real_user_id or workspace.owner_auth0_sub or ""
+
     approver_role_map: dict[str, uuid.UUID] = {}
     for approver_def in APPROVERS:
-        auth0_id = approver_def["auth0_user_id"]
+        auth0_id = effective_user_id if effective_user_id else approver_def["auth0_user_id"]
         role = approver_def["role"]
 
         if needed_roles and role not in needed_roles:
-            # Still map existing ones for rule assignment
             if auth0_id in existing_approvers:
                 approver_role_map[role] = existing_approvers[auth0_id]
             continue
 
-        if auth0_id in existing_approvers:
-            approver_role_map[role] = existing_approvers[auth0_id]
+        # Skip if approver with same name already exists in this workspace
+        existing_by_name = None
+        result_check = await db.execute(
+            select(Approver).where(
+                Approver.workspace_id == workspace.id,
+                Approver.name == approver_def["name"],
+            ).limit(1)
+        )
+        existing_approver = result_check.scalar_one_or_none()
+        if existing_approver:
+            approver_role_map[role] = existing_approver.id
             created["skipped"] += 1
             continue
 
