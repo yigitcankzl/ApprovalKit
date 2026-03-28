@@ -4,15 +4,12 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Copy, Check, Terminal, Bot, Laptop, Code2, Blocks,
-} from "lucide-react";
+import { Copy, Check, Terminal, Blocks } from "lucide-react";
 
-
-function CopyBlock({ code, copyCode, label }: { code: string; copyCode?: string; label?: string }) {
+function CopyBlock({ code, label }: { code: string; label?: string }) {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
-    await navigator.clipboard.writeText(copyCode || code);
+    await navigator.clipboard.writeText(code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -41,9 +38,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
       size="sm"
       onClick={copy}
       className={`h-8 px-3 text-xs transition-colors ${
-        copied
-          ? "bg-green-600 hover:bg-green-700 text-white"
-          : ""
+        copied ? "bg-green-600 hover:bg-green-700 text-white" : ""
       }`}
     >
       {copied ? (
@@ -57,28 +52,11 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 
 
 export default function MCPPage() {
-  const apiKey = "YOUR_API_KEY";
-  const hmacSecret = "YOUR_HMAC_SECRET";
-
-  const makeConfig = (key: string, secret: string) => JSON.stringify({
-    mcpServers: {
-      approvalkit: {
-        command: "approvalkit-mcp",
-        env: {
-          APPROVALKIT_URL: "http://localhost:8000",
-          APPROVALKIT_API_KEY: key,
-          APPROVALKIT_HMAC_SECRET: secret,
-        },
-      },
-    },
-  }, null, 2);
-
-  const makeClaudeCmd = (key: string, secret: string) =>
-    `pip install "approvalkit @ git+https://github.com/yigitcankzl/ApprovalKit.git#subdirectory=sdk" && claude mcp add approvalkit \\\n  -e APPROVALKIT_URL=http://localhost:8000 \\\n  -e APPROVALKIT_API_KEY=${key} \\\n  -e APPROVALKIT_HMAC_SECRET=${secret} \\\n  -- approvalkit-mcp`;
-
-  const claudeDesktopConfig = makeConfig(apiKey, hmacSecret);
-  const claudeCodeCmd = makeClaudeCmd(apiKey, hmacSecret);
-  const cursorConfig = makeConfig(apiKey, hmacSecret);
+  const claudeCodeCmd = `pip install "approvalkit @ git+https://github.com/yigitcankzl/ApprovalKit.git#subdirectory=sdk" && claude mcp add approvalkit \\
+  -e APPROVALKIT_URL=http://localhost:8000 \\
+  -e APPROVALKIT_API_KEY=YOUR_API_KEY \\
+  -e APPROVALKIT_HMAC_SECRET=YOUR_HMAC_SECRET \\
+  -- approvalkit-mcp`;
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -127,10 +105,8 @@ export default function MCPPage() {
         </CardContent>
       </Card>
 
-      {/* Setup guides */}
+      {/* Claude Code setup */}
       <div className="space-y-4">
-
-        {/* Claude Code — primary, prominent */}
         <Card className="border-green-200 dark:border-green-800">
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-4">
@@ -143,64 +119,12 @@ export default function MCPPage() {
                   <p className="text-xs text-zinc-400">Paste in your terminal to set up</p>
                 </div>
               </div>
-              <Badge variant="success" className="text-[10px]">Recommended</Badge>
             </div>
             <CopyBlock code={claudeCodeCmd} label="Terminal" />
             <div className="mt-3 flex items-center gap-3">
               <CopyButton text={claudeCodeCmd} label="Copy command" />
-              <span className="text-xs text-zinc-400">Run from the ApprovalKit repo directory</span>
+              <span className="text-xs text-zinc-400">Replace keys, paste in terminal, press Enter</span>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Claude Desktop */}
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-1.5 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-                <Laptop className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Claude Desktop</h3>
-                <p className="text-xs text-zinc-400">Settings &gt; Developer &gt; Edit Config</p>
-              </div>
-            </div>
-            <CopyBlock code={claudeDesktopConfig} label="claude_desktop_config.json" />
-          </CardContent>
-        </Card>
-
-        {/* Cursor / VS Code */}
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                <Code2 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Cursor / VS Code</h3>
-                <p className="text-xs text-zinc-400">Install approvalkit from GitHub, then add to .cursor/mcp.json</p>
-              </div>
-            </div>
-            <CopyBlock code={cursorConfig} label=".cursor/mcp.json" />
-          </CardContent>
-        </Card>
-
-        {/* Custom Agent */}
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-lg">
-                <Bot className="h-4 w-4 text-zinc-600 dark:text-zinc-400" />
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Custom Agent (stdio)</h3>
-                <p className="text-xs text-zinc-400">Run directly or connect any MCP client</p>
-              </div>
-            </div>
-            <CopyBlock
-              code={`# Install\npip install "approvalkit @ git+https://github.com/yigitcankzl/ApprovalKit.git#subdirectory=sdk"\n\n# Set credentials\nexport APPROVALKIT_URL=http://localhost:8000\nexport APPROVALKIT_API_KEY=${apiKey}\nexport APPROVALKIT_HMAC_SECRET=${hmacSecret}\n\n# Run MCP server (stdio transport)\napprovalkit-mcp`}
-              label="Terminal"
-            />
           </CardContent>
         </Card>
 
