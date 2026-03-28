@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import {
-  Copy, Check, Eye, EyeOff, Loader2, CheckCircle2, Plug, Plus, FileCode, Terminal,
+  Copy, Check, Eye, EyeOff, Loader2, CheckCircle2, Plug, Plus,
 } from "lucide-react";
 
 function SecretField({ label, value }: { label: string; value: string }) {
@@ -67,7 +67,6 @@ export default function ConnectPage() {
   const [hmacSecret, setHmacSecret] = useState("");
   const [baseUrl, setBaseUrl] = useState("http://localhost:8000");
 
-  // Create agent
   const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
   const [newAgent, setNewAgent] = useState<{ id: string; api_key: string; name: string } | null>(null);
@@ -100,7 +99,7 @@ export default function ConnectPage() {
 export APPROVALKIT_API_KEY=ak_...
 export APPROVALKIT_HMAC_SECRET=...`;
 
-  const manualSnippet = (agentName: string) =>
+  const codeSnippet = (agentName: string) =>
 `from approvalkit import ApprovalKit
 import os
 
@@ -111,45 +110,8 @@ kit = ApprovalKit(
     user_id="${agentName}",
 )
 
+# One line per action — Token Vault executes after approval
 kit.gate("your-connection", "your-action", {"key": "value"})`;
-
-  const yamlTemplate = `agent:
-  name: ${newAgent?.name || "my-agent"}
-
-connections:
-  - slug: stripe-prod
-    service: stripe
-    actions: [charge, refund]
-  - slug: gmail-prod
-    service: gmail
-    actions: [send_email]
-
-approvers:
-  - name: Manager
-    email: manager@company.com
-    role: manager
-
-rules:
-  - name: Charges over $500
-    connection: stripe-prod
-    action: charge
-    model: specific
-    approvers: [manager]
-    conditions:
-      - field: amount
-        operator: gte
-        value: 500
-  - name: All emails
-    connection: gmail-prod
-    action: send_email
-    model: any_one
-    approvers: [manager]`;
-
-  const fromConfigSnippet = `from approvalkit import ApprovalKit
-
-kit = ApprovalKit.from_config("approvalkit.yaml")
-
-kit.gate("stripe-prod", "charge", {"amount": 349, "customer": "alice@example.com"})`;
 
   if (loading) {
     return (
@@ -160,7 +122,7 @@ kit.gate("stripe-prod", "charge", {"amount": 349, "customer": "alice@example.com
   }
 
   return (
-    <div>
+    <div className="max-w-2xl">
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
@@ -169,16 +131,16 @@ kit.gate("stripe-prod", "charge", {"amount": 349, "customer": "alice@example.com
           </div>
           <div>
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Connect Your Agent</h1>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">Two ways to integrate — pick whichever fits your workflow.</p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">Create an agent, set env vars, call kit.gate(). Three steps.</p>
           </div>
         </div>
       </div>
 
-      {/* Step 0: Create agent + get key */}
-      <Card className="mb-6">
+      {/* Step 1: Create agent */}
+      <Card className="mb-4">
         <CardContent className="p-5">
-          <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-1">First, create an agent and get your API key</h2>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-3">Each agent gets its own key. You can manage them on the <a href="/agents" className="text-blue-500 hover:underline">Agents</a> page.</p>
+          <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-1">1. Create an agent</h2>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-3">Each agent gets its own API key.</p>
           <div className="flex gap-2">
             <input
               value={name}
@@ -196,7 +158,6 @@ kit.gate("stripe-prod", "charge", {"amount": 349, "customer": "alice@example.com
             </Button>
           </div>
 
-          {/* Show key after creation */}
           {newAgent && (
             <div className="mt-4 p-4 rounded-xl border border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20 space-y-3">
               <div className="flex items-start gap-3">
@@ -215,7 +176,6 @@ kit.gate("stripe-prod", "charge", {"amount": 349, "customer": "alice@example.com
             </div>
           )}
 
-          {/* Existing agents */}
           {agents.length > 0 && !newAgent && (
             <div className="mt-4 space-y-1.5">
               <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Your agents</p>
@@ -233,96 +193,25 @@ kit.gate("stripe-prod", "charge", {"amount": 349, "customer": "alice@example.com
         </CardContent>
       </Card>
 
-      {/* Install SDK */}
-      <Card className="mb-6">
+      {/* Step 2: Set env vars */}
+      <Card className="mb-4">
         <CardContent className="p-5">
-          <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-3">Install SDK</h2>
-          <CopyBlock code={`pip install "approvalkit @ git+https://github.com/yigitcankzl/ApprovalKit.git#subdirectory=sdk"`} />
+          <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-3">2. Set environment variables</h2>
+          <CopyBlock code={envSnippet} />
         </CardContent>
       </Card>
 
-      {/* Two paths side by side */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-        {/* Path A: Manual / inline */}
-        <Card className="border-zinc-300 dark:border-zinc-600">
-          <CardContent className="p-5 space-y-4">
-            <div className="flex items-center gap-2.5">
-              <div className="p-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-lg">
-                <Terminal className="h-4 w-4 text-zinc-600 dark:text-zinc-400" />
-              </div>
-              <div>
-                <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Manual Setup</h2>
-                <p className="text-xs text-zinc-400">Set env vars, call kit.gate() directly</p>
-              </div>
-            </div>
-
-            <div>
-              <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">1. Set env vars</p>
-              <CopyBlock code={envSnippet} />
-            </div>
-
-            <div>
-              <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">2. Use in your agent</p>
-              <CopyBlock code={manualSnippet(newAgent?.name || "my-agent")} />
-            </div>
-
-            <p className="text-xs text-zinc-400">
-              Create rules and connections from the dashboard.
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Path B: from_config YAML */}
-        <Card className="border-blue-200 dark:border-blue-700">
-          <CardContent className="p-5 space-y-4">
-            <div className="flex items-center gap-2.5">
-              <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                <FileCode className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">YAML Config</h2>
-                <p className="text-xs text-zinc-400">Define everything in a file, bootstrap in one line</p>
-              </div>
-            </div>
-
-            <div>
-              <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">1. Set env vars (same as manual)</p>
-              <CopyBlock code={envSnippet} />
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">2. Create approvalkit.yaml</p>
-                <button
-                  onClick={() => {
-                    const blob = new Blob([yamlTemplate], { type: "text/yaml" });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = "approvalkit.yaml";
-                    a.click();
-                    URL.revokeObjectURL(url);
-                  }}
-                  className="text-[10px] text-blue-500 hover:text-blue-600 font-medium"
-                >
-                  Download template
-                </button>
-              </div>
-              <CopyBlock code={yamlTemplate} />
-            </div>
-
-            <div>
-              <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">3. Use in your agent</p>
-              <CopyBlock code={fromConfigSnippet} />
-            </div>
-
-            <p className="text-xs text-zinc-400">
-              Connections, approvers, and rules are auto-created on first run. No dashboard needed.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Step 3: Install + use */}
+      <Card className="mb-4">
+        <CardContent className="p-5 space-y-4">
+          <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-1">3. Install SDK and call gate()</h2>
+          <CopyBlock code={`pip install "approvalkit @ git+https://github.com/yigitcankzl/ApprovalKit.git#subdirectory=sdk"`} />
+          <CopyBlock code={codeSnippet(newAgent?.name || "my-agent")} />
+          <p className="text-xs text-zinc-400">
+            Set up rules and connections from the <a href="/rules" className="text-blue-500 hover:underline">Rules</a> and <a href="/connections" className="text-blue-500 hover:underline">Connections</a> pages.
+          </p>
+        </CardContent>
+      </Card>
     </div>
   );
 }
