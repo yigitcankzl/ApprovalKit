@@ -54,27 +54,30 @@ async def submit_approval_request(
     db: AsyncSession = Depends(get_db),
     redis_client: aioredis.Redis = Depends(get_redis),
 ):
-    # Auto-discover agent: if request comes with a user_id but no registered agent,
-    # create one automatically so it appears in the dashboard.
+    # Auto-discover agent: ensure every user_id that sends requests
+    # is visible in the dashboard, regardless of auth method.
     agent = getattr(raw_request.state, "agent", None)
-    if not agent and request.user_id:
+    if request.user_id:
         existing = await db.execute(
             select(RegisteredAgent).where(
                 RegisteredAgent.workspace_id == workspace.id,
                 RegisteredAgent.name == request.user_id,
+                RegisteredAgent.is_active.is_(True),
             )
         )
-        agent = existing.scalar_one_or_none()
-        if not agent:
-            agent = RegisteredAgent(
+        discovered = existing.scalar_one_or_none()
+        if not discovered:
+            discovered = RegisteredAgent(
                 workspace_id=workspace.id,
                 name=request.user_id,
                 description=f"Auto-discovered from first request ({request.connection}/{request.action})",
                 icon="bot",
                 is_active=True,
             )
-            db.add(agent)
+            db.add(discovered)
             await db.flush()
+        if not agent:
+            agent = discovered
 
     # Dynamic action scoping: enforce agent's allowed_connections
     if agent and agent.allowed_connections:
