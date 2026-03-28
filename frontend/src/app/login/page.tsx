@@ -138,7 +138,7 @@ export default function LoginPage() {
                     </li>
                     <li className="flex gap-2">
                       <span className="text-zinc-400 font-bold">e.</span>
-                      <span><strong>Advanced Settings → Grant Types</strong> → enable <strong>Token Vault</strong></span>
+                      <span><strong>Advanced Settings → Grant Types</strong> → enable <strong>Token Vault</strong> and <strong>CIBA</strong></span>
                     </li>
                     <li className="flex gap-2">
                       <span className="text-zinc-400 font-bold">f.</span>
