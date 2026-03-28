@@ -29,12 +29,24 @@ export default function LoginPage() {
   const [m2mClientSecret, setM2mClientSecret] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [hasExistingConfig, setHasExistingConfig] = useState(false);
+  const [existingDomain, setExistingDomain] = useState("");
+  const [checkingConfig, setCheckingConfig] = useState(true);
 
   // Already logged in — skip to dashboard
   useEffect(() => {
     if (!authLoading && user) {
       window.location.href = "/dashboard";
+      return;
     }
+    // Check if tenant config cookie exists (returning user)
+    fetch("/api/get-tenant").then(r => r.json()).then(data => {
+      if (data.hasConfig && data.domain) {
+        setHasExistingConfig(true);
+        setExistingDomain(data.domain);
+      }
+      setCheckingConfig(false);
+    }).catch(() => setCheckingConfig(false));
   }, [authLoading, user]);
 
   const handleLogin = async () => {
@@ -75,6 +87,46 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  if (checkingConfig || authLoading) {
+    return (
+      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-zinc-400" />
+      </div>
+    );
+  }
+
+  if (hasExistingConfig) {
+    return (
+      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center py-12 px-4">
+        <div className="w-full max-w-sm text-center">
+          <div className="inline-flex items-center gap-2 mb-6">
+            <Shield className="h-8 w-8 text-zinc-900 dark:text-zinc-100" />
+            <span className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">ApprovalKit</span>
+          </div>
+          <Card className="border-zinc-200 dark:border-zinc-800">
+            <CardContent className="pt-6 space-y-4">
+              <p className="text-sm text-zinc-500">Tenant: <span className="font-mono text-zinc-700 dark:text-zinc-300">{existingDomain}</span></p>
+              <Button
+                className="w-full"
+                onClick={() => { setLoading(true); window.location.href = "/auth/login?returnTo=/dashboard"; }}
+                disabled={loading}
+              >
+                {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Sign In
+              </Button>
+              <button
+                onClick={() => { setHasExistingConfig(false); }}
+                className="text-xs text-zinc-400 hover:text-zinc-600 transition-colors"
+              >
+                Use a different tenant
+              </button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center py-12 px-4">
