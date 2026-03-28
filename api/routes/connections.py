@@ -400,12 +400,9 @@ async def get_connect_url(connection_id: str, request: Request, workspace: Works
         )
 
     # Require Token Vault to be enabled
-    if not _token_vault_status.get(service, False):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Token Vault is not enabled for '{service}'. "
-                   f"Auth0 Dashboard → Social → {auth0_connection} → Purpose → select 'Connected Accounts for Token Vault'.",
-        )
+    # Note: Token Vault purpose check skipped — custom oauth2 strategy
+    # connections don't expose purpose via API. Token Exchange will fail
+    # at runtime if not properly configured.
     user_token = request.headers.get("X-User-Token")
     login_refresh_token = request.headers.get("X-Refresh-Token")
     callback_url = f"{ws_config.callback_base_url}/api/v1/connections/connected-accounts/callback"
