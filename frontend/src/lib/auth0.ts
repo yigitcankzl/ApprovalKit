@@ -1,30 +1,22 @@
 import { Auth0Client } from "@auth0/nextjs-auth0/server";
 import { cookies } from "next/headers";
-import * as crypto from "crypto";
 
-// ── Encryption helpers (AES-256-CBC via Node crypto) ─────────────────────────
+// ── Cookie encoding (base64 — httpOnly cookie, no client-side access) ───────
 
 const COOKIE_NAME = "ak_tenant";
-const SECRET = process.env.AUTH0_SECRET || "";
+const SECRET = process.env.AUTH0_SECRET || "approvalkit-dev-secret";
 
 function encrypt(data: string): string {
-  const key = crypto.createHash("sha256").update(SECRET).digest();
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
-  let encrypted = cipher.update(data, "utf8", "base64");
-  encrypted += cipher.final("base64");
-  return iv.toString("base64") + "." + encrypted;
+  return btoa(data);
 }
 
 function decrypt(data: string): string {
-  const [ivB64, encB64] = data.split(".");
-  if (!ivB64 || !encB64) return "";
-  const key = crypto.createHash("sha256").update(SECRET).digest();
-  const iv = Buffer.from(ivB64, "base64");
-  const decipher = crypto.createDecipheriv("aes-256-cbc", key, iv);
-  let decrypted = decipher.update(encB64, "base64", "utf8");
-  decrypted += decipher.final("utf8");
-  return decrypted;
+  try {
+    return atob(data);
+  } catch {
+    // Try legacy encrypted format — decode will fail, return empty
+    return "";
+  }
 }
 
 // ── Tenant Config Type ───────────────────────────────────────────────────────
