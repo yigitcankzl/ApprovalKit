@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
 import type { Approver } from "@/types";
-import { Plus, Pencil, Trash2, UserCheck, ChevronDown, ChevronUp, X, Link2, CheckCircle2 } from "lucide-react";
+import { Plus, Pencil, Trash2, UserCheck, ChevronDown, ChevronUp, ChevronRight, X, Link2, CheckCircle2 } from "lucide-react";
 import { FormError } from "@/components/ui/form-error";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
@@ -230,8 +230,26 @@ function ApproversContent() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
-          {approvers.map((a) => (
+        <ApproversList approvers={approvers} expandedId={expandedId} setExpandedId={setExpandedId}
+          approverName={approverName} handleLinkAccount={handleLinkAccount} openEdit={openEdit}
+          handleDelete={handleDelete} delegatingId={delegatingId} setDelegatingId={setDelegatingId}
+          delegateTo={delegateTo} setDelegateTo={setDelegateTo}
+          delegateFrom={delegateFrom} setDelegateFrom={setDelegateFrom}
+          delegateUntil={delegateUntil} setDelegateUntil={setDelegateUntil}
+          delegateSaving={delegateSaving} handleDelegate={handleDelegate}
+          loadApprovers={loadApprovers} setError={setError}
+        />
+      )}
+    </div>
+  );
+}
+
+function ApproversList({ approvers, expandedId, setExpandedId, approverName, handleLinkAccount, openEdit, handleDelete, delegatingId, setDelegatingId, delegateTo, setDelegateTo, delegateFrom, setDelegateFrom, delegateUntil, setDelegateUntil, delegateSaving, handleDelegate, loadApprovers, setError }: any) {
+  const [showDemo, setShowDemo] = useState(false);
+  const userApprovers = approvers.filter((a: Approver) => !a.auth0_user_id?.startsWith("demo|"));
+  const demoApprovers = approvers.filter((a: Approver) => a.auth0_user_id?.startsWith("demo|"));
+
+  const renderApprover = (a: Approver) => (
             <Card key={a.id} className="hover:border-zinc-300 dark:border-zinc-600 transition-colors">
               <CardContent className="py-4">
                 <div className="flex items-center justify-between">
@@ -332,7 +350,7 @@ function ApproversContent() {
                               className="mt-1 w-full rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-3 py-2 text-sm"
                             >
                               <option value="">Select approver…</option>
-                              {approvers.filter((x) => x.id !== a.id).map((x) => (
+                              {approvers.filter((x: Approver) => x.id !== a.id).map((x: Approver) => (
                                 <option key={x.id} value={x.id}>{x.name}</option>
                               ))}
                             </select>
@@ -359,7 +377,26 @@ function ApproversContent() {
                 )}
               </CardContent>
             </Card>
-          ))}
+  );
+
+  return (
+    <div className="space-y-3">
+      {userApprovers.map(renderApprover)}
+
+      {demoApprovers.length > 0 && (
+        <div>
+          <button
+            onClick={() => setShowDemo(v => !v)}
+            className="flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors mb-3 mt-2"
+          >
+            <ChevronRight className={`h-4 w-4 transition-transform ${showDemo ? "rotate-90" : ""}`} />
+            Demo Approvers ({demoApprovers.length})
+          </button>
+          {showDemo && (
+            <div className="space-y-3">
+              {demoApprovers.map(renderApprover)}
+            </div>
+          )}
         </div>
       )}
     </div>

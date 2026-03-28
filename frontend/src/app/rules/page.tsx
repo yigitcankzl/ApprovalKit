@@ -115,10 +115,43 @@ export default function RulesPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {rules.map((rule) => (
-            <RuleCard key={rule.id} rule={rule} approverMap={approverMap} onDelete={() => { api.getRules().then(setRules); }} />
-          ))}
+        <RulesList rules={rules} approverMap={approverMap} onRefresh={() => { api.getRules().then(setRules); }} />
+      )}
+    </div>
+  );
+}
+
+function isDemoRule(rule: Rule): boolean {
+  return /^\[.+\]/.test(rule.name);
+}
+
+function RulesList({ rules, approverMap, onRefresh }: { rules: Rule[]; approverMap: Record<string, Approver>; onRefresh: () => void }) {
+  const [showDemo, setShowDemo] = useState(false);
+  const userRules = rules.filter(r => !isDemoRule(r));
+  const demoRules = rules.filter(r => isDemoRule(r));
+
+  return (
+    <div className="space-y-4">
+      {userRules.map((rule) => (
+        <RuleCard key={rule.id} rule={rule} approverMap={approverMap} onDelete={onRefresh} />
+      ))}
+
+      {demoRules.length > 0 && (
+        <div>
+          <button
+            onClick={() => setShowDemo(v => !v)}
+            className="flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors mb-3"
+          >
+            <ChevronRight className={`h-4 w-4 transition-transform ${showDemo ? "rotate-90" : ""}`} />
+            Demo Rules ({demoRules.length})
+          </button>
+          {showDemo && (
+            <div className="space-y-4">
+              {demoRules.map((rule) => (
+                <RuleCard key={rule.id} rule={rule} approverMap={approverMap} onDelete={onRefresh} />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
