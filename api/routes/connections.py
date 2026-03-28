@@ -185,6 +185,7 @@ def _conn_to_dict(c: ServiceConnection) -> dict:
         "m2m_client_id":       c.m2m_client_id,
         "m2m_token_url":       c.m2m_token_url,
         "connected_via":       "auth0" if c.connected_auth0_user_id else ("m2m" if (c.m2m_client_id and c.m2m_token_url) else ("webhook" if c.webhook_url else None)),
+        "metadata":            c.config_meta,
         "created_at":          c.created_at.isoformat(),
     }
 
@@ -208,6 +209,7 @@ class CreateConnectionRequest(BaseModel):
     m2m_api_key: str | None = None          # will be encrypted at rest
     m2m_client_id: str | None = None
     m2m_token_url: str | None = None
+    metadata: dict | None = None            # {"owner": "acme", "repo": "api"}
 
 
 @router.post("", status_code=201)
@@ -238,6 +240,7 @@ async def create_connection(body: CreateConnectionRequest, workspace: Workspace 
         webhook_body_template=body.webhook_body_template,
         m2m_client_id=body.m2m_client_id,
         m2m_token_url=body.m2m_token_url,
+        config_meta=body.metadata,
         # m2m_api_key NOT stored in DB — only in HashiCorp Vault
     )
     db.add(conn)
@@ -592,6 +595,7 @@ class UpdateConnectionRequest(BaseModel):
     webhook_method: str | None = None
     webhook_headers: dict | None = None
     webhook_body_template: dict | None = None
+    metadata: dict | None = None
 
 
 @router.put("/{connection_id}")
@@ -616,6 +620,8 @@ async def update_connection(connection_id: str, body: UpdateConnectionRequest, w
         conn.webhook_headers = body.webhook_headers
     if body.webhook_body_template is not None:
         conn.webhook_body_template = body.webhook_body_template
+    if body.metadata is not None:
+        conn.config_meta = body.metadata
 
     await db.commit()
     await db.refresh(conn)

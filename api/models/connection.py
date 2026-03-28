@@ -35,6 +35,7 @@ class ServiceConnection(Base):
     webhook_method: Mapped[str | None] = mapped_column(String(10), nullable=True)  # GET/POST/PUT/PATCH/DELETE
     webhook_headers: Mapped[dict | None] = mapped_column(JSONB, nullable=True)     # {"Authorization": "Bearer {{token}}"}
     webhook_body_template: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # {"amount": "{{amount}}"}
+    config_meta: Mapped[dict | None] = mapped_column("config_meta", JSONB, nullable=True)  # {"owner": "acme", "repo": "api"}
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 

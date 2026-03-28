@@ -1067,6 +1067,10 @@ class TokenVaultService:
                 "params":     params,
             }
 
+        # Merge connection config_meta (owner, repo, etc.) into creds
+        if conn_obj and getattr(conn_obj, "config_meta", None):
+            creds.update({k: v for k, v in conn_obj.config_meta.items() if k not in ("token", "api_key", "access_token")})
+
         handler = _SERVICE_HANDLERS.get(service)
 
         if handler is None:

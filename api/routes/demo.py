@@ -36,9 +36,11 @@ CONNECTIONS = [
     {"name": "Gmail Production",   "service": "gmail",   "slug": "gmail-prod",
      "actions": ["send_email"]},
     {"name": "GitHub Production",  "service": "github",  "slug": "github-prod",
-     "actions": ["add_member", "remove_member", "deploy", "lock_repo", "revoke_tokens", "merge_pr"]},
+     "actions": ["add_member", "remove_member", "deploy", "lock_repo", "revoke_tokens", "merge_pr"],
+},
     {"name": "GitHub Main",        "service": "github",  "slug": "github-main",
-     "actions": ["deploy", "rollback"]},
+     "actions": ["deploy", "rollback"],
+},
     {"name": "Google Drive Production", "service": "google-drive", "slug": "google-drive-prod",
      "actions": ["share"]},
     {"name": "Salesforce Production", "service": "salesforce", "slug": "salesforce-prod",
@@ -1051,6 +1053,7 @@ async def seed_demo_data(
             slug=conn_def["slug"],
             actions=conn_def["actions"],
             token_vault_connection_id=conn_def.get("tv_id", conn_def["service"]),
+            config_meta=conn_def.get("config_meta"),
         )
         db.add(conn)
         existing_conns[conn_def["slug"]] = conn.id

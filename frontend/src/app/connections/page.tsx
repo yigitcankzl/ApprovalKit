@@ -24,6 +24,7 @@ interface Connection {
   is_auth0_configured: boolean;
   has_webhook?: boolean;
   webhook_method?: string;
+  metadata?: Record<string, string> | null;
 }
 
 const SERVICE_LABEL: Record<string, string> = {
@@ -419,6 +420,42 @@ function ConnectionsContent() {
                           </form>
                         </div>
                       </div>
+                      {conn.service.toLowerCase() === "github" && (
+                        <div>
+                          <p className="text-xs text-zinc-400 uppercase tracking-wide mb-1">Repository</p>
+                          <form
+                            onSubmit={async (e) => {
+                              e.preventDefault();
+                              const form = e.target as HTMLFormElement;
+                              const ownerInput = form.elements.namedItem("owner") as HTMLInputElement;
+                              const repoInput = form.elements.namedItem("repo") as HTMLInputElement;
+                              const owner = ownerInput.value.trim();
+                              const repo = repoInput.value.trim();
+                              if (!owner || !repo) return;
+                              try {
+                                await api.updateConnection(conn.id, { metadata: { owner, repo } });
+                                load();
+                              } catch {}
+                            }}
+                            className="flex gap-1.5 items-center"
+                          >
+                            <input
+                              name="owner"
+                              placeholder="owner"
+                              defaultValue={conn.metadata?.owner || ""}
+                              className="w-24 text-xs bg-transparent border border-zinc-300 dark:border-zinc-600 rounded px-2 py-1 text-zinc-600 dark:text-zinc-300 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-500"
+                            />
+                            <span className="text-zinc-400 text-xs">/</span>
+                            <input
+                              name="repo"
+                              placeholder="repo"
+                              defaultValue={conn.metadata?.repo || ""}
+                              className="w-24 text-xs bg-transparent border border-zinc-300 dark:border-zinc-600 rounded px-2 py-1 text-zinc-600 dark:text-zinc-300 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-500"
+                            />
+                            <button type="submit" className="text-xs text-emerald-500 hover:text-emerald-400">Save</button>
+                          </form>
+                        </div>
+                      )}
                       <div>
                         <p className="text-xs text-zinc-400 uppercase tracking-wide mb-1">Status</p>
                         <p className="text-sm text-zinc-600 dark:text-zinc-400">
@@ -523,6 +560,7 @@ function ConnectionsContent() {
             provider_label: "GitHub Developer Settings",
             steps: [
               "Go to github.com/settings/developers → OAuth Apps → New OAuth App",
+              "Homepage URL: http://localhost:3000",
               "Authorization callback URL: https://" + auth0Domain + "/login/callback",
               "Copy Client ID and generate Client Secret",
               "Auth0 Dashboard → Authentication → Social → GitHub → enter credentials",

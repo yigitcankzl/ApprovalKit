@@ -83,7 +83,7 @@ export const api = {
         ...(refreshToken ? { "X-Refresh-Token": refreshToken } : {}),
       },
     }),
-  updateConnection: (id: string, data: { name?: string; actions?: string[]; webhook_url?: string; webhook_method?: string; webhook_headers?: Record<string, string>; webhook_body_template?: Record<string, string> }) =>
+  updateConnection: (id: string, data: { name?: string; actions?: string[]; webhook_url?: string; webhook_method?: string; webhook_headers?: Record<string, string>; webhook_body_template?: Record<string, string>; metadata?: Record<string, string> }) =>
     fetchAPI(`/api/v1/connections/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   disconnectAuth: (id: string) => fetchAPI(`/api/v1/connections/${id}/auth`, { method: "DELETE" }),
   deleteConnection: (id: string) => fetchAPI(`/api/v1/connections/${id}`, { method: "DELETE" }),
