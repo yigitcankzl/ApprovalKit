@@ -41,12 +41,22 @@ def run_async(coro):
     # Reset cached async connections so they are re-created in the new event loop.
     # Celery forks workers; inherited connections are bound to the parent's loop.
     rate_limiter._redis = None
-    return asyncio.run(coro)
+    # Create a fresh event loop for each task to avoid loop conflicts
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(coro)
+    finally:
+        loop.close()
 
 
 async def _get_db_session():
-    from api.database import async_session
-    return async_session()
+    # Create a fresh engine + session per job to avoid loop binding issues
+    from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+    from api.config import get_settings
+    settings = get_settings()
+    engine = create_async_engine(settings.DATABASE_URL, echo=False)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    return session_factory()
 
 
 _current_ws_ciba: dict = {}  # Set per-job in _process_job
@@ -400,7 +410,10 @@ async def _process_job(job_id: str):
         logger.info(f"Job {job_id} completed with state: {job.state.value}")
 
     finally:
+        engine = session.bind
         await session.close()
+        if engine:
+            await engine.dispose()
 
 
 async def _process_escalation(job: ApprovalJob, rule: Rule, session):
