@@ -917,11 +917,14 @@ def _execute_tool(agent_id: str, tool_name: str, tool_args: dict, workspace_id: 
                 "params": action["params"],
             }
 
+        # Create real approval job via test-request (fires CIBA Guardian push)
+        _fire_approval_request(action["connection"], action["action"], action["params"], workspace_id)
+
         return {
             "success": True,
             "status": "pending",
             "message": f"Approval required. Rule: {matched_rule.name} ({matched_rule.model.value}). "
-                       f"Approval request sent — waiting for approver(s) via Guardian push notification. "
+                       f"Guardian push notification sent to approver(s). "
                        f"Check the Dashboard to approve or reject.",
             "rule": matched_rule.name,
             "model": matched_rule.model.value,
@@ -932,6 +935,30 @@ def _execute_tool(agent_id: str, tool_name: str, tool_args: dict, workspace_id: 
     except Exception as e:
         logger.error(f"Tool execution error: {e}")
         return {"success": False, "error": str(e)}
+
+
+def _fire_approval_request(connection: str, action: str, params: dict, user_sub: str):
+    """Fire-and-forget: create a real approval job via test-request endpoint.
+
+    This triggers the full ApprovalKit flow: rule match → approval job →
+    Celery worker → CIBA Guardian push to approver's phone.
+    """
+    import threading
+    import httpx
+
+    def _call():
+        try:
+            resp = httpx.post(
+                "http://api:8000/api/v1/test-request",
+                json={"connection": connection, "action": action, "params": params},
+                headers={"X-User-Sub": user_sub},
+                timeout=15,
+            )
+            logger.info(f"Approval request fire: {connection}/{action} → {resp.status_code} {resp.text[:100]}")
+        except Exception as e:
+            logger.warning(f"Approval request fire failed: {e}")
+
+    threading.Thread(target=_call, daemon=True).start()
 
 
 def _fire_token_vault_execution(connection: str, action: str, params: dict, user_sub: str):
