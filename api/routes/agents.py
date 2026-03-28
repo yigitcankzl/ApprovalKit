@@ -362,11 +362,14 @@ async def bootstrap_agent(
         if row:
             approver_map[appr.role] = row.id
         else:
+            # Use workspace owner's real Auth0 ID so CIBA Guardian push
+            # goes to the actual user's phone (demo-friendly default)
+            real_auth0_id = ws.owner_auth0_sub or f"auth0|{appr.email.split('@')[0]}"
             new_approver = Approver(
                 workspace_id=ws.id,
                 name=appr.name,
                 email=appr.email,
-                auth0_user_id=f"auth0|{appr.email.split('@')[0]}",
+                auth0_user_id=real_auth0_id,
                 is_active=True,
             )
             db.add(new_approver)
