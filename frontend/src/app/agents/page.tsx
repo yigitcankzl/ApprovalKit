@@ -308,11 +308,11 @@ kit.gate("your-connection", "your-action", {"key": "value"})`;
               placeholder="e.g. shopping-bot, deploy-agent, hr-assistant"
               className="flex-1 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400"
             />
-            <Button onClick={handleCreate} disabled={creating || !name.trim()}>
+            <Button onClick={() => { handleCreate(); setShowHowTo(true); }} disabled={creating || !name.trim()}>
               {creating ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <><Plus className="h-4 w-4 mr-1.5" /> Create</>
+                <><Plus className="h-4 w-4 mr-1.5" /> Create &amp; Connect</>
               )}
             </Button>
           </div>
@@ -333,12 +333,6 @@ kit.gate("your-connection", "your-action", {"key": "value"})`;
               </div>
               <SecretField label="API Key" value={newAgent.api_key} />
               {hmacSecret && <SecretField label="HMAC Secret" value={hmacSecret} />}
-              <div>
-                <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Quick start</p>
-                <CopyBlock code={envSnippet} />
-                <div className="mt-2" />
-                <CopyBlock code={codeSnippet(newAgent.name)} />
-              </div>
               <button
                 onClick={() => setNewAgent(null)}
                 className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
