@@ -47,6 +47,7 @@ const NAV = [
   { id: "gate",        label: "— kit.gate()" },
   { id: "async",       label: "— Async Support" },
   { id: "errors",      label: "— Error Handling" },
+  { id: "bootstrap",   label: "Bootstrap (Add Agent)" },
   { id: "token-vault", label: "Token Vault" },
   { id: "step-up",     label: "Step-up Auth" },
   { id: "ciba",        label: "CIBA / Guardian" },
@@ -317,6 +318,218 @@ except ApprovalDenied as e:
         print("No response within timeout window")
     elif e.status == "blocked":
         print("Blocked by rule (blackout/cooldown)")`} />
+        </Section>
+
+        {/* Bootstrap */}
+        <Section id="bootstrap">
+          <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">Bootstrap (Add Agent)</h2>
+          <p className="text-zinc-600 dark:text-zinc-400 mb-4">
+            Register an agent with its <strong>full configuration</strong> in a single API call.
+            The bootstrap endpoint creates the agent, connections, approvers, rules, and scenarios all at once.
+            It is <strong>idempotent</strong> — running it again skips resources that already exist.
+          </p>
+
+          <h3 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mt-6 mb-3">How it works</h3>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
+            {[
+              { step: "1", title: "Agent starts", desc: "Reads its rules.yaml config file" },
+              { step: "2", title: "POST /agents/bootstrap", desc: "Sends full manifest to ApprovalKit" },
+              { step: "3", title: "ApprovalKit provisions", desc: "Creates agent, connections, approvers, rules, scenarios" },
+              { step: "4", title: "Dashboard ready", desc: "Agent appears with scenarios, rules are active" },
+            ].map((s) => (
+              <div key={s.step} className="p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-zinc-200 dark:border-zinc-700">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="w-6 h-6 rounded-full bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-xs font-bold flex items-center justify-center">{s.step}</span>
+                  <span className="font-medium text-zinc-800 dark:text-zinc-200 text-sm">{s.title}</span>
+                </div>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">{s.desc}</p>
+              </div>
+            ))}
+          </div>
+
+          <h3 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mt-6 mb-3">API Endpoint</h3>
+          <CodeBlock language="http" code={`POST /api/v1/agents/bootstrap
+Content-Type: application/json`} />
+
+          <h3 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mt-6 mb-3">Request Body</h3>
+          <CodeBlock language="json" code={`{
+  "agent": {
+    "name": "My Healthcare Agent",
+    "description": "HIPAA-compliant hospital management",
+    "icon": "hospital",
+    "scenarios": [
+      {
+        "title": "Routine Prescription",
+        "connection": "healthcare-rx",
+        "action": "prescribe",
+        "params": {
+          "medication_name": "Metformin",
+          "dosage": "500mg",
+          "patient_mrn": "MRN-00001"
+        }
+      }
+    ]
+  },
+  "connections": [
+    {
+      "slug": "healthcare-rx",
+      "name": "Healthcare Prescriptions",
+      "service": "healthcare",
+      "actions": ["prescribe", "prescribe_controlled", "dose_change"]
+    }
+  ],
+  "approvers": [
+    {
+      "name": "Dr. Robert Chen (CMO)",
+      "email": "dr.chen@hospital.com",
+      "role": "cmo"
+    }
+  ],
+  "rules": [
+    {
+      "name": "Routine Prescription",
+      "connection": "healthcare-rx",
+      "action": "prescribe",
+      "model": "specific",
+      "approvers": ["cmo"],
+      "timeout_seconds": 300,
+      "context_template": "Rx {{medication_name}} for {{patient_mrn}}"
+    }
+  ]
+}`} />
+
+          <h3 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mt-6 mb-3">Response</h3>
+          <CodeBlock language="json" code={`{
+  "status": "provisioned",
+  "created": {
+    "agent": "My Healthcare Agent",
+    "connections": 1,
+    "approvers": 1,
+    "rules": 1,
+    "scenarios": 1
+  },
+  "agent_id": "550e8400-...",
+  "api_key": "ak_xxxxx"    // Only on first creation
+}`} />
+
+          <h3 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mt-6 mb-3">Auto-bootstrap on startup (Python)</h3>
+          <p className="text-zinc-600 dark:text-zinc-400 mb-3">
+            Agents can call bootstrap during startup so they self-register automatically.
+            Define your config in a <code className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-sm">rules.yaml</code> file:
+          </p>
+          <CodeBlock language="yaml" code={`agent:
+  name: My Agent
+  description: Does cool things
+  icon: bot
+  scenarios:
+    - title: "Test charge $50"
+      connection: stripe-prod
+      action: charge
+      params: { amount: 50, customer: "test@example.com" }
+
+connections:
+  - slug: stripe-prod
+    name: Stripe Production
+    service: stripe
+    actions: [charge, refund]
+
+approvers:
+  - name: Alice Manager
+    email: alice@company.com
+    role: manager
+
+rules:
+  - name: Stripe charges
+    connection: stripe-prod
+    action: charge
+    model: specific
+    approvers: [manager]
+    timeout_seconds: 300`} />
+
+          <p className="text-zinc-600 dark:text-zinc-400 mt-4 mb-3">
+            Then call bootstrap on startup:
+          </p>
+          <CodeBlock language="python" code={`import httpx, yaml
+
+with open("rules.yaml") as f:
+    config = yaml.safe_load(f)
+
+# Transform connections actions from YAML format
+payload = {
+    "agent": config["agent"],
+    "connections": config.get("connections", []),
+    "approvers": config.get("approvers", []),
+    "rules": config.get("rules", []),
+}
+
+resp = httpx.post(
+    "http://localhost:8000/api/v1/agents/bootstrap",
+    json=payload,
+)
+print(resp.json())
+# {"status": "provisioned", "created": {...}, "api_key": "ak_..."}`} />
+
+          <h3 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mt-6 mb-3">Approval Models</h3>
+          <p className="text-zinc-600 dark:text-zinc-400 mb-3">
+            Use these values for the <code className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-sm">model</code> field in rules:
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg overflow-hidden">
+              <thead className="bg-zinc-50 dark:bg-zinc-800/50">
+                <tr>
+                  <th className="text-left p-3 font-medium text-zinc-700 dark:text-zinc-300">Model</th>
+                  <th className="text-left p-3 font-medium text-zinc-700 dark:text-zinc-300">Behavior</th>
+                  <th className="text-left p-3 font-medium text-zinc-700 dark:text-zinc-300">Use case</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-200 dark:divide-zinc-700">
+                {[
+                  { model: "any_one", behavior: "First approver to respond wins", use: "Emergency access, on-call" },
+                  { model: "specific", behavior: "Only the designated approver", use: "Manager approval, single owner" },
+                  { model: "sequential", behavior: "Ordered chain: A then B then C", use: "Multi-step review, escalation" },
+                  { model: "all_of_n", behavior: "Every listed approver must approve", use: "High-value actions, compliance" },
+                  { model: "k_of_n", behavior: "k out of n approvers (quorum)", use: "Board votes, committee decisions" },
+                ].map((row) => (
+                  <tr key={row.model}>
+                    <td className="p-3 font-mono text-xs text-zinc-800 dark:text-zinc-200">{row.model}</td>
+                    <td className="p-3 text-zinc-600 dark:text-zinc-400">{row.behavior}</td>
+                    <td className="p-3 text-zinc-500 dark:text-zinc-500">{row.use}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <h3 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mt-6 mb-3">Advanced Rule Options</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg overflow-hidden">
+              <thead className="bg-zinc-50 dark:bg-zinc-800/50">
+                <tr>
+                  <th className="text-left p-3 font-medium text-zinc-700 dark:text-zinc-300">Field</th>
+                  <th className="text-left p-3 font-medium text-zinc-700 dark:text-zinc-300">Type</th>
+                  <th className="text-left p-3 font-medium text-zinc-700 dark:text-zinc-300">Description</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-200 dark:divide-zinc-700">
+                {[
+                  { field: "conditions", type: "array", desc: 'Filter when rule applies: [{field: "amount", operator: "gte", value: 500}]' },
+                  { field: "step_up_conditions", type: "array", desc: "Escalate approval model when conditions match (e.g. high amount)" },
+                  { field: "step_up_model", type: "string", desc: "Model to use after step-up (e.g. all_of_n)" },
+                  { field: "partial_approval", type: "boolean", desc: "Allow approvers to modify request params before approving" },
+                  { field: "context_template", type: "string", desc: 'Binding message: "Charge {{amount}} for {{customer}}"' },
+                  { field: "blackout_start/end", type: "string", desc: 'Block during hours: "22:00" to "06:00"' },
+                  { field: "on_timeout", type: "string", desc: '"block" (default) or "escalate" to escalate_to approver' },
+                  { field: "priority", type: "integer", desc: "Higher priority rules are evaluated first (default: 0)" },
+                ].map((row) => (
+                  <tr key={row.field}>
+                    <td className="p-3 font-mono text-xs text-zinc-800 dark:text-zinc-200">{row.field}</td>
+                    <td className="p-3 text-zinc-500 dark:text-zinc-500 text-xs">{row.type}</td>
+                    <td className="p-3 text-zinc-600 dark:text-zinc-400">{row.desc}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </Section>
 
         {/* Token Vault */}
