@@ -14,7 +14,7 @@ export async function GET() {
     let session = await client.getSession();
 
     // If dynamic client has no session, try default client
-    if (!session && tenantCookie) {
+    if (!session && tenantCookie && auth0) {
       console.log("[token] Dynamic client has no session, trying default auth0 client");
       session = await auth0.getSession();
     }
@@ -29,7 +29,8 @@ export async function GET() {
     try {
       tokenSet = await client.getAccessToken();
     } catch {
-      tokenSet = await auth0.getAccessToken();
+      if (auth0) tokenSet = await auth0.getAccessToken();
+      else throw new Error("No Auth0 client available");
     }
 
     console.log(`[token] Success: token=${tokenSet.token?.substring(0, 20)}...`);

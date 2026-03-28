@@ -55,30 +55,35 @@ function buildAuth0Client(config: TenantConfig): Auth0Client {
   });
 }
 
-// ── Default client (placeholder — real config comes from cookie) ─────────────
+// ── Default client (from env — used as fallback when no tenant cookie) ──────
 
-const defaultDomain = process.env.AUTH0_DOMAIN || process.env.NEXT_PUBLIC_AUTH0_DOMAIN || "placeholder.us.auth0.com";
+const defaultDomain = process.env.AUTH0_DOMAIN || process.env.NEXT_PUBLIC_AUTH0_DOMAIN || "";
 const defaultConfig: TenantConfig = {
   domain: defaultDomain,
-  clientId: process.env.AUTH0_CLIENT_ID || "placeholder",
-  clientSecret: process.env.AUTH0_CLIENT_SECRET || "placeholder",
+  clientId: process.env.AUTH0_CLIENT_ID || "",
+  clientSecret: process.env.AUTH0_CLIENT_SECRET || "",
 };
 
-export const auth0 = buildAuth0Client(defaultConfig);
+// Only build if env vars are actually set — otherwise defer to cookie-based client
+export const auth0: Auth0Client = defaultDomain
+  ? buildAuth0Client(defaultConfig)
+  : (null as unknown as Auth0Client);
 
 // ── Dynamic client from cookie ───────────────────────────────────────────────
 
 export function getAuth0ClientFromCookieValue(cookieValue: string): Auth0Client {
   if (!cookieValue || cookieValue === "default") {
-    return auth0;
+    return auth0 || buildAuth0Client({ domain: "noop", clientId: "noop", clientSecret: "noop" });
   }
 
   try {
     const json = decrypt(cookieValue);
     const config: TenantConfig = JSON.parse(json);
+    console.log(`[auth0] Cookie decoded: domain=${config.domain} clientId=${config.clientId ? 'present' : 'MISSING'}`);
 
     if (!config.domain || !config.clientId) {
-      return auth0;
+      console.warn("[auth0] Cookie missing domain or clientId, falling back to default");
+      return auth0 || buildAuth0Client({ domain: "noop", clientId: "noop", clientSecret: "noop" });
     }
 
     const cacheKey = config.domain;
@@ -97,7 +102,7 @@ export function getAuth0ClientFromCookieValue(cookieValue: string): Auth0Client 
 
     return client;
   } catch {
-    return auth0;
+    return auth0 || buildAuth0Client({ domain: "noop", clientId: "noop", clientSecret: "noop" });
   }
 }
 
