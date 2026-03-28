@@ -126,7 +126,9 @@ async def create_agent(body: AgentIn, ws: Workspace = Depends(get_current_worksp
 
     await db.commit()
     await db.refresh(agent)
-    return _agent_to_dict(agent, include_key=True)
+    result = _agent_to_dict(agent, include_key=False)
+    result["api_key"] = agent_api_key  # Plaintext — shown once, never stored
+    return result
 
 
 async def _get_agent_for_workspace(agent_id: str, ws: Workspace, db: AsyncSession) -> RegisteredAgent:

@@ -191,10 +191,11 @@ async def check_scope_creep(
     is_new = len(past_jobs) == 0
     amount_anomaly = False
     anomaly_detail = None
+    current_amount = None
+    past_amounts = []
 
     # Check amount anomaly if params contain a numeric amount
     if params and past_jobs:
-        current_amount = None
         for key in ("amount", "amount_usd", "total"):
             raw = params.get(key)
             if raw is not None:
