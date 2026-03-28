@@ -106,11 +106,12 @@ kit = ApprovalKit(
     user_id="${agentName}",
 )
 
-@kit.requires_approval(connection="stripe-prod", action="charge")
-def charge(amount: int, customer: str):
+# Gate any action — connection and action match your dashboard rules
+@kit.requires_approval(connection="your-connection", action="your-action")
+def do_something(**params):
     pass  # Token Vault executes after approval
 
-charge(amount=349, customer="alice@example.com")`;
+do_something(amount=100, recipient="user@example.com")`;
 
   if (loading) {
     return (
