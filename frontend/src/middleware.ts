@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { auth0, getAuth0ClientFromCookieValue, COOKIE_NAME } from "@/lib/auth0";
 
 export async function middleware(req: NextRequest) {
@@ -11,6 +11,12 @@ export async function middleware(req: NextRequest) {
     } catch {
       // Fall through to default
     }
+  }
+
+  // No tenant cookie — if trying to auth, redirect to login page to enter credentials first
+  const isAuthRoute = req.nextUrl.pathname.startsWith("/auth/");
+  if (isAuthRoute && !process.env.AUTH0_DOMAIN) {
+    return NextResponse.redirect(new URL("/login", req.url));
   }
 
   return await auth0.middleware(req);
