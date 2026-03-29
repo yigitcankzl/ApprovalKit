@@ -1687,7 +1687,7 @@ def _build_gemini_contents(history: list[dict]) -> list[dict]:
 # ── Main Processing ──────────────────────────────────────────────────────────
 
 _PROVIDER_CONFIG = {
-    "ollama": {"type": "openai", "base_url": "http://ollama:11434/v1", "model": "llama3.1:8b", "needs_api_key": False},
+    "ollama": {"type": "openai", "base_url": "http://ollama:11434/v1", "model": "qwen2.5:7b", "needs_api_key": False},
     "gemini": {"type": "gemini", "model": "models/gemini-2.0-flash"},
     "groq": {"type": "openai", "base_url": "https://api.groq.com/openai/v1", "model": "llama-3.3-70b-versatile"},
     "openrouter": {"type": "openai", "base_url": "https://openrouter.ai/api/v1", "model": "meta-llama/llama-3.3-70b-instruct:free"},
