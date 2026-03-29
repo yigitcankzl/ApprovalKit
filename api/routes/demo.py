@@ -1185,8 +1185,10 @@ async def seed_demo_data(
 
 
 @router.get("/agents")
-async def get_demo_agents():
-    """Return the 10 demo agent catalog."""
+async def get_demo_agents(
+    _ws: Workspace = Depends(get_current_workspace),
+):
+    """Return the 10 demo agent catalog. Requires authenticated workspace."""
     return _build_agent_catalog()
 
 

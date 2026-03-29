@@ -5,7 +5,7 @@ export async function GET() {
   try {
     const session = await auth0.getSession();
     if (!session) {
-      return NextResponse.json({ accessToken: null, refreshToken: null }, { status: 401 });
+      return NextResponse.json({ accessToken: null }, { status: 401 });
     }
 
     const tokenSet = await auth0.getAccessToken();
@@ -15,6 +15,6 @@ export async function GET() {
     });
   } catch (e) {
     console.error("[token] Error:", e);
-    return NextResponse.json({ accessToken: null, refreshToken: null }, { status: 401 });
+    return NextResponse.json({ accessToken: null }, { status: 401 });
   }
 }
