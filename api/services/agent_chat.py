@@ -263,27 +263,6 @@ EXAMPLES:
 
 Always state: amount, vendor, which approval tier applies.""",
 
-    "travelops": _CORE_BEHAVIOR + """
-You are the company's AI Travel Operations Agent. You book flights, hotels, and ground transportation for employees.
-
-Your capabilities: Book flights, book hotels, arrange ground transportation, send itinerary emails, notify teams via Slack.
-
-Approval rules:
-- Economy flights under $500: Auto-approved
-- $500–$2,000: Manager approval
-- $2,000–$5,000: VP approval
-- $5,000+: CFO approval
-- Business/first class: Always requires VP approval regardless of amount
-- Hotel suites: CFO approval
-
-EXAMPLES:
-- "Book economy flight Berlin to London for $200" → book_flight auto-approved.
-- "Book business class to San Francisco for 3 people" → $3,000/person × 3 = $9,000 → CFO approval (business class + high amount).
-- "Book first class to Tokyo + Ritz-Carlton suite for a week" → Multiple step-ups cascade: first class needs VP, suite needs CFO. Total $15,000+.
-- "Arrange airport pickup for the visiting client" → book_transport auto-approved.
-
-For team travel, calculate totals. For luxury bookings, explain why elevated approval is needed.""",
-
     "opensource": _CORE_BEHAVIOR + """
 You are the AI Open Source Maintenance Agent. You manage releases, PR merges, community engagement, and contributor payments.
 
@@ -816,71 +795,6 @@ AGENT_TOOLS: dict[str, list[dict]] = {
         },
     ],
 
-    "travelops": [
-        {
-            "name": "book_flight",
-            "description": "Book a flight for an employee.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "passenger": {"type": "string", "description": "Passenger name"},
-                    "origin": {"type": "string", "description": "Departure city/airport"},
-                    "destination": {"type": "string", "description": "Arrival city/airport"},
-                    "date": {"type": "string", "description": "Travel date (YYYY-MM-DD)"},
-                    "cabin_class": {"type": "string", "enum": ["economy", "premium_economy", "business", "first"]},
-                    "amount_usd": {"type": "number", "description": "Estimated cost in USD"},
-                },
-                "required": ["passenger", "origin", "destination", "date", "cabin_class", "amount_usd"],
-            },
-        },
-        {
-            "name": "book_hotel",
-            "description": "Book a hotel for an employee.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "guest": {"type": "string"},
-                    "hotel": {"type": "string", "description": "Hotel name"},
-                    "city": {"type": "string"},
-                    "check_in": {"type": "string", "description": "Check-in date"},
-                    "check_out": {"type": "string", "description": "Check-out date"},
-                    "room_type": {"type": "string", "enum": ["standard", "deluxe", "suite"]},
-                    "amount_usd": {"type": "number"},
-                },
-                "required": ["guest", "hotel", "city", "check_in", "check_out", "room_type", "amount_usd"],
-            },
-        },
-        {
-            "name": "book_transport",
-            "description": "Arrange ground transportation (taxi, car service).",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "passenger": {"type": "string"},
-                    "pickup": {"type": "string"},
-                    "dropoff": {"type": "string"},
-                    "date": {"type": "string"},
-                    "type": {"type": "string", "enum": ["taxi", "car_service", "shuttle"]},
-                    "amount_usd": {"type": "number"},
-                },
-                "required": ["passenger", "pickup", "dropoff", "date", "type", "amount_usd"],
-            },
-        },
-        {
-            "name": "send_itinerary",
-            "description": "Send travel itinerary email to the traveler.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "recipient": {"type": "string"},
-                    "subject": {"type": "string"},
-                    "body_preview": {"type": "string"},
-                },
-                "required": ["recipient", "subject"],
-            },
-        },
-    ],
-
     "opensource": [
         {
             "name": "merge_pr",
@@ -1170,23 +1084,6 @@ _TOOL_ACTION_MAP: dict[str, dict[str, dict]] = {
         "notify_slack": {"connection": "slack-prod", "action": "send_message",
                          "param_map": lambda p: p},
     },
-    "travelops": {
-        "book_flight": {"connection": "stripe-prod", "action": "charge",
-                        "param_map": lambda p: {"amount_usd": p["amount_usd"], "customer": p["passenger"],
-                                                "description": f"Flight {p['origin']} → {p['destination']} ({p['cabin_class']})",
-                                                "type": "travel_flight", "cabin_class": p["cabin_class"]}},
-        "book_hotel": {"connection": "stripe-prod", "action": "charge",
-                       "param_map": lambda p: {"amount_usd": p["amount_usd"], "customer": p["guest"],
-                                               "description": f"Hotel: {p['hotel']} in {p['city']}",
-                                               "type": "travel_hotel", "room_type": p["room_type"]}},
-        "book_transport": {"connection": "stripe-prod", "action": "charge",
-                           "param_map": lambda p: {"amount_usd": p["amount_usd"], "customer": p["passenger"],
-                                                   "description": f"Transport: {p['pickup']} → {p['dropoff']}",
-                                                   "type": "travel_transport"}},
-        "send_itinerary": {"connection": "gmail-prod", "action": "send_email",
-                           "param_map": lambda p: {"recipient": p["recipient"], "subject": p["subject"],
-                                                   "type": "itinerary"}},
-    },
     "opensource": {
         "merge_pr": {"connection": "github-prod", "action": "merge_pr",
                      "param_map": lambda p: {"repo": p["repo"], "pr_number": p["pr_number"],
@@ -1335,13 +1232,6 @@ AGENT_SUGGESTIONS: dict[str, list[str]] = {
         "Process all pending vendor payments — 15 vendors, total around $50,000",
         "Send a payment receipt to billing@vendor.com for last month's SaaS subscription",
         "We owe $8,500 to the catering company for the annual conference",
-    ],
-    "travelops": [
-        "Book an economy flight from Berlin to London for next Tuesday, budget around $200",
-        "Book business class flights for the team of 3 to the San Francisco conference",
-        "Book first class to Tokyo, a Ritz-Carlton suite for a week, and a private car service",
-        "We need a hotel near the convention center in Austin for 2 nights, standard room",
-        "Arrange airport pickup for the visiting client arriving at JFK Thursday morning",
     ],
     "opensource": [
         "Merge the typo fix PR #42 into main branch",

@@ -63,11 +63,6 @@ const SCENARIO_PROMPTS: Record<string, { label: string; emoji: string; prompt: s
     { label: "Large Transfer", emoji: "😠", prompt: "Transfer $5,000 to our design agency for the Q1 branding project. It's overdue." },
     { label: "Budget Buster", emoji: "💀", prompt: "Process ALL pending vendor payments immediately — 15 vendors, total around $50,000. Pay them all now." },
   ],
-  travelops: [
-    { label: "Budget Flight", emoji: "😊", prompt: "Book an economy flight from Berlin to London next Tuesday, budget $200." },
-    { label: "Business Trip", emoji: "😠", prompt: "Book business class flights for 3 people to San Francisco conference next month." },
-    { label: "Executive Splurge", emoji: "💀", prompt: "Book first class to Tokyo, suite at Ritz-Carlton for a week, private car service. Budget doesn't matter, make it perfect." },
-  ],
   opensource: [
     { label: "Bug Fix PR", emoji: "😊", prompt: "Merge the typo fix PR #42 into main." },
     { label: "New Release", emoji: "😠", prompt: "Create the v2.0 release tag on GitHub and announce it on Discord." },

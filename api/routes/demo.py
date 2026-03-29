@@ -116,7 +116,6 @@ _AGENT_DEPS = {
     "gdpr_request": {"conns": ["github-prod", "gmail-prod", "slack-prod"], "roles": ["privacy_officer", "cto", "legal"]},
     "api_key_rotation": {"conns": ["github-prod", "slack-prod", "gmail-prod"], "roles": ["security_lead", "cto"]},
     "finance": {"conns": ["stripe-prod", "gmail-prod", "slack-prod"], "roles": ["manager", "cfo"]},
-    "travelops": {"conns": ["stripe-prod", "gmail-prod", "slack-prod"], "roles": ["manager", "vp", "cfo"]},
     "opensource": {"conns": ["github-prod", "stripe-prod", "slack-prod"], "roles": ["maintainer", "maintainer2", "maintainer3", "cfo", "cto"]},
     "research": {"conns": ["stripe-prod", "gmail-prod", "slack-prod"], "roles": ["pi", "dept_head", "cfo"]},
     "comms": {"conns": ["slack-prod", "gmail-prod"], "roles": ["manager", "ceo"]},
@@ -134,7 +133,6 @@ _AGENT_RULE_PREFIXES = {
     "gdpr_request": ["[GDPR]"],
     "api_key_rotation": ["[KeyRotation]"],
     "finance": ["[Finance]"],
-    "travelops": ["[Travel]"],
     "opensource": ["[OSS]"],
     "research": ["[Research]"],
     "comms": ["[Comms]"],
@@ -488,46 +486,6 @@ def _build_rules(ar: dict[str, uuid.UUID]) -> list[dict]:
             "conditions": [c("amount_usd", "gte", 5000)],
             "approver_roles": ["cfo"],
             "priority": 24,
-        },
-
-        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        # TRAVELOPS AGENT
-        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        {
-            "name": "[Travel] Flight $500–$2000",
-            "connection": "stripe-prod", "action": "charge",
-            "model": ApprovalModel.ANY_ONE, "timeout_seconds": 300,
-            "context_template": "Flight booking ${amount_usd}: {description}",
-            "conditions": [c("type", "eq", "travel_flight"), c("amount_usd", "gte", 500), c("amount_usd", "lt", 2000)],
-            "approver_roles": ["manager"],
-            "priority": 16,
-        },
-        {
-            "name": "[Travel] Flight $2000–$5000 or business class",
-            "connection": "stripe-prod", "action": "charge",
-            "model": ApprovalModel.SPECIFIC, "timeout_seconds": 600,
-            "context_template": "Premium travel ${amount_usd}: {description}",
-            "conditions": [c("type", "eq", "travel_flight"), c("amount_usd", "gte", 2000), c("amount_usd", "lt", 5000)],
-            "approver_roles": ["vp"],
-            "priority": 26,
-        },
-        {
-            "name": "[Travel] Flight $5000+ (CFO required)",
-            "connection": "stripe-prod", "action": "charge",
-            "model": ApprovalModel.SPECIFIC, "timeout_seconds": 900,
-            "context_template": "LUXURY travel ${amount_usd}: {description}",
-            "conditions": [c("type", "eq", "travel_flight"), c("amount_usd", "gte", 5000)],
-            "approver_roles": ["cfo"],
-            "priority": 36,
-        },
-        {
-            "name": "[Travel] Hotel suite (CFO required)",
-            "connection": "stripe-prod", "action": "charge",
-            "model": ApprovalModel.SPECIFIC, "timeout_seconds": 600,
-            "context_template": "Hotel suite ${amount_usd}: {description}",
-            "conditions": [c("type", "eq", "travel_hotel"), c("room_type", "eq", "suite")],
-            "approver_roles": ["cfo"],
-            "priority": 32,
         },
 
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1252,52 +1210,6 @@ def _build_agent_catalog() -> list[dict]:
                 {"type": "approver", "name": "CFO", "detail": "Approves $5000+"},
                 {"type": "rule", "name": "[Finance] Medium", "detail": "$500-$4999 → manager"},
                 {"type": "rule", "name": "[Finance] Large", "detail": "$5000+ → CFO"},
-            ],
-        },
-
-        # ──────────────────────────────────────────────────────────────────────
-        # 12. TRAVELOPS AGENT
-        # ──────────────────────────────────────────────────────────────────────
-        {
-            "id": "travelops",
-            "title": "Travel Operations Agent",
-            "icon": "Plane",
-            "category": "finance",
-            "categoryLabel": "Commerce & Finance",
-            "description": "Corporate travel booking agent that handles flights, hotels, and ground transportation. Economy flights under $500 auto-approve. $500-$2,000 needs manager approval, $2,000-$5,000 needs VP, and $5,000+ escalates to CFO. Business/first class always requires VP regardless of price. Hotel suites need CFO. The agent calculates team travel totals and cascades multiple approvals for luxury bookings. Credentials for Stripe and booking APIs are isolated in Auth0 Token Vault.",
-            "scenarios": [
-                {
-                    "title": "Budget flight — $200 (auto-approve)",
-                    "description": "Economy flight under $500. Auto-approved.",
-                    "connection": "stripe-prod", "action": "charge",
-                    "params": {"amount_usd": 200, "customer": "Alice Johnson", "description": "Flight Berlin → London (economy)", "type": "travel_flight", "cabin_class": "economy"},
-                    "flow": flow(("agent", "Travel Agent", "Book $200"), ("platform", "Rule Engine", "No match"), ("action", "Booked", "Token Vault")),
-                    "badge": "success", "badgeLabel": "AUTO",
-                },
-                {
-                    "title": "Team business class — $9,000 (CFO)",
-                    "description": "3 business class tickets at $3,000 each. Total $9,000 → CFO approval.",
-                    "connection": "stripe-prod", "action": "charge",
-                    "params": {"amount_usd": 9000, "customer": "Engineering Team", "description": "Flight SFO → LHR x3 (business)", "type": "travel_flight", "cabin_class": "business"},
-                    "flow": flow(("agent", "Travel Agent", "Book $9,000"), ("platform", "Rule Engine", "specific"), ("approver", "CFO", "CIBA push"), ("action", "Booked", "Token Vault")),
-                    "badge": "warning", "badgeLabel": "CFO",
-                },
-                {
-                    "title": "Executive luxury — $15,000+ (cascading)",
-                    "description": "First class + Ritz suite + car service. Multiple step-ups cascade.",
-                    "connection": "stripe-prod", "action": "charge",
-                    "params": {"amount_usd": 15000, "customer": "VP Operations", "description": "Flight NYC → TYO (first class)", "type": "travel_flight", "cabin_class": "first"},
-                    "flow": flow(("agent", "Travel Agent", "Book $15,000"), ("platform", "Rule Engine", "specific"), ("approver", "CFO", "CIBA push"), ("gate", "Multiple bookings", "Hotel + transport"), ("action", "Cascade", "3 approvals")),
-                    "badge": "danger", "badgeLabel": "CASCADE",
-                },
-            ],
-            "setupInfo": [
-                {"type": "connection", "name": "stripe-prod", "detail": "Stripe for bookings"},
-                {"type": "approver", "name": "Manager", "detail": "Approves $500-$2000 flights"},
-                {"type": "approver", "name": "VP Operations", "detail": "Approves business/first class"},
-                {"type": "approver", "name": "CFO", "detail": "Approves $5000+ and suites"},
-                {"type": "rule", "name": "[Travel] Flights", "detail": "Tiered by amount + class"},
-                {"type": "rule", "name": "[Travel] Hotel suite", "detail": "Suite → CFO"},
             ],
         },
 
