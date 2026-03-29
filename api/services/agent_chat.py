@@ -1411,8 +1411,51 @@ def _execute_tool(agent_id: str, tool_name: str, tool_args: dict, workspace_id: 
                 "params": action["params"],
             }
 
-        # Create real approval job via test-request (synchronous to get job_id)
-        job_result = _fire_approval_request_sync(action["connection"], action["action"], action["params"], workspace_id)
+        # Create approval job directly in DB (avoid deadlock from self-HTTP call)
+        import uuid as _uuid
+        from datetime import datetime, timezone, timedelta
+        from api.models.approval_job import ApprovalJob, AuditLog
+
+        job_id = _uuid.uuid4()
+        job = ApprovalJob(
+            id=job_id,
+            idempotency_key=f"agent-{_uuid.uuid4()}",
+            workspace_id=workspace.id,
+            rule_id=matched_rule.id,
+            connection=action["connection"],
+            action=action["action"],
+            params=action["params"],
+            agent_user_id="agent-chat",
+            state="pending",
+            approvals_count=0,
+            required_count=1,
+            expires_at=datetime.now(timezone.utc) + timedelta(seconds=matched_rule.timeout_seconds or 300),
+        )
+        db.add(job)
+
+        audit = AuditLog(
+            job_id=job_id,
+            workspace_id=workspace.id,
+            event_type="requested",
+            binding_message=matched_rule.context_template or f"Approve {action['action']}?",
+        )
+        db.add(audit)
+        db.commit()
+
+        # Publish SSE event
+        try:
+            import redis
+            from api.config import get_settings as _gs
+            _s = _gs()
+            _r = redis.from_url(_s.REDIS_URL)
+            import json as _j
+            _r.publish("approval_events", _j.dumps({
+                "type": "requested", "job_id": str(job_id),
+                "connection": action["connection"], "action": action["action"],
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }))
+        except Exception:
+            pass
 
         approvers = []
         try:
@@ -1426,13 +1469,13 @@ def _execute_tool(agent_id: str, tool_name: str, tool_args: dict, workspace_id: 
 
         return {
             "success": True,
-            "status": job_result.get("status", "pending") if job_result else "pending",
+            "status": "pending",
             "message": f"Submitted for approval (Rule: {matched_rule.name}, Model: {matched_rule.model.value}). "
                        f"Approval is async — CONTINUE with your remaining actions immediately.",
             "rule_name": matched_rule.name,
             "model": matched_rule.model.value,
             "approvers": approvers,
-            "job_id": job_result.get("job_id") if job_result else None,
+            "job_id": str(job_id),
             "connection": action["connection"],
             "action": action["action"],
             "params": action["params"],
