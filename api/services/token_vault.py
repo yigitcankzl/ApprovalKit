@@ -24,9 +24,15 @@ from loguru import logger
 
 from api.config import get_settings
 from api.services.circuit_breaker import auth0_breaker
-from api.services.encryption import decrypt_secret
+from api.services.encryption import decrypt_secret, encrypt_secret
 
 settings = get_settings()
+
+# ---------------------------------------------------------------------------
+# Token cache — avoids hitting Auth0 on every execute_action call
+# ---------------------------------------------------------------------------
+_TOKEN_CACHE_TTL = 270  # 4.5 minutes (most provider access tokens last 5–60 min)
+_TOKEN_CACHE_PREFIX = "tvault:token:"
 
 
 # Service → Auth0 provider name (used for token retrieval)
@@ -878,10 +884,37 @@ class TokenVaultService:
         self.m2m_client_id     = settings.AUTH0_CLIENT_ID
         self.m2m_client_secret = settings.AUTH0_CLIENT_SECRET
 
+    # -- Token cache helpers ------------------------------------------------
+
+    def _get_cached_token(self, cache_key: str) -> str | None:
+        """Retrieve a cached access token from Redis."""
+        r = auth0_breaker._get_redis()
+        if not r:
+            return None
+        try:
+            return r.get(cache_key)
+        except Exception:
+            return None
+
+    def _set_cached_token(self, cache_key: str, token: str, ttl: int = _TOKEN_CACHE_TTL):
+        """Store an access token in Redis with a TTL."""
+        r = auth0_breaker._get_redis()
+        if not r:
+            return
+        try:
+            r.setex(cache_key, ttl, token)
+        except Exception:
+            pass  # cache miss is non-fatal
+
+    # -- Token Exchange ----------------------------------------------------
+
     async def get_token_via_exchange(self, connection_name: str, refresh_token: str, domain: str = "", client_id: str = "", client_secret: str = "") -> str | None:
         """
         Token Vault Token Exchange (RFC 8693).
         Exchanges an Auth0 refresh_token for a fresh external-provider access_token.
+
+        If the provider rotates the refresh token, the new value is stored in
+        ``self._rotated_refresh_token`` so the caller can persist it.
         """
         if not auth0_breaker.allow_request():
             logger.warning(f"Token Exchange skipped for {connection_name} — Auth0 circuit breaker OPEN")
@@ -908,6 +941,22 @@ class TokenVaultService:
                     data = r.json()
                     token = data.get("access_token")
                     logger.info(f"Token Vault: exchanged refresh token for {connection_name} access token (via Token Exchange)")
+
+                    # --- Scope validation ---------------------------------
+                    granted_scope = data.get("scope", "")
+                    if granted_scope:
+                        logger.info(f"Token Vault: {connection_name} granted scopes: {granted_scope}")
+                    else:
+                        logger.warning(f"Token Vault: {connection_name} — no scope in Token Exchange response (provider may not return scopes)")
+
+                    # --- Refresh token rotation ---------------------------
+                    new_refresh = data.get("refresh_token")
+                    if new_refresh and new_refresh != refresh_token:
+                        logger.info(f"Token Vault: refresh token rotated for {connection_name} — will persist new token")
+                        self._rotated_refresh_token = new_refresh
+                    else:
+                        self._rotated_refresh_token = None
+
                     return token
                 elif r.status_code == 401:
                     logger.warning(f"Token Vault Token Exchange: 401 Unauthorized for {connection_name} — refresh token may be expired. User should reconnect via /connections.")
@@ -925,31 +974,10 @@ class TokenVaultService:
             logger.warning(f"Token Vault Token Exchange error for {connection_name}: {e}")
             return None
 
-    async def get_token_from_auth0(self, provider: str, auth0_user_id: str) -> str | None:
-        """
-        Fallback: Retrieve token via Management API if Token Exchange is not available.
-        """
-        mgmt_token = await self.get_management_token()
-        if not mgmt_token:
-            return None
-        try:
-            async with httpx.AsyncClient(timeout=10) as c:
-                r = await c.get(
-                    f"https://{self.domain}/api/v2/users/{auth0_user_id}",
-                    headers={"Authorization": f"Bearer {mgmt_token}"},
-                )
-                if r.status_code != 200:
-                    return None
-                user = r.json()
-                for identity in user.get("identities", []):
-                    if identity.get("connection") == provider or identity.get("provider") == provider:
-                        token = identity.get("access_token")
-                        if token:
-                            logger.info(f"Token Vault: retrieved {provider} token via Management API (fallback)")
-                            return token
-        except Exception as e:
-            logger.warning(f"Token Vault Management API fallback failed: {e}")
-        return None
+    # NOTE: Management API fallback (get_token_from_auth0) has been intentionally
+    # removed.  Token Exchange is the only supported credential retrieval path.
+    # If the refresh token expires the user must reconnect via /connections.
+    # This aligns with the security model described in BLOG_POST.md.
 
     async def get_token_via_m2m(
         self, token_url: str, client_id: str, client_secret: str,
@@ -1045,25 +1073,36 @@ class TokenVaultService:
                     except Exception as e:
                         logger.warning(f"Token Vault: failed to get workspace config: {e}")
 
-                # Try Token Exchange (preferred, RFC 8693)
-                refresh_tok = decrypt_secret(conn_obj.auth0_refresh_token)
-                exchange_attempted = bool(refresh_tok and provider)
+                # Check Redis cache first
+                cache_key = f"{_TOKEN_CACHE_PREFIX}{workspace_id}:{connection}:{provider}"
+                cached_token = self._get_cached_token(cache_key)
+                if cached_token:
+                    creds = {"api_key": cached_token, "token": cached_token, "access_token": cached_token}
+                    logger.debug(f"Token Vault: cache hit for {connection}")
 
-                if exchange_attempted:
-                    token = await self.get_token_via_exchange(provider, refresh_tok, _ws_domain, _ws_client_id, _ws_client_secret)
-                    if token:
-                        creds = {"api_key": token, "token": token, "access_token": token}
-                        logger.info(f"Token Vault: Token Exchange succeeded for {connection}")
-                    else:
-                        logger.warning(f"Token Vault: Token Exchange failed for {connection} — trying Management API fallback")
+                # Cache miss → Token Exchange (RFC 8693)
+                if creds is None:
+                    refresh_tok = decrypt_secret(conn_obj.auth0_refresh_token)
+                    exchange_attempted = bool(refresh_tok and provider)
 
-                # Fallback: Management API (get token from identities[])
-                if creds is None and conn_obj.connected_auth0_user_id:
-                    auth0_uid = conn_obj.connected_auth0_user_id
-                    mgmt_token = await self.get_token_from_auth0(provider or service, auth0_uid)
-                    if mgmt_token:
-                        creds = {"api_key": mgmt_token, "token": mgmt_token, "access_token": mgmt_token}
-                        logger.info(f"Token Vault: Management API fallback succeeded for {connection}")
+                    if exchange_attempted:
+                        token = await self.get_token_via_exchange(provider, refresh_tok, _ws_domain, _ws_client_id, _ws_client_secret)
+                        if token:
+                            creds = {"api_key": token, "token": token, "access_token": token}
+                            self._set_cached_token(cache_key, token)
+                            logger.info(f"Token Vault: Token Exchange succeeded for {connection}")
+
+                            # Persist rotated refresh token if provider issued a new one
+                            if getattr(self, '_rotated_refresh_token', None):
+                                conn_obj.auth0_refresh_token = encrypt_secret(self._rotated_refresh_token)
+                                self._rotated_refresh_token = None
+                                try:
+                                    await db.commit()
+                                    logger.info(f"Token Vault: persisted rotated refresh token for {connection}")
+                                except Exception as e:
+                                    logger.warning(f"Token Vault: failed to persist rotated refresh token: {e}")
+                        else:
+                            logger.warning(f"Token Vault: Token Exchange failed for {connection} — user must reconnect via /connections (no Management API fallback)")
 
                 # Credential Vault: M2M client_credentials (Amadeus, Twilio, AWS, etc.)
                 # Credentials stored ONLY in HashiCorp Vault — never in our DB.
