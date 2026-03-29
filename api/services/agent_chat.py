@@ -1242,14 +1242,18 @@ def _map_tool_to_action(agent_id: str, tool_name: str, tool_input: dict) -> dict
         return None
     try:
         params = tool_def["param_map"](tool_input)
-        return {
-            "connection": tool_def["connection"],
-            "action": tool_def["action"],
-            "params": params,
-        }
+    except KeyError as e:
+        # LLM sent incomplete params — use raw tool_input as fallback
+        logger.warning(f"Tool mapping missing key {e} for {agent_id}/{tool_name}, using raw params")
+        params = {**tool_input}
     except Exception as e:
         logger.error(f"Tool mapping error: {agent_id}/{tool_name}: {e}")
-        return None
+        params = {**tool_input}
+    return {
+        "connection": tool_def["connection"],
+        "action": tool_def["action"],
+        "params": params,
+    }
 
 
 # ── Suggestions ───────────────────────────────────────────────────────────────
