@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Play, CheckCircle2, Clock, Loader2, XCircle, Smartphone, Shield,
-  ArrowRight, AlertTriangle, Bot,
+  ArrowRight, AlertTriangle, Bot, ThumbsUp, ThumbsDown, ChevronDown, Info,
 } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -42,6 +42,8 @@ export function StoryRunner({ story, onDone }: { story: Story; onDone?: () => vo
   const [currentStep, setCurrentStep] = useState(-1);
   const [started, setStarted] = useState(false);
   const [finished, setFinished] = useState(false);
+  const [deciding, setDeciding] = useState(false);
+  const [showApproval, setShowApproval] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
 
@@ -80,6 +82,7 @@ export function StoryRunner({ story, onDone }: { story: Story; onDone?: () => vo
         proceedToNext(index);
       } else if (res.job_id) {
         updateStep(index, { status: "pending", jobId: res.job_id });
+        setShowApproval(true);
         // Start polling
         pollRef.current = setInterval(async () => {
           try {
@@ -87,6 +90,7 @@ export function StoryRunner({ story, onDone }: { story: Story; onDone?: () => vo
             const terminal = ["approved", "rejected", "timeout", "blocked"];
             if (terminal.includes(s.status)) {
               if (pollRef.current) clearInterval(pollRef.current);
+              setShowApproval(false);
               updateStep(index, { status: s.status as StepState["status"] });
               if (s.status === "approved") {
                 await sleep(600);
@@ -127,10 +131,20 @@ export function StoryRunner({ story, onDone }: { story: Story; onDone?: () => vo
     runStep(0);
   };
 
+  const handleDecision = async (jobId: string, decision: "approve" | "reject") => {
+    setDeciding(true);
+    try {
+      await api.submitDecision(jobId, { decision });
+    } catch {}
+    setDeciding(false);
+    // Poll will pick up the state change
+  };
+
   const handleReset = () => {
     if (pollRef.current) clearInterval(pollRef.current);
     setStarted(false);
     setFinished(false);
+    setShowApproval(false);
     setCurrentStep(-1);
     setStepStates(story.steps.map(() => ({ status: "waiting" })));
   };
@@ -218,15 +232,39 @@ export function StoryRunner({ story, onDone }: { story: Story; onDone?: () => vo
                       </p>
                     )}
                     {state.status === "pending" && (
-                      <div className="mt-2 space-y-1.5">
+                      <div className="mt-2 space-y-2">
                         <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
                           <Smartphone className="h-3 w-3 shrink-0" />
                           Waiting for approval — Guardian push sent to approver(s)
                         </div>
-                        <div className="flex items-center gap-1.5 text-[10px] text-zinc-400">
-                          <Shield className="h-3 w-3 shrink-0" />
-                          Approve from your phone or from the Dashboard
-                        </div>
+                        {/* Inline approval toggle */}
+                        {showApproval && state.jobId && (
+                          <div className="p-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20 space-y-2">
+                            <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 dark:text-zinc-400">
+                              <Info className="h-3 w-3 shrink-0" />
+                              In production, approvals happen via Auth0 Guardian (phone push), CIBA, or other auth methods. This button is for demo purposes only.
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleDecision(state.jobId!, "approve")}
+                                disabled={deciding}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-xs font-medium transition-colors disabled:opacity-50"
+                              >
+                                {deciding ? <Loader2 className="h-3 w-3 animate-spin" /> : <ThumbsUp className="h-3 w-3" />}
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => handleDecision(state.jobId!, "reject")}
+                                disabled={deciding}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 text-xs font-medium transition-colors disabled:opacity-50"
+                              >
+                                {deciding ? <Loader2 className="h-3 w-3 animate-spin" /> : <ThumbsDown className="h-3 w-3" />}
+                                Reject
+                              </button>
+                              <span className="text-[10px] text-zinc-400 ml-1">or approve from phone</span>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                     {state.status === "approved" && (
