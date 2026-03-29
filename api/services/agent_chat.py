@@ -36,13 +36,14 @@ def clear_session(session_key: str):
 
 _CORE_BEHAVIOR = """
 CRITICAL BEHAVIOR RULES:
-1. You are an AUTONOMOUS agent. The user describes situations, problems, or context — YOU decide what actions to take.
-2. NEVER ask the user "should I do X?" or "would you like me to X?" — Just DO IT. You are the expert.
-3. When you identify a situation that requires action, IMMEDIATELY use the appropriate tool. Don't describe what you would do — do it.
-4. If multiple actions are needed, execute them in the right order. Explain what you're doing and why as you go.
-5. The user is NOT the approver. They are reporting a situation to you. The approval comes from a different person via the ApprovalKit system.
-6. Keep responses short and action-oriented. No walls of text.
-7. If you truly need information to proceed (like a name or ID you can't infer), ask ONE specific question. Otherwise, use reasonable defaults.
+1. You are an AUTONOMOUS agent. The user describes situations — YOU decide what actions to take.
+2. NEVER ask the user "should I do X?" — Just DO IT immediately.
+3. IMMEDIATELY call the appropriate tool. Don't describe what you would do — do it.
+4. Call exactly ONE tool at a time. After each tool call, you will see the result, then decide the next action.
+5. NEVER output JSON. NEVER write tool calls as text. ONLY use the tool calling feature.
+6. The user is NOT the approver. Approval comes from a different person via ApprovalKit.
+7. Keep responses very short. After all tools are called, give a brief summary.
+8. If multiple actions are needed, call the MOST IMPORTANT tool first. You will get another turn to call the next tool.
 """
 
 AGENT_PROMPTS: dict[str, str] = {
@@ -1887,44 +1888,42 @@ def _process_openai_compatible(
             choice = response.choices[0]
             msg = choice.message
 
-            # Collect text
-            if msg.content:
-                all_text_parts.append(msg.content)
-
-            # Check for tool calls
+            # No tool calls = final text response, we're done
             if not msg.tool_calls:
+                if msg.content:
+                    all_text_parts.append(msg.content)
                 break
 
-            # Add assistant message with tool calls to messages
-            # Strip unsupported fields (e.g. 'annotations' that Groq rejects)
-            msg_dict = {"role": msg.role}
-            if msg.content:
-                msg_dict["content"] = msg.content
-            if msg.tool_calls:
-                msg_dict["tool_calls"] = [
-                    {"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
-                    for tc in msg.tool_calls
-                ]
+            # Tool call present — only collect text if it's NOT json garbage
+            if msg.content and not msg.content.strip().startswith("{"):
+                all_text_parts.append(msg.content)
+
+            # Add assistant message with tool calls to conversation
+            msg_dict = {"role": msg.role, "content": msg.content or ""}
+            msg_dict["tool_calls"] = [
+                {"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
+                for tc in msg.tool_calls
+            ]
             messages.append(msg_dict)
 
-            # Execute each tool call
-            for tc in msg.tool_calls:
-                import json as _json
-                tool_args = _json.loads(tc.function.arguments) if tc.function.arguments else {}
+            # Execute ONLY the first tool call (one at a time for reliability)
+            import json as _json
+            tc = msg.tool_calls[0]
+            tool_args = _json.loads(tc.function.arguments) if tc.function.arguments else {}
 
-                logger.info(f"Agent {agent_id} calling tool: {tc.function.name}({tool_args})")
+            logger.info(f"Agent {agent_id} calling tool: {tc.function.name}({tool_args})")
 
-                result = _execute_tool(agent_id, tc.function.name, tool_args, workspace_id)
-                all_actions.append({"tool": tc.function.name, "args": tool_args, "result": result})
+            result = _execute_tool(agent_id, tc.function.name, tool_args, workspace_id)
+            all_actions.append({"tool": tc.function.name, "args": tool_args, "result": result})
 
-                logger.info(f"Tool result: {result.get('status', 'error')} — {result.get('message', result.get('error', ''))}")
+            logger.info(f"Tool result: {result.get('status', 'error')} — {result.get('message', result.get('error', ''))}")
 
-                # Add tool result to messages
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tc.id,
-                    "content": _json.dumps(result),
-                })
+            # Add tool result to messages so LLM sees it and decides next action
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tc.id,
+                "content": _json.dumps(result),
+            })
 
         response_text = "\n".join(all_text_parts).strip()
 
