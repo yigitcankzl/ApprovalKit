@@ -95,7 +95,7 @@ export default function MCPPage() {
           <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-2">Credentials</h2>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
             Replace <code className="text-xs bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">YOUR_API_KEY</code> and <code className="text-xs bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">YOUR_HMAC_SECRET</code> with your actual keys.
-            Go to <a href="/connect" className="text-blue-500 hover:underline">Connect Agent</a> to get them.
+            Go to <a href="/agents" className="text-blue-500 hover:underline">Agents</a> to get them.
           </p>
         </CardContent>
       </Card>

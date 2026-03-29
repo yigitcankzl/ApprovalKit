@@ -11,8 +11,8 @@ import {
   FlaskConical, GitBranch, Loader2, MessageSquare, Package, Plane,
   Play, Server, Shield, ShieldAlert, ShieldCheck, ShieldOff,
   Users, Zap, AlertTriangle, XCircle, Clock, Lock,
-  ThumbsUp, ThumbsDown, BarChart3, Activity, Send, RotateCcw,
-  Wrench, Sparkles, Settings,
+  ThumbsUp, ThumbsDown, Activity, Send, RotateCcw,
+  Wrench, Sparkles,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
