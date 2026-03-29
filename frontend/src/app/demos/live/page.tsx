@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { useUser } from "@auth0/nextjs-auth0/client";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
@@ -96,7 +97,8 @@ function resolveIcon(name: string): React.ElementType { return ICON_MAP[name] ??
 
 export default function LiveThreatDemoPage() {
   const { user } = useUser();
-  const [agents, setAgents] = useState<DemoAgent[]>([]);
+  const searchParams = useSearchParams();
+  const agentIdFromUrl = searchParams.get("agent");
   const [selectedAgent, setSelectedAgent] = useState<DemoAgent | null>(null);
   const [loading, setLoading] = useState(true);
   const [messages, setMessages] = useState<Record<string, ChatMessage[]>>({});
@@ -115,7 +117,13 @@ export default function LiveThreatDemoPage() {
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, selectedAgent?.id, isTyping]);
   useEffect(() => { eventsEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [events]);
-  useEffect(() => { api.getDemoAgents().then((d: any) => { const l = Array.isArray(d) ? d : d.agents || []; setAgents(l); if (l.length > 0) setSelectedAgent(l[0]); }).catch(() => {}).finally(() => setLoading(false)); }, []);
+  useEffect(() => {
+    api.getDemoAgents().then((d: any) => {
+      const list = Array.isArray(d) ? d : d.agents || [];
+      const target = agentIdFromUrl ? list.find((a: DemoAgent) => a.id === agentIdFromUrl) : list[0];
+      if (target) setSelectedAgent(target);
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, [agentIdFromUrl]);
   useEffect(() => { api.getRules().then((r: any[]) => setSetupDone(r.length > 0)).catch(() => {}); api.getAIKeyStatus().then((s: any) => setHasAIKey(!!s?.has_ai_api_key)).catch(() => {}); }, []);
 
   const currentMessages = selectedAgent ? (messages[selectedAgent.id] || []) : [];
@@ -327,9 +335,9 @@ export default function LiveThreatDemoPage() {
           <a href="/demos" className="text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"><ArrowLeft className="h-5 w-5" /></a>
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-red-600 via-orange-600 to-amber-600 dark:from-red-400 dark:via-orange-400 dark:to-amber-400">
-              Live Threat Demo
+              {selectedAgent?.title || "Live Threat Demo"}
             </h1>
-            <p className="text-zinc-500 dark:text-zinc-400 mt-1 text-sm">Watch AI agents act autonomously — see what ApprovalKit catches in real-time</p>
+            <p className="text-zinc-500 dark:text-zinc-400 mt-1 text-sm">{selectedAgent?.description || "Watch AI agents act autonomously — see what ApprovalKit catches in real-time"}</p>
           </div>
         </div>
       </div>
@@ -377,26 +385,6 @@ export default function LiveThreatDemoPage() {
         </div>
       </div>
 
-      {/* Agent Tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {agents.map(agent => {
-          const Icon = resolveIcon(agent.icon);
-          const isActive = selectedAgent?.id === agent.id;
-          return (
-            <button key={agent.id} onClick={() => setSelectedAgent(agent)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all border ${
-                isActive
-                  ? "bg-blue-50/60 dark:bg-blue-950/20 text-blue-700 dark:text-blue-300 border-blue-200/60 dark:border-blue-800/50"
-                  : "text-zinc-500 dark:text-zinc-400 border-zinc-200/40 dark:border-zinc-800/40 hover:border-zinc-300 dark:hover:border-zinc-600"
-              }`}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              <span>{agent.title.replace(" Agent", "").replace(" Approval", "")}</span>
-            </button>
-          );
-        })}
-      </div>
-
       {/* Split Screen */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" style={{ height: "calc(100vh - 320px)" }}>
 
@@ -421,7 +409,7 @@ export default function LiveThreatDemoPage() {
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {!hasAIKey && setupDone && (
               <div className="p-4 rounded-xl border border-amber-200/60 dark:border-amber-900/40 bg-amber-50/60 dark:bg-amber-950/10 text-amber-700 dark:text-amber-400 text-sm">
-                <Settings className="h-4 w-4 inline mr-2" />No AI provider configured. <a href={`/demos/${selectedAgent?.id || agents[0]?.id}`} className="underline">Set up Ollama or API key</a>
+                <Settings className="h-4 w-4 inline mr-2" />No AI provider configured. <a href={`/demos/${selectedAgent?.id || "expense"}`} className="underline">Set up Ollama or API key</a>
               </div>
             )}
             {!setupDone && (
