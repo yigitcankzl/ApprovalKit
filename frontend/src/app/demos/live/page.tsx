@@ -206,14 +206,19 @@ export default function LiveThreatDemoPage() {
       const decoder = new TextDecoder();
       let agentMsgId: string | null = null;
       let agentText = "";
+      let sseBuffer = "";
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split("\n");
+        sseBuffer += decoder.decode(value, { stream: true });
 
-        for (const line of lines) {
+        // Process complete SSE events (separated by double newline)
+        const parts = sseBuffer.split("\n\n");
+        sseBuffer = parts.pop() || ""; // Keep incomplete last part in buffer
+
+        for (const part of parts) {
+          const line = part.trim();
           if (!line.startsWith("data: ")) continue;
           try {
             const data = JSON.parse(line.slice(6));
@@ -295,7 +300,10 @@ export default function LiveThreatDemoPage() {
               if (st === "approved") {
                 setSummary(prev => ({ ...prev, pendingApproval: Math.max(0, prev.pendingApproval - 1), autoApproved: prev.autoApproved + 1 }));
               } else {
-                setSummary(prev => ({ ...prev, pendingApproval: Math.max(0, prev.pendingApproval - 1), blocked: prev.blocked + 1 }));
+                // Find the event to get the amount for preventedDamage
+                const rejEvt = events.find(e => e.jobId === jid);
+                const rejAmt = Number(rejEvt?.params?.amount_usd) || 0;
+                setSummary(prev => ({ ...prev, pendingApproval: Math.max(0, prev.pendingApproval - 1), blocked: prev.blocked + 1, preventedDamage: prev.preventedDamage + rejAmt }));
               }
             }
             else if (data.type === "done") {

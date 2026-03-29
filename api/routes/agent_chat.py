@@ -130,7 +130,7 @@ async def chat_with_agent_stream(
                 yield f"data: {json.dumps({'type': 'done', 'response': result.get('response', ''), 'session_id': result.get('session_id', '')})}\n\n"
                 return
 
-            client = OpenAI(api_key=api_key or "ollama", base_url=pconfig["base_url"])
+            client = OpenAI(api_key=api_key or "ollama", base_url=pconfig["base_url"], timeout=60)
             model = pconfig["model"]
 
             system_prompt = AGENT_PROMPTS.get(agent_id, f"You are a helpful AI assistant.")
@@ -212,13 +212,20 @@ async def chat_with_agent_stream(
 
                 # Execute tool calls — one at a time, wait for approval if pending
                 for tc in tc_list:
-                    tool_args = json.loads(tc["function"]["arguments"]) if tc["function"]["arguments"] else {}
+                    try:
+                        tool_args = json.loads(tc["function"]["arguments"]) if tc["function"]["arguments"] else {}
+                    except json.JSONDecodeError:
+                        tool_args = {}
 
                     yield f"data: {json.dumps({'type': 'tool_call', 'name': tc['function']['name'], 'args': tool_args})}\n\n"
 
-                    result = _execute_tool(agent_id, tc["function"]["name"], tool_args, workspace_id)
-                    all_actions.append({"tool": tc["function"]["name"], "args": tool_args, "result": result})
+                    try:
+                        result = _execute_tool(agent_id, tc["function"]["name"], tool_args, workspace_id)
+                    except Exception as tool_err:
+                        logging.getLogger(__name__).error(f"Tool execution error: {tool_err}")
+                        result = {"success": False, "status": "error", "error": str(tool_err)}
 
+                    all_actions.append({"tool": tc["function"]["name"], "args": tool_args, "result": result})
                     yield f"data: {json.dumps({'type': 'tool_result', 'name': tc['function']['name'], 'result': result})}\n\n"
 
                     # If pending approval, wait for human decision before continuing
@@ -227,29 +234,35 @@ async def chat_with_agent_stream(
                         yield f"data: {json.dumps({'type': 'waiting_approval', 'job_id': job_id})}\n\n"
                         import asyncio
                         from sqlalchemy import select as _sel
-                        from sqlalchemy.ext.asyncio import create_async_engine as _cae, AsyncSession as _AS
-                        from sqlalchemy.orm import sessionmaker as _sm
-                        from api.models.approval_job import ApprovalJob
-                        from api.config import get_settings as _gs
-
-                        _engine = _cae(_gs().DATABASE_URL)
-                        _async_session = _sm(_engine, class_=_AS, expire_on_commit=False)
+                        from api.database import engine as _db_engine
 
                         final_status = "pending"
-                        for _poll in range(120):  # Max 4 minutes (120 * 2s)
-                            await asyncio.sleep(2)
-                            async with _async_session() as _db:
-                                _job = (await _db.execute(_sel(ApprovalJob).where(ApprovalJob.id == job_id))).scalar_one_or_none()
-                                if _job and _job.state.value in ("approved", "rejected", "timeout", "blocked"):
-                                    final_status = _job.state.value
-                                    break
+                        try:
+                            from sqlalchemy.ext.asyncio import AsyncSession as _AS
+                            from sqlalchemy.orm import sessionmaker as _sm
+                            from api.models.approval_job import ApprovalJob
 
-                        await _engine.dispose()
-                        result["final_status"] = final_status
+                            _engine = _db_engine
+                            _async_session = _sm(_engine, class_=_AS, expire_on_commit=False)
+
+                            for _poll in range(90):  # Max 3 minutes
+                                await asyncio.sleep(2)
+                                try:
+                                    async with _async_session() as _db:
+                                        _job = (await _db.execute(_sel(ApprovalJob).where(ApprovalJob.id == job_id))).scalar_one_or_none()
+                                        if _job and _job.state.value in ("approved", "rejected", "timeout", "blocked"):
+                                            final_status = _job.state.value
+                                            break
+                                except Exception:
+                                    pass  # DB hiccup, retry next poll
+                        except Exception as poll_err:
+                            logging.getLogger(__name__).error(f"Approval poll error: {poll_err}")
+
+                        if final_status == "pending":
+                            final_status = "timeout"
+
                         yield f"data: {json.dumps({'type': 'approval_resolved', 'job_id': job_id, 'status': final_status})}\n\n"
-
-                        # Feed resolved result back to LLM
-                        tool_result_text = f"Action {final_status}. " + (f"Approved and executed." if final_status == "approved" else f"Rejected by approver.")
+                        tool_result_text = f"Action {final_status}. " + ("Approved and executed." if final_status == "approved" else f"Rejected/timed out by approver.")
                     else:
                         tool_result_text = json.dumps(result)
 
@@ -266,8 +279,8 @@ async def chat_with_agent_stream(
             yield f"data: {json.dumps({'type': 'done', 'response': response_text, 'session_id': session_id, 'actions_taken': len(all_actions)})}\n\n"
 
         except Exception as e:
-            logging.getLogger(__name__).error(f"Streaming chat error: {e}")
-            yield f"data: {json.dumps({'type': 'error', 'message': 'An internal error occurred. Please try again.'})}\n\n"
+            logging.getLogger(__name__).error(f"Streaming chat error: {e}", exc_info=True)
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)[:200]})}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
