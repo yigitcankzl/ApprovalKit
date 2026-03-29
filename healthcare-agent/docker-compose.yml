@@ -1,0 +1,56 @@
+services:
+  healthcare-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: healthcare_agent
+      POSTGRES_USER: healthcare
+      POSTGRES_PASSWORD: healthcare
+    ports:
+      - "5434:5432"
+    volumes:
+      - healthcare_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U healthcare -d healthcare_agent"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  healthcare-api:
+    build:
+      context: ..
+      dockerfile: healthcare-agent/Dockerfile
+    ports:
+      - "3002:3002"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://healthcare:healthcare@healthcare-db:5432/healthcare_agent
+      APPROVALKIT_URL: http://approvalkit-api-1:8000
+      APPROVALKIT_API_KEY: ${APPROVALKIT_API_KEY:-48a57407317ba8402611f3fc89ec4c145be18b034a4291c85a823f98fa8d34d8}
+      APPROVALKIT_HMAC_SECRET: ${APPROVALKIT_HMAC_SECRET:-86ef9749da4450e0209e2096a4632ed95f544d234f992d8df61746df523dde9f}
+      OLLAMA_URL: http://approvalkit-ollama-1:11434
+      OLLAMA_MODEL: qwen2.5:7b
+      FRONTEND_URL: http://localhost:3003
+      DEBUG: "true"
+    depends_on:
+      healthcare-db:
+        condition: service_healthy
+    networks:
+      - default
+      - approvalkit_default
+
+  healthcare-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3003:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3002
+    depends_on:
+      - healthcare-api
+
+volumes:
+  healthcare_pgdata:
+
+networks:
+  approvalkit_default:
+    external: true
