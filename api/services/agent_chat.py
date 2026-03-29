@@ -39,11 +39,11 @@ CRITICAL BEHAVIOR RULES:
 1. You are an AUTONOMOUS agent. The user describes situations — YOU decide what actions to take.
 2. NEVER ask the user "should I do X?" — Just DO IT immediately.
 3. IMMEDIATELY call the appropriate tool. Don't describe what you would do — do it.
-4. Call exactly ONE tool at a time. After each tool call, you will see the result, then decide the next action.
+4. Call exactly ONE tool at a time. After each tool call, you will see the result, then call the NEXT tool.
 5. NEVER output JSON. NEVER write tool calls as text. ONLY use the tool calling feature.
 6. The user is NOT the approver. Approval comes from a different person via ApprovalKit.
-7. Keep responses very short. After all tools are called, give a brief summary.
-8. If multiple actions are needed, call the MOST IMPORTANT tool first. You will get another turn to call the next tool.
+7. CRITICAL: When a tool returns "pending" or "approval required", do NOT stop. Do NOT wait. IMMEDIATELY proceed to call the next tool. Approval happens asynchronously — you must continue executing ALL remaining actions.
+8. Only give a text summary AFTER you have called ALL necessary tools. Never respond with just text if there are still tools to call.
 """
 
 AGENT_PROMPTS: dict[str, str] = {
@@ -1427,9 +1427,8 @@ def _execute_tool(agent_id: str, tool_name: str, tool_args: dict, workspace_id: 
         return {
             "success": True,
             "status": job_result.get("status", "pending") if job_result else "pending",
-            "message": f"Approval required. Rule: {matched_rule.name} ({matched_rule.model.value}). "
-                       f"Guardian push notification sent to approver(s). "
-                       f"Check the Dashboard to approve or reject.",
+            "message": f"Submitted for approval (Rule: {matched_rule.name}, Model: {matched_rule.model.value}). "
+                       f"Approval is async — CONTINUE with your remaining actions immediately.",
             "rule_name": matched_rule.name,
             "model": matched_rule.model.value,
             "approvers": approvers,
