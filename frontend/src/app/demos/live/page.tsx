@@ -148,6 +148,7 @@ export default function LiveThreatDemoPage() {
   const [seeding, setSeeding] = useState(false);
   const [hasAIKey, setHasAIKey] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [shieldEnabled, setShieldEnabled] = useState(true);
 
   // Scroll chat
   useEffect(() => {
@@ -239,47 +240,65 @@ export default function LiveThreatDemoPage() {
       // Add agent response
       addMessage(agentId, { role: "agent", text: res.response || "Done." });
 
-      // Process ALL actions (not just the last one)
+      // Process ALL actions
       const actions = res.actions || (res.action ? [res.action] : []);
       for (const a of actions) {
-        const status = a.status || "auto_approved";
+        const realStatus = a.status || "auto_approved";
 
-        // Tool call message in chat
-        const toolMsgId = addMessage(agentId, {
-          role: "tool",
-          text: `${a.connection}/${a.action}`,
-          toolName: a.action,
-          toolArgs: a.params,
-          toolStatus: status === "auto_approved" ? "auto_approved" : status === "pending" ? "pending" : "blocked",
-          jobId: a.job_id,
-        });
+        if (!shieldEnabled) {
+          // SHIELD OFF: Everything executes immediately — no approval, no protection
+          addMessage(agentId, {
+            role: "tool",
+            text: `${a.connection}/${a.action}`,
+            toolName: a.action,
+            toolArgs: a.params,
+            toolStatus: "auto_approved",
+          });
 
-        // Shield event
-        let eventType: ShieldEvent["type"] = "auto_approved";
-        if (status === "pending") eventType = "pending";
-        else if (status === "blocked") eventType = "blocked";
+          addEvent({
+            agentId, agentTitle,
+            type: "auto_approved",
+            action: a.action,
+            connection: a.connection,
+            params: a.params || {},
+            message: `⚠️ EXECUTED WITHOUT OVERSIGHT — ${a.action} (no approval required)`,
+          });
+        } else {
+          // SHIELD ON: Normal approval flow
+          const toolMsgId = addMessage(agentId, {
+            role: "tool",
+            text: `${a.connection}/${a.action}`,
+            toolName: a.action,
+            toolArgs: a.params,
+            toolStatus: realStatus === "auto_approved" ? "auto_approved" : realStatus === "pending" ? "pending" : "blocked",
+            jobId: a.job_id,
+          });
 
-        const ruleName = a.rule_name || "";
-        if (ruleName.toLowerCase().includes("large") || ruleName.toLowerCase().includes("cfo") || ruleName.toLowerCase().includes("step")) {
-          if (status === "pending") eventType = "step_up";
-        }
-        if (ruleName.toLowerCase().includes("mass") || ruleName.toLowerCase().includes("bulk") || ruleName.toLowerCase().includes("scope")) {
-          eventType = "scope_creep";
-        }
+          let eventType: ShieldEvent["type"] = "auto_approved";
+          if (realStatus === "pending") eventType = "pending";
+          else if (realStatus === "blocked") eventType = "blocked";
 
-        addEvent({
-          agentId, agentTitle,
-          type: eventType,
-          action: a.action,
-          connection: a.connection,
-          params: a.params || {},
-          message: a.message || `${a.action} — ${status}`,
-          jobId: a.job_id,
-        });
+          const ruleName = a.rule_name || "";
+          if (ruleName.toLowerCase().includes("large") || ruleName.toLowerCase().includes("cfo") || ruleName.toLowerCase().includes("step")) {
+            if (realStatus === "pending") eventType = "step_up";
+          }
+          if (ruleName.toLowerCase().includes("mass") || ruleName.toLowerCase().includes("bulk") || ruleName.toLowerCase().includes("scope")) {
+            eventType = "scope_creep";
+          }
 
-        // Poll for pending jobs
-        if (status === "pending" && a.job_id) {
-          pollJob(agentId, a.job_id, toolMsgId);
+          addEvent({
+            agentId, agentTitle,
+            type: eventType,
+            action: a.action,
+            connection: a.connection,
+            params: a.params || {},
+            message: a.message || `${a.action} — ${realStatus}`,
+            jobId: a.job_id,
+          });
+
+          if (realStatus === "pending" && a.job_id) {
+            pollJob(agentId, a.job_id, toolMsgId);
+          }
         }
       }
     } catch (e: any) {
@@ -385,9 +404,19 @@ export default function LiveThreatDemoPage() {
           <a href="/demos" className="text-zinc-400 hover:text-white transition-colors">
             <ArrowLeft className="h-4 w-4" />
           </a>
-          <ShieldAlert className="h-5 w-5 text-red-500" />
+          {shieldEnabled ? <ShieldCheck className="h-5 w-5 text-emerald-500" /> : <ShieldOff className="h-5 w-5 text-red-500 animate-pulse" />}
           <h1 className="text-sm font-bold tracking-wide">LIVE THREAT DEMO</h1>
-          <span className="text-[10px] text-zinc-500 font-mono">ApprovalKit Shield</span>
+          {/* Shield Toggle */}
+          <button
+            onClick={() => { setShieldEnabled(prev => !prev); setEvents([]); setSummary({ totalActions: 0, autoApproved: 0, pendingApproval: 0, blocked: 0, preventedDamage: 0 }); }}
+            className={`flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-bold transition-all border ${
+              shieldEnabled
+                ? "bg-emerald-900/30 text-emerald-400 border-emerald-700/50 hover:bg-emerald-900/50"
+                : "bg-red-900/30 text-red-400 border-red-700/50 hover:bg-red-900/50 animate-pulse"
+            }`}
+          >
+            {shieldEnabled ? <><Shield className="h-3 w-3" /> SHIELD ON</> : <><ShieldOff className="h-3 w-3" /> SHIELD OFF — UNPROTECTED</>}
+          </button>
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-3 text-xs font-mono">
@@ -519,10 +548,12 @@ export default function LiveThreatDemoPage() {
         </div>
 
         {/* ── RIGHT: Shield Panel ────────────────────────────────────────── */}
-        <div className="w-1/2 flex flex-col">
-          <div className="flex items-center gap-2 px-4 py-2 border-b border-zinc-800 bg-zinc-900/50">
-            <Shield className="h-4 w-4 text-blue-400" />
-            <h2 className="text-xs font-bold uppercase tracking-wider text-zinc-400">ApprovalKit Shield</h2>
+        <div className={`w-1/2 flex flex-col ${!shieldEnabled ? "bg-red-950/20" : ""}`}>
+          <div className={`flex items-center gap-2 px-4 py-2 border-b ${!shieldEnabled ? "border-red-900/50 bg-red-950/30" : "border-zinc-800 bg-zinc-900/50"}`}>
+            {shieldEnabled ? <Shield className="h-4 w-4 text-blue-400" /> : <ShieldOff className="h-4 w-4 text-red-400 animate-pulse" />}
+            <h2 className={`text-xs font-bold uppercase tracking-wider ${!shieldEnabled ? "text-red-400" : "text-zinc-400"}`}>
+              {shieldEnabled ? "ApprovalKit Shield" : "NO PROTECTION — Actions Execute Directly"}
+            </h2>
             <div className="flex-1" />
             <span className="text-[10px] text-zinc-600 font-mono">{events.length} events</span>
             {events.length > 0 && (
@@ -553,17 +584,32 @@ export default function LiveThreatDemoPage() {
 
           {/* Summary bar */}
           {events.length > 0 && (
-            <div className="px-4 py-3 border-t border-zinc-800 bg-zinc-900/80">
-              <div className="grid grid-cols-4 gap-3 text-center">
-                <SummaryCard label="Total" value={summary.totalActions} icon={<BarChart3 className="h-4 w-4" />} color="text-zinc-300" />
-                <SummaryCard label="Approved" value={summary.autoApproved} icon={<CheckCircle2 className="h-4 w-4" />} color="text-emerald-400" />
-                <SummaryCard label="Pending" value={summary.pendingApproval} icon={<Clock className="h-4 w-4" />} color="text-amber-400" />
-                <SummaryCard label="Blocked" value={summary.blocked} icon={<ShieldOff className="h-4 w-4" />} color="text-red-400" />
-              </div>
-              {summary.preventedDamage > 0 && (
-                <div className="mt-2 text-center">
-                  <span className="text-xs text-zinc-500">Total prevented damage: </span>
-                  <span className="text-lg font-bold text-red-400 font-mono">${summary.preventedDamage.toLocaleString()}</span>
+            <div className={`px-4 py-3 border-t ${!shieldEnabled ? "border-red-900/50 bg-red-950/30" : "border-zinc-800 bg-zinc-900/80"}`}>
+              {shieldEnabled ? (
+                <>
+                  <div className="grid grid-cols-4 gap-3 text-center">
+                    <SummaryCard label="Total" value={summary.totalActions} icon={<BarChart3 className="h-4 w-4" />} color="text-zinc-300" />
+                    <SummaryCard label="Approved" value={summary.autoApproved} icon={<CheckCircle2 className="h-4 w-4" />} color="text-emerald-400" />
+                    <SummaryCard label="Pending" value={summary.pendingApproval} icon={<Clock className="h-4 w-4" />} color="text-amber-400" />
+                    <SummaryCard label="Blocked" value={summary.blocked} icon={<ShieldOff className="h-4 w-4" />} color="text-red-400" />
+                  </div>
+                  {summary.preventedDamage > 0 && (
+                    <div className="mt-2 text-center">
+                      <span className="text-xs text-zinc-500">Total prevented damage: </span>
+                      <span className="text-lg font-bold text-red-400 font-mono">${summary.preventedDamage.toLocaleString()}</span>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-center space-y-1">
+                  <div className="flex items-center justify-center gap-2">
+                    <AlertTriangle className="h-5 w-5 text-red-400" />
+                    <span className="text-sm font-bold text-red-400">ALL {summary.totalActions} ACTIONS EXECUTED WITHOUT OVERSIGHT</span>
+                  </div>
+                  <p className="text-xs text-red-400/70">
+                    No approval was required. No human reviewed these actions. No audit trail.
+                    {summary.totalActions > 0 && ` Total unreviewed spend: $${events.reduce((sum, e) => sum + (Number(e.params?.amount_usd) || 0), 0).toLocaleString()}`}
+                  </p>
                 </div>
               )}
             </div>
