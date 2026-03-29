@@ -143,8 +143,12 @@ export default function LiveThreatDemoPage() {
       const res = await api.chatWithAgent(agentId, text.trim(), agentTitle, sessionIds[agentId] || "");
       if (res.session_id) setSessionIds(prev => ({ ...prev, [agentId]: res.session_id }));
       addMessage(agentId, { role: "agent", text: res.response || "Done." });
+
+      // Show actions one by one with staggered delay
       const actions = res.actions || (res.action ? [res.action] : []);
-      for (const a of actions) {
+      for (let i = 0; i < actions.length; i++) {
+        if (i > 0) await new Promise(r => setTimeout(r, 800));
+        const a = actions[i];
         const realStatus = a.status || "auto_approved";
         if (!shieldEnabled) {
           addMessage(agentId, { role: "tool", text: `${a.connection}/${a.action}`, toolName: a.action, toolArgs: a.params, toolStatus: "auto_approved" });
