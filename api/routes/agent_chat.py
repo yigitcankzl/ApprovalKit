@@ -210,7 +210,7 @@ async def chat_with_agent_stream(
                 msg_dict["tool_calls"] = tc_list
                 messages.append(msg_dict)
 
-                # Execute tool calls
+                # Execute tool calls — one at a time, wait for approval if pending
                 for tc in tc_list:
                     tool_args = json.loads(tc["function"]["arguments"]) if tc["function"]["arguments"] else {}
 
@@ -221,10 +221,42 @@ async def chat_with_agent_stream(
 
                     yield f"data: {json.dumps({'type': 'tool_result', 'name': tc['function']['name'], 'result': result})}\n\n"
 
+                    # If pending approval, wait for human decision before continuing
+                    job_id = result.get("job_id")
+                    if result.get("status") == "pending" and job_id:
+                        yield f"data: {json.dumps({'type': 'waiting_approval', 'job_id': job_id})}\n\n"
+                        import asyncio
+                        from sqlalchemy import select as _sel
+                        from sqlalchemy.ext.asyncio import create_async_engine as _cae, AsyncSession as _AS
+                        from sqlalchemy.orm import sessionmaker as _sm
+                        from api.models.approval_job import ApprovalJob
+                        from api.config import get_settings as _gs
+
+                        _engine = _cae(_gs().DATABASE_URL)
+                        _async_session = _sm(_engine, class_=_AS, expire_on_commit=False)
+
+                        final_status = "pending"
+                        for _poll in range(120):  # Max 4 minutes (120 * 2s)
+                            await asyncio.sleep(2)
+                            async with _async_session() as _db:
+                                _job = (await _db.execute(_sel(ApprovalJob).where(ApprovalJob.id == job_id))).scalar_one_or_none()
+                                if _job and _job.state.value in ("approved", "rejected", "timeout", "blocked"):
+                                    final_status = _job.state.value
+                                    break
+
+                        await _engine.dispose()
+                        result["final_status"] = final_status
+                        yield f"data: {json.dumps({'type': 'approval_resolved', 'job_id': job_id, 'status': final_status})}\n\n"
+
+                        # Feed resolved result back to LLM
+                        tool_result_text = f"Action {final_status}. " + (f"Approved and executed." if final_status == "approved" else f"Rejected by approver.")
+                    else:
+                        tool_result_text = json.dumps(result)
+
                     messages.append({
                         "role": "tool",
                         "tool_call_id": tc["id"],
-                        "content": json.dumps(result),
+                        "content": tool_result_text if result.get("status") == "pending" else json.dumps(result),
                     })
 
             response_text = "\n".join(all_text).strip() or "Done."

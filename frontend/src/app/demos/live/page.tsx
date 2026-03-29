@@ -227,6 +227,28 @@ export default function LiveThreatDemoPage() {
                 }
               }
             }
+            else if (data.type === "waiting_approval") {
+              // Backend is waiting for human approval — no action needed, UI already shows pending
+            }
+            else if (data.type === "approval_resolved") {
+              // Approval decision came through — update tool card + shield event
+              const jid = data.job_id;
+              const st = data.status as "approved" | "rejected" | "blocked";
+              setMessages(prev => ({
+                ...prev,
+                [agentId]: (prev[agentId] || []).map(m =>
+                  m.jobId === jid ? { ...m, toolStatus: st } : m
+                ),
+              }));
+              setEvents(prev => prev.map(e =>
+                e.jobId === jid ? { ...e, type: st } : e
+              ));
+              if (st === "approved") {
+                setSummary(prev => ({ ...prev, pendingApproval: Math.max(0, prev.pendingApproval - 1), autoApproved: prev.autoApproved + 1 }));
+              } else {
+                setSummary(prev => ({ ...prev, pendingApproval: Math.max(0, prev.pendingApproval - 1), blocked: prev.blocked + 1 }));
+              }
+            }
             else if (data.type === "done") {
               if (data.session_id) setSessionIds(prev => ({ ...prev, [agentId]: data.session_id }));
               // If no streaming text came through, show the response
