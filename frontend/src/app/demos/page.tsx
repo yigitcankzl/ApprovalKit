@@ -9,9 +9,9 @@ import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import type { DemoAgent } from "@/components/scenario-runner";
 import {
-  ArrowRight, Bot, Building2, CheckCircle2, CreditCard, Database,
-  Film, FlaskConical, GraduationCap, Heart, Home, Key, Leaf,
-  Loader2, Lock, Mail, Package, Play, Scale, Server, Shield,
+  ArrowRight, Banknote, Bot, Building2, CheckCircle2, CreditCard, Database,
+  Film, FlaskConical, GitBranch, GraduationCap, Heart, Home, Key, Leaf,
+  Loader2, Lock, Mail, Package, Plane, Play, Scale, Server, Shield,
   ShoppingCart, Users, Zap, Briefcase, AlertTriangle, FileCheck,
   UserPlus, DoorOpen, ClipboardList, UserCheck, Headphones,
   Clock, Stethoscope, Pill, Microscope, BookOpen, Award, Coins,
@@ -21,9 +21,9 @@ import {
 
 const ICON_MAP: Record<string, React.ElementType> = {
   ShoppingCart, Users, Server, Package, FlaskConical, CreditCard, Mail, Bot,
-  Building2, Heart, GraduationCap, Scale, Home, Film, Leaf,
-  Briefcase, AlertTriangle, Database, Key, FileCheck, UserPlus,
-  DoorOpen, ClipboardList, UserCheck, Headphones, Lock, Clock,
+  Building2, Heart, GraduationCap, Scale, Home, Film, Leaf, Banknote,
+  Briefcase, AlertTriangle, Database, Key, FileCheck, UserPlus, GitBranch,
+  DoorOpen, ClipboardList, UserCheck, Headphones, Lock, Clock, Plane,
   Stethoscope, Pill, Microscope, BookOpen, Award, Coins, Shield,
   FileSignature, ShieldCheck, Lightbulb, Wrench, UserSearch,
   MessageSquare, FileText, Zap, TreePine, Play,

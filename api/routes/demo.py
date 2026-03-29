@@ -90,6 +90,18 @@ APPROVERS = [
     # Legal / Privacy
     {"name": "Privacy Officer",  "email": "privacy@demo.approvalkit.io",
      "auth0_user_id": "demo|privacy",          "role": "privacy_officer"},
+    # Travel / Research
+    {"name": "VP Operations",    "email": "vp_ops@demo.approvalkit.io",
+     "auth0_user_id": "demo|vp_ops",           "role": "vp"},
+    {"name": "Principal Investigator", "email": "pi@demo.approvalkit.io",
+     "auth0_user_id": "demo|pi",               "role": "pi"},
+    {"name": "Department Head",  "email": "dept_head@demo.approvalkit.io",
+     "auth0_user_id": "demo|dept_head",        "role": "dept_head"},
+    # Open Source
+    {"name": "Maintainer 2",    "email": "maintainer2@demo.approvalkit.io",
+     "auth0_user_id": "demo|maintainer2",      "role": "maintainer2"},
+    {"name": "Maintainer 3",    "email": "maintainer3@demo.approvalkit.io",
+     "auth0_user_id": "demo|maintainer3",      "role": "maintainer3"},
 ]
 
 
@@ -418,6 +430,172 @@ def _build_rules(ar: dict[str, uuid.UUID]) -> list[dict]:
             "conditions": [c("type", "eq", "key_rotation"), c("migration_name", "eq", "rotate_all_keys")],
             "approver_roles": ["cto", "security_lead"],
             "priority": 40,
+        },
+
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # FINANCE AGENT
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        {
+            "name": "[Finance] Medium payment ($500–$4999)",
+            "connection": "stripe-prod", "action": "charge",
+            "model": ApprovalModel.ANY_ONE, "timeout_seconds": 300,
+            "context_template": "Payment ${amount_usd} to {customer} — {description}",
+            "conditions": [c("amount_usd", "gte", 500), c("amount_usd", "lt", 5000)],
+            "approver_roles": ["manager"],
+            "priority": 14,
+        },
+        {
+            "name": "[Finance] Large payment ($5000+)",
+            "connection": "stripe-prod", "action": "charge",
+            "model": ApprovalModel.SPECIFIC, "timeout_seconds": 600,
+            "context_template": "LARGE payment ${amount_usd} to {customer}",
+            "conditions": [c("amount_usd", "gte", 5000)],
+            "approver_roles": ["cfo"],
+            "priority": 24,
+        },
+
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # TRAVELOPS AGENT
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        {
+            "name": "[Travel] Flight $500–$2000",
+            "connection": "stripe-prod", "action": "charge",
+            "model": ApprovalModel.ANY_ONE, "timeout_seconds": 300,
+            "context_template": "Flight booking ${amount_usd}: {description}",
+            "conditions": [c("type", "eq", "travel_flight"), c("amount_usd", "gte", 500), c("amount_usd", "lt", 2000)],
+            "approver_roles": ["manager"],
+            "priority": 16,
+        },
+        {
+            "name": "[Travel] Flight $2000–$5000 or business class",
+            "connection": "stripe-prod", "action": "charge",
+            "model": ApprovalModel.SPECIFIC, "timeout_seconds": 600,
+            "context_template": "Premium travel ${amount_usd}: {description}",
+            "conditions": [c("type", "eq", "travel_flight"), c("amount_usd", "gte", 2000), c("amount_usd", "lt", 5000)],
+            "approver_roles": ["vp"],
+            "priority": 26,
+        },
+        {
+            "name": "[Travel] Flight $5000+ (CFO required)",
+            "connection": "stripe-prod", "action": "charge",
+            "model": ApprovalModel.SPECIFIC, "timeout_seconds": 900,
+            "context_template": "LUXURY travel ${amount_usd}: {description}",
+            "conditions": [c("type", "eq", "travel_flight"), c("amount_usd", "gte", 5000)],
+            "approver_roles": ["cfo"],
+            "priority": 36,
+        },
+        {
+            "name": "[Travel] Hotel suite (CFO required)",
+            "connection": "stripe-prod", "action": "charge",
+            "model": ApprovalModel.SPECIFIC, "timeout_seconds": 600,
+            "context_template": "Hotel suite ${amount_usd}: {description}",
+            "conditions": [c("type", "eq", "travel_hotel"), c("room_type", "eq", "suite")],
+            "approver_roles": ["cfo"],
+            "priority": 32,
+        },
+
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # OPEN SOURCE AGENT
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        {
+            "name": "[OSS] Feature PR merge (2-of-3)",
+            "connection": "github-prod", "action": "merge_pr",
+            "model": ApprovalModel.K_OF_N, "timeout_seconds": 900,
+            "k_value": 2,
+            "context_template": "Merge feature PR #{pr_number} in {repo}",
+            "conditions": [c("type", "eq", "feature")],
+            "approver_roles": ["maintainer", "maintainer2", "maintainer3"],
+            "priority": 20,
+        },
+        {
+            "name": "[OSS] Release (2-of-3 maintainers)",
+            "connection": "github-prod", "action": "deploy",
+            "model": ApprovalModel.K_OF_N, "timeout_seconds": 900,
+            "k_value": 2,
+            "context_template": "Create release {ref}: {notes}",
+            "conditions": [c("type", "eq", "release")],
+            "approver_roles": ["maintainer", "maintainer2", "maintainer3"],
+            "priority": 25,
+        },
+        {
+            "name": "[OSS] npm publish (ALL maintainers)",
+            "connection": "github-prod", "action": "deploy",
+            "model": ApprovalModel.ALL_OF_N, "timeout_seconds": 900,
+            "context_template": "PUBLISH to npm: {ref}",
+            "conditions": [c("type", "eq", "release"), c("publish_npm", "eq", True)],
+            "approver_roles": ["maintainer", "maintainer2", "maintainer3"],
+            "priority": 40,
+        },
+        {
+            "name": "[OSS] Bounty payment ($200+)",
+            "connection": "stripe-prod", "action": "payout",
+            "model": ApprovalModel.SPECIFIC, "timeout_seconds": 600,
+            "context_template": "Bounty ${amount_usd} to {customer}: {description}",
+            "conditions": [c("type", "eq", "bounty"), c("amount_usd", "gte", 200)],
+            "approver_roles": ["cfo"],
+            "priority": 22,
+        },
+
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # RESEARCH AGENT
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        {
+            "name": "[Research] Compute $500–$5000 (PI approval)",
+            "connection": "stripe-prod", "action": "charge",
+            "model": ApprovalModel.SPECIFIC, "timeout_seconds": 600,
+            "context_template": "Compute ${amount_usd}: {description}",
+            "conditions": [c("type", "eq", "compute"), c("amount_usd", "gte", 500), c("amount_usd", "lt", 5000)],
+            "approver_roles": ["pi"],
+            "priority": 17,
+        },
+        {
+            "name": "[Research] Compute $5000+ (PI + Dept Head)",
+            "connection": "stripe-prod", "action": "charge",
+            "model": ApprovalModel.ALL_OF_N, "timeout_seconds": 900,
+            "context_template": "LARGE compute ${amount_usd}: {description}",
+            "conditions": [c("type", "eq", "compute"), c("amount_usd", "gte", 5000)],
+            "approver_roles": ["pi", "dept_head"],
+            "priority": 34,
+        },
+        {
+            "name": "[Research] Dataset purchase under $1000",
+            "connection": "stripe-prod", "action": "charge",
+            "model": ApprovalModel.SPECIFIC, "timeout_seconds": 600,
+            "context_template": "Dataset ${amount_usd}: {description}",
+            "conditions": [c("type", "eq", "dataset_purchase"), c("amount_usd", "lt", 1000)],
+            "approver_roles": ["pi"],
+            "priority": 15,
+        },
+        {
+            "name": "[Research] Dataset purchase $1000+ (PI + CFO)",
+            "connection": "stripe-prod", "action": "charge",
+            "model": ApprovalModel.ALL_OF_N, "timeout_seconds": 900,
+            "context_template": "LARGE dataset ${amount_usd}: {description}",
+            "conditions": [c("type", "eq", "dataset_purchase"), c("amount_usd", "gte", 1000)],
+            "approver_roles": ["pi", "cfo"],
+            "priority": 30,
+        },
+
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # COMMS AGENT
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        {
+            "name": "[Comms] External email",
+            "connection": "gmail-prod", "action": "send_email",
+            "model": ApprovalModel.ANY_ONE, "timeout_seconds": 300,
+            "context_template": "External email to {recipient}: {subject}",
+            "conditions": [c("type", "eq", "external")],
+            "approver_roles": ["manager"],
+            "priority": 18,
+        },
+        {
+            "name": "[Comms] Mass email (10+ recipients)",
+            "connection": "gmail-prod", "action": "send_email",
+            "model": ApprovalModel.ALL_OF_N, "timeout_seconds": 900,
+            "context_template": "MASS EMAIL to {recipient_count} recipients: {subject}",
+            "conditions": [c("recipient_count", "gte", 10)],
+            "approver_roles": ["manager", "ceo"],
+            "priority": 38,
         },
 
         # ── Shared: Slack rules ───────────────────────────────────────────────
@@ -994,6 +1172,237 @@ def _build_agent_catalog() -> list[dict]:
                 {"type": "rule", "name": "[KeyRotation] Full rotation", "detail": "All keys → CTO + security"},
             ],
         },
+
+        # ──────────────────────────────────────────────────────────────────────
+        # 11. FINANCE AGENT
+        # ──────────────────────────────────────────────────────────────────────
+        {
+            "id": "finance",
+            "title": "Finance Operations Agent",
+            "icon": "Banknote",
+            "category": "finance",
+            "categoryLabel": "Commerce & Finance",
+            "description": "Autonomous payment processing agent that handles invoices, vendor payments, and financial transfers. Small payments under $500 auto-approve. $500-$5,000 requires manager sign-off. Above $5,000 needs CFO approval. The agent enforces a $10,000 daily budget — once exceeded, all further payments are blocked until the next day. When processing bulk vendor payments, the agent adapts by trying individual payments to stay within budget limits. All transactions flow through Auth0 Token Vault, keeping Stripe and PayPal credentials server-side.",
+            "scenarios": [
+                {
+                    "title": "Small invoice — $200 (auto-approve)",
+                    "description": "Small vendor payment. Under $500, auto-approved.",
+                    "connection": "stripe-prod", "action": "charge",
+                    "params": {"amount_usd": 200, "customer": "Acme Corp", "description": "Office supplies invoice #1234", "method": "stripe"},
+                    "flow": flow(("agent", "Finance Agent", "Pay $200"), ("platform", "Rule Engine", "No match"), ("action", "Auto-Paid", "Token Vault")),
+                    "badge": "success", "badgeLabel": "AUTO",
+                },
+                {
+                    "title": "Design agency — $5,000 (CFO approval)",
+                    "description": "Large transfer. $5,000+ requires CFO approval.",
+                    "connection": "stripe-prod", "action": "charge",
+                    "params": {"amount_usd": 5000, "customer": "Creative Agency", "description": "Q1 branding project — overdue", "method": "stripe"},
+                    "flow": flow(("agent", "Finance Agent", "Pay $5,000"), ("platform", "Rule Engine", "specific"), ("approver", "CFO", "CIBA push"), ("action", "Approved", "Token Vault")),
+                    "badge": "warning", "badgeLabel": "CFO",
+                },
+                {
+                    "title": "Bulk vendors — $50,000 (budget block)",
+                    "description": "15 pending vendors totaling $50,000. Daily budget ($10,000) exceeded — BLOCKED.",
+                    "connection": "stripe-prod", "action": "charge",
+                    "params": {"amount_usd": 50000, "customer": "Multiple Vendors", "description": "Bulk vendor payment — 15 pending invoices"},
+                    "flow": flow(("agent", "Finance Agent", "Pay $50,000"), ("platform", "Rule Engine", "Budget check"), ("gate", "BLOCKED", "Daily limit exceeded")),
+                    "badge": "danger", "badgeLabel": "BLOCKED",
+                },
+            ],
+            "setupInfo": [
+                {"type": "connection", "name": "stripe-prod", "detail": "Stripe for payments"},
+                {"type": "connection", "name": "gmail-prod", "detail": "Gmail for invoices"},
+                {"type": "approver", "name": "Manager", "detail": "Approves $500-$5000"},
+                {"type": "approver", "name": "CFO", "detail": "Approves $5000+"},
+                {"type": "rule", "name": "[Finance] Medium", "detail": "$500-$4999 → manager"},
+                {"type": "rule", "name": "[Finance] Large", "detail": "$5000+ → CFO"},
+            ],
+        },
+
+        # ──────────────────────────────────────────────────────────────────────
+        # 12. TRAVELOPS AGENT
+        # ──────────────────────────────────────────────────────────────────────
+        {
+            "id": "travelops",
+            "title": "Travel Operations Agent",
+            "icon": "Plane",
+            "category": "finance",
+            "categoryLabel": "Commerce & Finance",
+            "description": "Corporate travel booking agent that handles flights, hotels, and ground transportation. Economy flights under $500 auto-approve. $500-$2,000 needs manager approval, $2,000-$5,000 needs VP, and $5,000+ escalates to CFO. Business/first class always requires VP regardless of price. Hotel suites need CFO. The agent calculates team travel totals and cascades multiple approvals for luxury bookings. Credentials for Stripe and booking APIs are isolated in Auth0 Token Vault.",
+            "scenarios": [
+                {
+                    "title": "Budget flight — $200 (auto-approve)",
+                    "description": "Economy flight under $500. Auto-approved.",
+                    "connection": "stripe-prod", "action": "charge",
+                    "params": {"amount_usd": 200, "customer": "Alice Johnson", "description": "Flight Berlin → London (economy)", "type": "travel_flight", "cabin_class": "economy"},
+                    "flow": flow(("agent", "Travel Agent", "Book $200"), ("platform", "Rule Engine", "No match"), ("action", "Booked", "Token Vault")),
+                    "badge": "success", "badgeLabel": "AUTO",
+                },
+                {
+                    "title": "Team business class — $9,000 (CFO)",
+                    "description": "3 business class tickets at $3,000 each. Total $9,000 → CFO approval.",
+                    "connection": "stripe-prod", "action": "charge",
+                    "params": {"amount_usd": 9000, "customer": "Engineering Team", "description": "Flight SFO → LHR x3 (business)", "type": "travel_flight", "cabin_class": "business"},
+                    "flow": flow(("agent", "Travel Agent", "Book $9,000"), ("platform", "Rule Engine", "specific"), ("approver", "CFO", "CIBA push"), ("action", "Booked", "Token Vault")),
+                    "badge": "warning", "badgeLabel": "CFO",
+                },
+                {
+                    "title": "Executive luxury — $15,000+ (cascading)",
+                    "description": "First class + Ritz suite + car service. Multiple step-ups cascade.",
+                    "connection": "stripe-prod", "action": "charge",
+                    "params": {"amount_usd": 15000, "customer": "VP Operations", "description": "Flight NYC → TYO (first class)", "type": "travel_flight", "cabin_class": "first"},
+                    "flow": flow(("agent", "Travel Agent", "Book $15,000"), ("platform", "Rule Engine", "specific"), ("approver", "CFO", "CIBA push"), ("gate", "Multiple bookings", "Hotel + transport"), ("action", "Cascade", "3 approvals")),
+                    "badge": "danger", "badgeLabel": "CASCADE",
+                },
+            ],
+            "setupInfo": [
+                {"type": "connection", "name": "stripe-prod", "detail": "Stripe for bookings"},
+                {"type": "approver", "name": "Manager", "detail": "Approves $500-$2000 flights"},
+                {"type": "approver", "name": "VP Operations", "detail": "Approves business/first class"},
+                {"type": "approver", "name": "CFO", "detail": "Approves $5000+ and suites"},
+                {"type": "rule", "name": "[Travel] Flights", "detail": "Tiered by amount + class"},
+                {"type": "rule", "name": "[Travel] Hotel suite", "detail": "Suite → CFO"},
+            ],
+        },
+
+        # ──────────────────────────────────────────────────────────────────────
+        # 13. OPEN SOURCE AGENT
+        # ──────────────────────────────────────────────────────────────────────
+        {
+            "id": "opensource",
+            "title": "Open Source Maintenance Agent",
+            "icon": "GitBranch",
+            "category": "devops",
+            "categoryLabel": "DevOps & Software",
+            "description": "Community-driven project maintenance agent. Bug fix PRs merge automatically. Feature PRs require 2-of-3 maintainer votes (k-of-n quorum). Releases need the same 2-of-3 approval. npm publishing — the highest supply chain risk — requires ALL maintainers to approve (all-of-n). Bounty payments under $200 auto-approve, larger bounties need CFO sign-off. This agent demonstrates supply chain protection: even if the agent is compromised, it cannot publish to npm without unanimous maintainer consent.",
+            "scenarios": [
+                {
+                    "title": "Typo fix PR #42 (auto-merge)",
+                    "description": "Bug fix PR. Auto-approved and merged.",
+                    "connection": "github-prod", "action": "merge_pr",
+                    "params": {"repo": "acme/sdk", "pr_number": 42, "type": "bugfix"},
+                    "flow": flow(("agent", "OSS Agent", "Merge PR"), ("platform", "Rule Engine", "No match"), ("action", "Merged", "GitHub")),
+                    "badge": "success", "badgeLabel": "AUTO",
+                },
+                {
+                    "title": "v2.0 release (2-of-3 maintainers)",
+                    "description": "New release. 2-of-3 maintainer quorum required.",
+                    "connection": "github-prod", "action": "deploy",
+                    "params": {"type": "release", "env": "production", "ref": "v2.0.0", "notes": "Major release with new auth module", "publish_npm": False},
+                    "flow": flow(("agent", "OSS Agent", "Create release"), ("platform", "Rule Engine", "k_of_n (2/3)"), ("approver", "Maintainer 1", "Vote"), ("approver", "Maintainer 2", "Vote"), ("action", "Released", "GitHub")),
+                    "badge": "info", "badgeLabel": "QUORUM",
+                },
+                {
+                    "title": "npm publish + $5,000 bounties (ALL + CFO)",
+                    "description": "Publish to npm needs ALL maintainers. Bounties need CFO.",
+                    "connection": "github-prod", "action": "deploy",
+                    "params": {"type": "release", "env": "production", "ref": "v2.0.0", "notes": "Publish to npm registry", "publish_npm": True},
+                    "flow": flow(("agent", "OSS Agent", "Publish npm"), ("platform", "Rule Engine", "all_of_n"), ("approver", "All 3 Maintainers", "Must agree"), ("gate", "Supply Chain", "Maximum protection"), ("action", "Published", "npm")),
+                    "badge": "danger", "badgeLabel": "ALL MUST APPROVE",
+                },
+            ],
+            "setupInfo": [
+                {"type": "connection", "name": "github-prod", "detail": "GitHub for PRs and releases"},
+                {"type": "connection", "name": "stripe-prod", "detail": "Stripe for bounty payments"},
+                {"type": "approver", "name": "Maintainer", "detail": "Project maintainer #1"},
+                {"type": "approver", "name": "Maintainer 2", "detail": "Project maintainer #2"},
+                {"type": "approver", "name": "Maintainer 3", "detail": "Project maintainer #3"},
+                {"type": "rule", "name": "[OSS] Feature PR", "detail": "2-of-3 maintainer quorum"},
+                {"type": "rule", "name": "[OSS] npm publish", "detail": "ALL maintainers required"},
+            ],
+        },
+
+        # ──────────────────────────────────────────────────────────────────────
+        # 14. RESEARCH AGENT
+        # ──────────────────────────────────────────────────────────────────────
+        {
+            "id": "research",
+            "title": "Research Operations Agent",
+            "icon": "FlaskConical",
+            "category": "finance",
+            "categoryLabel": "Commerce & Finance",
+            "description": "Lab operations agent managing GPU clusters, paper submissions, and dataset acquisitions. Paper submissions auto-approve (no financial risk). Compute under $500 auto-approves. $500-$5,000 needs Principal Investigator (PI) approval. Over $5,000 requires PI + Department Head. Dataset purchases follow a similar tier. The $10,000 daily compute budget prevents runaway cloud costs — when a researcher requests a 64-GPU H100 cluster for a week ($50,000+), it gets blocked immediately.",
+            "scenarios": [
+                {
+                    "title": "Paper submission — NeurIPS (auto)",
+                    "description": "Research paper submission. No financial impact, auto-approved.",
+                    "connection": "gmail-prod", "action": "send_email",
+                    "params": {"recipient": "submissions@neurips.org", "subject": "Paper Submission: Attention Is All You Need v2", "type": "paper_submission"},
+                    "flow": flow(("agent", "Research Agent", "Submit paper"), ("platform", "Rule Engine", "No match"), ("action", "Submitted", "Email sent")),
+                    "badge": "success", "badgeLabel": "AUTO",
+                },
+                {
+                    "title": "4x A100 cluster — $1,200 (PI approval)",
+                    "description": "Medium compute request. PI approval required.",
+                    "connection": "stripe-prod", "action": "charge",
+                    "params": {"amount_usd": 1200, "customer": "lab-transformer-v2", "description": "4x A100 for 24h", "type": "compute"},
+                    "flow": flow(("agent", "Research Agent", "Provision $1,200"), ("platform", "Rule Engine", "specific"), ("approver", "PI", "CIBA push"), ("action", "Provisioned", "GPU cluster")),
+                    "badge": "info", "badgeLabel": "PI",
+                },
+                {
+                    "title": "64x H100 cluster — $50,000 (blocked)",
+                    "description": "Massive compute request. Exceeds daily budget — BLOCKED.",
+                    "connection": "stripe-prod", "action": "charge",
+                    "params": {"amount_usd": 50000, "customer": "lab-foundation-model", "description": "64x H100 for 168h", "type": "compute"},
+                    "flow": flow(("agent", "Research Agent", "Provision $50K"), ("platform", "Rule Engine", "all_of_n"), ("approver", "PI + Dept Head", "Both required"), ("gate", "BLOCKED", "Budget exceeded")),
+                    "badge": "danger", "badgeLabel": "BLOCKED",
+                },
+            ],
+            "setupInfo": [
+                {"type": "connection", "name": "stripe-prod", "detail": "Stripe for compute and datasets"},
+                {"type": "connection", "name": "gmail-prod", "detail": "Gmail for submissions"},
+                {"type": "approver", "name": "Principal Investigator", "detail": "Approves $500-$5000 compute"},
+                {"type": "approver", "name": "Department Head", "detail": "Co-approves $5000+ compute"},
+                {"type": "rule", "name": "[Research] Compute", "detail": "Tiered by cost"},
+                {"type": "rule", "name": "[Research] Dataset", "detail": "$1000+ needs PI + CFO"},
+            ],
+        },
+
+        # ──────────────────────────────────────────────────────────────────────
+        # 15. COMMS AGENT
+        # ──────────────────────────────────────────────────────────────────────
+        {
+            "id": "comms",
+            "title": "Communications Agent",
+            "icon": "MessageSquare",
+            "category": "hr",
+            "categoryLabel": "Corporate & HR",
+            "description": "Multi-channel communications agent handling Slack, email, and Discord. Internal Slack messages auto-approve. External emails to clients require manager approval. Mass emails to 10+ recipients need CEO + Manager approval. Press releases need CEO + Legal. The scope creep detection catches when an agent tries to email thousands of people — a critical safeguard against accidental mass communications that could damage the company's reputation.",
+            "scenarios": [
+                {
+                    "title": "Sprint review reminder — Slack (auto)",
+                    "description": "Internal Slack message. Auto-approved.",
+                    "connection": "slack-prod", "action": "send_message",
+                    "params": {"channel": "#engineering", "message": "Sprint review at 3pm today in the main conf room"},
+                    "flow": flow(("agent", "Comms Agent", "Send Slack"), ("platform", "Rule Engine", "No match"), ("action", "Sent", "Slack")),
+                    "badge": "success", "badgeLabel": "AUTO",
+                },
+                {
+                    "title": "Client email — Q1 update (manager)",
+                    "description": "External email to client. Manager approval required.",
+                    "connection": "gmail-prod", "action": "send_email",
+                    "params": {"recipient": "contact@bigcorp.com", "subject": "Q1 Project Update — Results & Next Steps", "type": "external", "recipient_count": 1},
+                    "flow": flow(("agent", "Comms Agent", "Send email"), ("platform", "Rule Engine", "any_one"), ("approver", "Manager", "CIBA push"), ("action", "Sent", "Gmail")),
+                    "badge": "info", "badgeLabel": "MANAGER",
+                },
+                {
+                    "title": "Newsletter to 10,000 — mass block",
+                    "description": "Mass email to 10,000 subscribers. Scope creep — CEO + Manager required.",
+                    "connection": "gmail-prod", "action": "send_email",
+                    "params": {"recipient": "newsletter@company.com", "subject": "Press Release: New Product Launch", "type": "external", "recipient_count": 10000},
+                    "flow": flow(("agent", "Comms Agent", "Mass email"), ("platform", "Rule Engine", "all_of_n"), ("approver", "Manager", "CIBA push"), ("approver", "CEO", "CIBA push"), ("gate", "Scope Creep", "10,000 recipients")),
+                    "badge": "danger", "badgeLabel": "SCOPE CREEP",
+                },
+            ],
+            "setupInfo": [
+                {"type": "connection", "name": "slack-prod", "detail": "Slack for messages"},
+                {"type": "connection", "name": "gmail-prod", "detail": "Gmail for emails"},
+                {"type": "approver", "name": "Manager", "detail": "Approves external emails"},
+                {"type": "approver", "name": "CEO", "detail": "Co-approves mass emails"},
+                {"type": "rule", "name": "[Comms] External email", "detail": "External → manager"},
+                {"type": "rule", "name": "[Comms] Mass email", "detail": "10+ recipients → manager + CEO"},
+            ],
+        },
     ]
 
 
@@ -1023,6 +1432,11 @@ async def seed_demo_data(
         "prescription_refill": {"conns": ["gmail-prod", "slack-prod"], "roles": ["doctor", "pharmacist"]},
         "gdpr_request": {"conns": ["github-prod", "gmail-prod", "slack-prod"], "roles": ["privacy_officer", "cto", "legal"]},
         "api_key_rotation": {"conns": ["github-prod", "slack-prod", "gmail-prod"], "roles": ["security_lead", "cto"]},
+        "finance": {"conns": ["stripe-prod", "gmail-prod", "slack-prod"], "roles": ["manager", "cfo"]},
+        "travelops": {"conns": ["stripe-prod", "gmail-prod", "slack-prod"], "roles": ["manager", "vp", "cfo"]},
+        "opensource": {"conns": ["github-prod", "stripe-prod", "slack-prod"], "roles": ["maintainer", "maintainer2", "maintainer3", "cfo", "cto"]},
+        "research": {"conns": ["stripe-prod", "gmail-prod", "slack-prod"], "roles": ["pi", "dept_head", "cfo"]},
+        "comms": {"conns": ["slack-prod", "gmail-prod"], "roles": ["manager", "ceo"]},
     }
 
     needed_conns = None
@@ -1124,6 +1538,11 @@ async def seed_demo_data(
         "prescription_refill": ["[Rx]"],
         "gdpr_request": ["[GDPR]"],
         "api_key_rotation": ["[KeyRotation]"],
+        "finance": ["[Finance]"],
+        "travelops": ["[Travel]"],
+        "opensource": ["[OSS]"],
+        "research": ["[Research]"],
+        "comms": ["[Comms]"],
     }
 
     existing_rules = set()
@@ -1224,6 +1643,11 @@ async def clear_demo_data(
         "prescription_refill": ["[Rx]"],
         "gdpr_request": ["[GDPR]"],
         "api_key_rotation": ["[KeyRotation]"],
+        "finance": ["[Finance]"],
+        "travelops": ["[Travel]"],
+        "opensource": ["[OSS]"],
+        "research": ["[Research]"],
+        "comms": ["[Comms]"],
     }
 
     _AGENT_DEPS = {
@@ -1237,6 +1661,11 @@ async def clear_demo_data(
         "prescription_refill": {"conns": ["gmail-prod", "slack-prod"], "roles": ["doctor", "pharmacist"]},
         "gdpr_request": {"conns": ["github-prod", "gmail-prod", "slack-prod"], "roles": ["privacy_officer", "cto", "legal"]},
         "api_key_rotation": {"conns": ["github-prod", "slack-prod", "gmail-prod"], "roles": ["security_lead", "cto"]},
+        "finance": {"conns": ["stripe-prod", "gmail-prod", "slack-prod"], "roles": ["manager", "cfo"]},
+        "travelops": {"conns": ["stripe-prod", "gmail-prod", "slack-prod"], "roles": ["manager", "vp", "cfo"]},
+        "opensource": {"conns": ["github-prod", "stripe-prod", "slack-prod"], "roles": ["maintainer", "maintainer2", "maintainer3", "cfo", "cto"]},
+        "research": {"conns": ["stripe-prod", "gmail-prod", "slack-prod"], "roles": ["pi", "dept_head", "cfo"]},
+        "comms": {"conns": ["slack-prod", "gmail-prod"], "roles": ["manager", "ceo"]},
     }
 
     if agent_id and agent_id in _AGENT_RULE_PREFIXES:

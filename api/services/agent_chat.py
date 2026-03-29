@@ -240,6 +240,112 @@ EXAMPLES:
 - User says "We had a full infrastructure breach" → ROTATE ALL KEYS. Nuclear option (CTO + Security Lead must both approve). Explain the blast radius.
 
 For emergencies, act IMMEDIATELY. Explain the rotation strategy (zero-downtime, blue-green) for non-emergency rotations.""",
+
+    "finance": _CORE_BEHAVIOR + """
+You are the company's AI Finance Agent. You handle payments, invoices, vendor transfers, and financial operations autonomously.
+
+Your capabilities: Process payments (PayPal/Stripe), send invoices via email, notify finance team via Slack.
+
+Approval rules:
+- Under $500: Auto-approved
+- $500–$4,999: Manager approval
+- $5,000+: CFO approval required
+- Daily budget: $10,000 (blocks if exceeded)
+- Bulk payments (5+ vendors): CFO + Manager (both must approve)
+
+EXAMPLES:
+- "Pay invoice #1234 to Acme Corp for $200 for office supplies" → process_payment($200, "Acme Corp") auto-approved.
+- "Transfer $5,000 to the design agency" → process_payment($5,000) → CFO approval needed.
+- "Pay all 15 pending vendor invoices, total $50,000" → Try to process bulk payment → BLOCKED (budget exceeded). Adapt by processing individually.
+- "Send a receipt to vendor@acme.com" → send_invoice email (auto).
+
+Always state: amount, vendor, which approval tier applies.""",
+
+    "travelops": _CORE_BEHAVIOR + """
+You are the company's AI Travel Operations Agent. You book flights, hotels, and ground transportation for employees.
+
+Your capabilities: Book flights, book hotels, arrange ground transportation, send itinerary emails, notify teams via Slack.
+
+Approval rules:
+- Economy flights under $500: Auto-approved
+- $500–$2,000: Manager approval
+- $2,000–$5,000: VP approval
+- $5,000+: CFO approval
+- Business/first class: Always requires VP approval regardless of amount
+- Hotel suites: CFO approval
+
+EXAMPLES:
+- "Book economy flight Berlin to London for $200" → book_flight auto-approved.
+- "Book business class to San Francisco for 3 people" → $3,000/person × 3 = $9,000 → CFO approval (business class + high amount).
+- "Book first class to Tokyo + Ritz-Carlton suite for a week" → Multiple step-ups cascade: first class needs VP, suite needs CFO. Total $15,000+.
+- "Arrange airport pickup for the visiting client" → book_transport auto-approved.
+
+For team travel, calculate totals. For luxury bookings, explain why elevated approval is needed.""",
+
+    "opensource": _CORE_BEHAVIOR + """
+You are the AI Open Source Maintenance Agent. You manage releases, PR merges, community engagement, and contributor payments.
+
+Your capabilities: Merge PRs on GitHub, create releases, post Discord announcements, process bounty payments.
+
+Approval rules:
+- Bug fix PRs: Auto-approved (merge)
+- Feature PRs: 2-of-3 maintainer approval (k-of-n)
+- Release tags: 2-of-3 maintainer approval
+- npm publish: ALL maintainers must approve (all-of-n)
+- Bounty payments under $200: Auto-approved
+- Bounty payments $200+: CFO approval
+- Mass bounty ($1,000+ total): CFO + CTO (both)
+
+EXAMPLES:
+- "Merge the typo fix PR #42" → merge_pr auto-approved.
+- "Create v2.0 release and announce on Discord" → create_release (2-of-3) + post_discord (approval).
+- "Publish package to npm and pay $5,000 to top 5 contributors" → npm publish needs ALL maintainers, bounty payments need CFO.
+- "Review and merge the new auth feature PR" → Feature PR needs 2-of-3 maintainer votes.
+
+Supply chain protection is critical. npm publish is the highest tier.""",
+
+    "research": _CORE_BEHAVIOR + """
+You are the AI Research Operations Agent. You manage compute resources, paper submissions, dataset acquisitions, and lab operations.
+
+Your capabilities: Provision GPU clusters, submit papers, purchase datasets, send emails, notify teams via Slack.
+
+Approval rules:
+- Paper submissions: Auto-approved
+- Compute under $500: Auto-approved
+- Compute $500–$5,000: PI (Principal Investigator) approval
+- Compute $5,000+: PI + Department Head (both)
+- Dataset purchases under $1,000: PI approval
+- Dataset purchases $1,000+: PI + CFO (both)
+- Daily compute budget: $10,000
+
+EXAMPLES:
+- "Submit our paper to NeurIPS" → submit_paper auto-approved.
+- "Provision 4-GPU A100 cluster for 24 hours (~$1,200)" → provision_compute needs PI approval.
+- "Spin up 64-GPU H100 cluster for a week (~$50,000)" → BLOCKED (daily budget exceeded). Try smaller.
+- "Buy access to the ImageNet-21k dataset ($3,000)" → purchase_dataset needs PI + CFO.
+
+For expensive compute, suggest alternatives. Always show estimated costs.""",
+
+    "comms": _CORE_BEHAVIOR + """
+You are the company's AI Communications Agent. You draft and send internal/external communications across Slack, email, and Discord.
+
+Your capabilities: Send Slack messages, send emails, post to Discord, schedule announcements.
+
+Approval rules:
+- Internal Slack (team channels): Auto-approved
+- Internal email (within company): Auto-approved
+- External email (clients, partners): Manager approval
+- Public Discord/social posts: Manager approval
+- Mass email (10+ recipients): Manager + CEO (both)
+- Press releases: CEO + Legal (both)
+
+EXAMPLES:
+- "Send a sprint review reminder to #engineering" → send_slack auto-approved.
+- "Email our client at bigcorp@example.com with Q1 results" → send_email needs Manager approval.
+- "Send a press release about our new product to 10,000 subscribers" → BLOCKED (mass email scope creep).
+- "Announce the new feature on Discord" → post_discord needs Manager approval.
+
+For mass communications, always flag the recipient count. External communications represent the company.""",
 }
 
 # ── Agent Tools (Claude tool_use) ─────────────────────────────────────────────
@@ -639,6 +745,269 @@ AGENT_TOOLS: dict[str, list[dict]] = {
             },
         },
     ],
+
+    "finance": [
+        {
+            "name": "process_payment",
+            "description": "Process a payment to a vendor or payee via Stripe/PayPal.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "amount_usd": {"type": "number", "description": "Payment amount in USD"},
+                    "vendor": {"type": "string", "description": "Vendor or payee name"},
+                    "invoice_id": {"type": "string", "description": "Invoice number or reference"},
+                    "method": {"type": "string", "enum": ["stripe", "paypal", "wire"], "description": "Payment method"},
+                    "description": {"type": "string", "description": "Payment description"},
+                },
+                "required": ["amount_usd", "vendor", "description"],
+            },
+        },
+        {
+            "name": "send_invoice",
+            "description": "Send an invoice or receipt via email.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "recipient": {"type": "string", "description": "Recipient email"},
+                    "subject": {"type": "string"},
+                    "amount_usd": {"type": "number"},
+                    "type": {"type": "string", "enum": ["invoice", "receipt", "reminder"]},
+                },
+                "required": ["recipient", "subject", "type"],
+            },
+        },
+        {
+            "name": "notify_slack",
+            "description": "Send a finance notification to Slack.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "channel": {"type": "string"},
+                    "message": {"type": "string"},
+                },
+                "required": ["channel", "message"],
+            },
+        },
+    ],
+
+    "travelops": [
+        {
+            "name": "book_flight",
+            "description": "Book a flight for an employee.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "passenger": {"type": "string", "description": "Passenger name"},
+                    "origin": {"type": "string", "description": "Departure city/airport"},
+                    "destination": {"type": "string", "description": "Arrival city/airport"},
+                    "date": {"type": "string", "description": "Travel date (YYYY-MM-DD)"},
+                    "cabin_class": {"type": "string", "enum": ["economy", "premium_economy", "business", "first"]},
+                    "amount_usd": {"type": "number", "description": "Estimated cost in USD"},
+                },
+                "required": ["passenger", "origin", "destination", "date", "cabin_class", "amount_usd"],
+            },
+        },
+        {
+            "name": "book_hotel",
+            "description": "Book a hotel for an employee.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "guest": {"type": "string"},
+                    "hotel": {"type": "string", "description": "Hotel name"},
+                    "city": {"type": "string"},
+                    "check_in": {"type": "string", "description": "Check-in date"},
+                    "check_out": {"type": "string", "description": "Check-out date"},
+                    "room_type": {"type": "string", "enum": ["standard", "deluxe", "suite"]},
+                    "amount_usd": {"type": "number"},
+                },
+                "required": ["guest", "hotel", "city", "check_in", "check_out", "room_type", "amount_usd"],
+            },
+        },
+        {
+            "name": "book_transport",
+            "description": "Arrange ground transportation (taxi, car service).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "passenger": {"type": "string"},
+                    "pickup": {"type": "string"},
+                    "dropoff": {"type": "string"},
+                    "date": {"type": "string"},
+                    "type": {"type": "string", "enum": ["taxi", "car_service", "shuttle"]},
+                    "amount_usd": {"type": "number"},
+                },
+                "required": ["passenger", "pickup", "dropoff", "date", "type", "amount_usd"],
+            },
+        },
+        {
+            "name": "send_itinerary",
+            "description": "Send travel itinerary email to the traveler.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "recipient": {"type": "string"},
+                    "subject": {"type": "string"},
+                    "body_preview": {"type": "string"},
+                },
+                "required": ["recipient", "subject"],
+            },
+        },
+    ],
+
+    "opensource": [
+        {
+            "name": "merge_pr",
+            "description": "Merge a pull request on GitHub.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "repo": {"type": "string", "description": "Repository (e.g. acme/sdk)"},
+                    "pr_number": {"type": "integer", "description": "PR number"},
+                    "pr_type": {"type": "string", "enum": ["bugfix", "feature", "docs", "refactor"]},
+                },
+                "required": ["repo", "pr_number", "pr_type"],
+            },
+        },
+        {
+            "name": "create_release",
+            "description": "Create a new GitHub release tag.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "repo": {"type": "string"},
+                    "version": {"type": "string", "description": "Semantic version (e.g. v2.0.0)"},
+                    "notes": {"type": "string", "description": "Release notes"},
+                    "publish_npm": {"type": "boolean", "description": "Whether to publish to npm"},
+                },
+                "required": ["repo", "version", "notes"],
+            },
+        },
+        {
+            "name": "post_discord",
+            "description": "Post an announcement to the project's Discord server.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "channel": {"type": "string", "description": "Discord channel"},
+                    "message": {"type": "string"},
+                },
+                "required": ["channel", "message"],
+            },
+        },
+        {
+            "name": "pay_bounty",
+            "description": "Pay a contributor bounty via PayPal/Stripe.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "contributor": {"type": "string", "description": "Contributor username or email"},
+                    "amount_usd": {"type": "number"},
+                    "reason": {"type": "string", "description": "What they contributed"},
+                },
+                "required": ["contributor", "amount_usd", "reason"],
+            },
+        },
+    ],
+
+    "research": [
+        {
+            "name": "provision_compute",
+            "description": "Provision a GPU cluster for training or inference.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "gpu_type": {"type": "string", "enum": ["A100", "H100", "V100", "T4"]},
+                    "gpu_count": {"type": "integer"},
+                    "duration_hours": {"type": "integer"},
+                    "amount_usd": {"type": "number", "description": "Estimated cost"},
+                    "project": {"type": "string", "description": "Research project name"},
+                },
+                "required": ["gpu_type", "gpu_count", "duration_hours", "amount_usd", "project"],
+            },
+        },
+        {
+            "name": "submit_paper",
+            "description": "Submit a research paper to a conference or journal.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "venue": {"type": "string", "description": "Conference or journal name"},
+                    "authors": {"type": "string", "description": "Comma-separated author names"},
+                },
+                "required": ["title", "venue", "authors"],
+            },
+        },
+        {
+            "name": "purchase_dataset",
+            "description": "Purchase access to a proprietary dataset.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "dataset_name": {"type": "string"},
+                    "provider": {"type": "string"},
+                    "amount_usd": {"type": "number"},
+                    "license_type": {"type": "string", "enum": ["academic", "commercial", "research_only"]},
+                },
+                "required": ["dataset_name", "provider", "amount_usd"],
+            },
+        },
+        {
+            "name": "notify_slack",
+            "description": "Send a notification to a lab Slack channel.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "channel": {"type": "string"},
+                    "message": {"type": "string"},
+                },
+                "required": ["channel", "message"],
+            },
+        },
+    ],
+
+    "comms": [
+        {
+            "name": "send_slack",
+            "description": "Send a message to a Slack channel.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "channel": {"type": "string", "description": "Slack channel (e.g. #engineering, #general)"},
+                    "message": {"type": "string"},
+                },
+                "required": ["channel", "message"],
+            },
+        },
+        {
+            "name": "send_email",
+            "description": "Send an email to one or more recipients.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "recipient": {"type": "string", "description": "Recipient email(s), comma-separated for multiple"},
+                    "subject": {"type": "string"},
+                    "body_preview": {"type": "string", "description": "Brief preview of email content"},
+                    "is_external": {"type": "boolean", "description": "Whether the recipient is external to the company"},
+                    "recipient_count": {"type": "integer", "description": "Number of recipients for mass emails"},
+                },
+                "required": ["recipient", "subject"],
+            },
+        },
+        {
+            "name": "post_discord",
+            "description": "Post a message to a public Discord channel.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "channel": {"type": "string"},
+                    "message": {"type": "string"},
+                },
+                "required": ["channel", "message"],
+            },
+        },
+    ],
 }
 
 # ── Tool → ApprovalKit Action Mapping ─────────────────────────────────────────
@@ -757,6 +1126,79 @@ _TOOL_ACTION_MAP: dict[str, dict[str, dict]] = {
         "notify_slack": {"connection": "slack-prod", "action": "send_message",
                          "param_map": lambda p: p},
     },
+    "finance": {
+        "process_payment": {"connection": "stripe-prod", "action": "charge",
+                            "param_map": lambda p: {"amount_usd": p["amount_usd"], "customer": p["vendor"],
+                                                    "description": p["description"],
+                                                    "invoice_id": p.get("invoice_id", ""),
+                                                    "method": p.get("method", "stripe")}},
+        "send_invoice": {"connection": "gmail-prod", "action": "send_email",
+                         "param_map": lambda p: {"recipient": p["recipient"], "subject": p["subject"],
+                                                 "type": p["type"], "amount_usd": p.get("amount_usd", 0)}},
+        "notify_slack": {"connection": "slack-prod", "action": "send_message",
+                         "param_map": lambda p: p},
+    },
+    "travelops": {
+        "book_flight": {"connection": "stripe-prod", "action": "charge",
+                        "param_map": lambda p: {"amount_usd": p["amount_usd"], "customer": p["passenger"],
+                                                "description": f"Flight {p['origin']} → {p['destination']} ({p['cabin_class']})",
+                                                "type": "travel_flight", "cabin_class": p["cabin_class"]}},
+        "book_hotel": {"connection": "stripe-prod", "action": "charge",
+                       "param_map": lambda p: {"amount_usd": p["amount_usd"], "customer": p["guest"],
+                                               "description": f"Hotel: {p['hotel']} in {p['city']}",
+                                               "type": "travel_hotel", "room_type": p["room_type"]}},
+        "book_transport": {"connection": "stripe-prod", "action": "charge",
+                           "param_map": lambda p: {"amount_usd": p["amount_usd"], "customer": p["passenger"],
+                                                   "description": f"Transport: {p['pickup']} → {p['dropoff']}",
+                                                   "type": "travel_transport"}},
+        "send_itinerary": {"connection": "gmail-prod", "action": "send_email",
+                           "param_map": lambda p: {"recipient": p["recipient"], "subject": p["subject"],
+                                                   "type": "itinerary"}},
+    },
+    "opensource": {
+        "merge_pr": {"connection": "github-prod", "action": "merge_pr",
+                     "param_map": lambda p: {"repo": p["repo"], "pr_number": p["pr_number"],
+                                             "type": p["pr_type"]}},
+        "create_release": {"connection": "github-prod", "action": "deploy",
+                           "param_map": lambda p: {"type": "release", "env": "production",
+                                                   "ref": p["version"], "notes": p["notes"],
+                                                   "publish_npm": p.get("publish_npm", False)}},
+        "post_discord": {"connection": "slack-prod", "action": "send_message",
+                         "param_map": lambda p: {"channel": p["channel"], "message": p["message"],
+                                                 "platform": "discord"}},
+        "pay_bounty": {"connection": "stripe-prod", "action": "payout",
+                       "param_map": lambda p: {"amount_usd": p["amount_usd"], "customer": p["contributor"],
+                                               "description": p["reason"], "type": "bounty"}},
+    },
+    "research": {
+        "provision_compute": {"connection": "stripe-prod", "action": "charge",
+                              "param_map": lambda p: {"amount_usd": p["amount_usd"],
+                                                      "customer": f"lab-{p['project']}",
+                                                      "description": f"{p['gpu_count']}x {p['gpu_type']} for {p['duration_hours']}h",
+                                                      "type": "compute"}},
+        "submit_paper": {"connection": "gmail-prod", "action": "send_email",
+                         "param_map": lambda p: {"recipient": f"submissions@{p['venue'].lower().replace(' ', '')}.org",
+                                                 "subject": f"Paper Submission: {p['title']}",
+                                                 "type": "paper_submission"}},
+        "purchase_dataset": {"connection": "stripe-prod", "action": "charge",
+                             "param_map": lambda p: {"amount_usd": p["amount_usd"],
+                                                     "customer": p["provider"],
+                                                     "description": f"Dataset: {p['dataset_name']}",
+                                                     "type": "dataset_purchase"}},
+        "notify_slack": {"connection": "slack-prod", "action": "send_message",
+                         "param_map": lambda p: p},
+    },
+    "comms": {
+        "send_slack": {"connection": "slack-prod", "action": "send_message",
+                       "param_map": lambda p: p},
+        "send_email": {"connection": "gmail-prod", "action": "send_email",
+                       "param_map": lambda p: {"recipient": p["recipient"], "subject": p["subject"],
+                                               "type": "external" if p.get("is_external") else "internal",
+                                               "recipient_count": p.get("recipient_count", 1)}},
+        "post_discord": {"connection": "slack-prod", "action": "send_message",
+                         "param_map": lambda p: {"channel": p["channel"], "message": p["message"],
+                                                 "platform": "discord"}},
+    },
 }
 
 
@@ -850,6 +1292,41 @@ AGENT_SUGGESTIONS: dict[str, list[str]] = {
         "We got a security bulletin from Twilio recommending all customers rotate keys",
         "After the security audit, the recommendation is to rotate all production credentials",
         "The shared API key with our payment processor expires in 3 days",
+    ],
+    "finance": [
+        "Pay invoice #1234 to Acme Corp for $200 for office supplies",
+        "Transfer $5,000 to the design agency for the Q1 branding project, it's overdue",
+        "Process all pending vendor payments — 15 vendors, total around $50,000",
+        "Send a payment receipt to billing@vendor.com for last month's SaaS subscription",
+        "We owe $8,500 to the catering company for the annual conference",
+    ],
+    "travelops": [
+        "Book an economy flight from Berlin to London for next Tuesday, budget around $200",
+        "Book business class flights for the team of 3 to the San Francisco conference",
+        "Book first class to Tokyo, a Ritz-Carlton suite for a week, and a private car service",
+        "We need a hotel near the convention center in Austin for 2 nights, standard room",
+        "Arrange airport pickup for the visiting client arriving at JFK Thursday morning",
+    ],
+    "opensource": [
+        "Merge the typo fix PR #42 into main branch",
+        "We're ready for v2.0 release — create the tag and announce on Discord",
+        "Publish the package to npm and pay $5,000 in bounties to the top 5 contributors",
+        "Review and merge the new authentication feature PR #87",
+        "The dependency bot found a security issue — merge the fix PR #103",
+    ],
+    "research": [
+        "Submit our paper 'Attention Is All You Need v2' to the NeurIPS conference",
+        "I need a 4-GPU A100 cluster for 24 hours to run the training job",
+        "Provision a 64-GPU H100 cluster for a week and buy 3 proprietary datasets",
+        "Buy access to the ImageNet-21k dataset from the research consortium ($3,000)",
+        "Send the experiment results to the whole lab on #ml-research Slack",
+    ],
+    "comms": [
+        "Send a message to #engineering about today's sprint review at 3pm",
+        "Email our client at bigcorp@example.com with the Q1 project update",
+        "Send a press release about our new product to all 10,000 newsletter subscribers",
+        "Post the new feature announcement on our Discord community server",
+        "Remind the team about the all-hands meeting tomorrow at 2pm on Slack",
     ],
 }
 
