@@ -124,7 +124,30 @@ export default function LiveThreatDemoPage() {
       if (target) setSelectedAgent(target);
     }).catch(() => {}).finally(() => setLoading(false));
   }, [agentIdFromUrl]);
-  useEffect(() => { api.getRules().then((r: any[]) => setSetupDone(r.length > 0)).catch(() => {}); api.getAIKeyStatus().then((s: any) => setHasAIKey(!!s?.has_ai_api_key)).catch(() => {}); }, []);
+  // Auto-seed demo data + set Ollama if not configured
+  useEffect(() => {
+    Promise.all([
+      api.getRules().catch(() => []),
+      api.getAIKeyStatus().catch(() => null),
+    ]).then(async ([rules, aiStatus]: [any[], any]) => {
+      const hasRules = Array.isArray(rules) && rules.length > 0;
+      const hasKey = !!aiStatus?.has_ai_api_key;
+
+      if (!hasRules) {
+        try {
+          await api.seedDemoData(undefined, user?.sub || undefined);
+        } catch {}
+      }
+      setSetupDone(true);
+
+      if (!hasKey) {
+        try {
+          await api.saveAIKey("ollama", "ollama");
+        } catch {}
+      }
+      setHasAIKey(true);
+    });
+  }, [user?.sub]);
 
   const currentMessages = selectedAgent ? (messages[selectedAgent.id] || []) : [];
   const addMessage = useCallback((agentId: string, msg: Omit<ChatMessage, "id" | "timestamp">) => { const m: ChatMessage = { ...msg, id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, timestamp: new Date() }; setMessages(prev => ({ ...prev, [agentId]: [...(prev[agentId] || []), m] })); return m.id; }, []);
@@ -407,14 +430,9 @@ export default function LiveThreatDemoPage() {
 
           {/* Chat */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {!hasAIKey && setupDone && (
-              <div className="p-4 rounded-xl border border-amber-200/60 dark:border-amber-900/40 bg-amber-50/60 dark:bg-amber-950/10 text-amber-700 dark:text-amber-400 text-sm">
-                <Settings className="h-4 w-4 inline mr-2" />No AI provider configured. <a href={`/demos/${selectedAgent?.id || "expense"}`} className="underline">Set up Ollama or API key</a>
-              </div>
-            )}
-            {!setupDone && (
-              <div className="p-4 rounded-xl border border-amber-200/60 dark:border-amber-900/40 bg-amber-50/60 dark:bg-amber-950/10 text-amber-700 dark:text-amber-400 text-sm">
-                <AlertTriangle className="h-4 w-4 inline mr-2" />Click &quot;Setup Demo Data&quot; to create approval rules.
+            {(!setupDone || !hasAIKey) && (
+              <div className="p-4 rounded-xl border border-blue-200/60 dark:border-blue-900/40 bg-blue-50/60 dark:bg-blue-950/10 text-blue-700 dark:text-blue-400 text-sm flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" /> Setting up demo environment...
               </div>
             )}
             {currentMessages.length === 0 && hasAIKey && setupDone && (
