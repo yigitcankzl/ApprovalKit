@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useUser } from "@auth0/nextjs-auth0/client";
 import { ScenarioRunner } from "@/components/scenario-runner";
 import type { DemoAgent } from "@/components/scenario-runner";
+import { StoryRunner, AGENT_STORIES } from "@/components/story-runner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
@@ -425,7 +426,36 @@ export default function DemoAgentPage() {
         )}
 
         {step === 3 && (
-          <ScenarioRunner agent={agent} />
+          <div className="overflow-y-auto h-full">
+            <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+              {/* Disclaimer */}
+              <div className="p-3 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20">
+                <p className="text-xs text-blue-700 dark:text-blue-400">
+                  This is an interactive demo to understand how ApprovalKit works. The agent is simulated — actions trigger real ApprovalKit approval flows, Guardian push notifications, and Token Vault execution.
+                </p>
+              </div>
+
+              {/* Story mode */}
+              {AGENT_STORIES[agentId] && AGENT_STORIES[agentId].length > 0 && (
+                <div>
+                  <h3 className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest mb-3">
+                    Agent Story — multi-step workflow
+                  </h3>
+                  {AGENT_STORIES[agentId].map(story => (
+                    <StoryRunner key={story.id} story={story} />
+                  ))}
+                </div>
+              )}
+
+              {/* Individual scenarios */}
+              <div>
+                <h3 className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest mb-3">
+                  Individual Scenarios — test specific actions
+                </h3>
+                <ScenarioRunner agent={agent} />
+              </div>
+            </div>
+          </div>
         )}
       </div>
 
