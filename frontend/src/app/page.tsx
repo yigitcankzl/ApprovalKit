@@ -307,6 +307,13 @@ kit.gate("github-main", "deploy", {"ref": "v2.0", "env": "production"})`}</pre>
             Try the demo agents or chat with a real AI healthcare agent powered by ApprovalKit.
           </p>
           <div className="flex items-center justify-center gap-3 flex-wrap">
+            <Link
+              href="/demos/live"
+              className="inline-flex items-center gap-2 bg-red-600 text-white px-6 py-3 rounded-lg text-sm font-semibold hover:bg-red-700 transition-colors shadow-lg shadow-red-500/20"
+            >
+              Live Threat Demo
+              <ArrowRight className="h-4 w-4" />
+            </Link>
             <a
               href={`${process.env.NEXT_PUBLIC_HEALTHCARE_URL || "http://localhost:3003"}/chat`}
               target="_blank"

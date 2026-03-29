@@ -11,7 +11,7 @@ import type { DemoAgent } from "@/components/scenario-runner";
 import {
   ArrowRight, Banknote, Bot, Building2, CheckCircle2, CreditCard, Database,
   Film, FlaskConical, GitBranch, GraduationCap, Heart, Home, Key, Leaf,
-  Loader2, Lock, Mail, Package, Plane, Play, Scale, Server, Shield,
+  Loader2, Lock, Mail, Package, Plane, Play, Scale, Server, Shield, ShieldAlert,
   ShoppingCart, Users, Zap, Briefcase, AlertTriangle, FileCheck,
   UserPlus, DoorOpen, ClipboardList, UserCheck, Headphones,
   Clock, Stethoscope, Pill, Microscope, BookOpen, Award, Coins,
@@ -109,9 +109,30 @@ export default function DemosPage() {
           Demo Agents
         </h1>
         <p className="text-zinc-500 dark:text-zinc-400 mt-2 max-w-2xl text-sm leading-relaxed">
-          10 industry-specific AI agents powered by Claude. Each agent has a conversational chat interface
+          15 industry-specific AI agents across 6 domains. Each agent has a conversational chat interface
           that triggers real ApprovalKit approval flows. Click any agent to start chatting.
         </p>
+
+        {/* Live Demo CTA */}
+        <div className="mt-4 p-4 rounded-xl border border-red-200 dark:border-red-900/50 bg-gradient-to-r from-red-50 to-amber-50 dark:from-red-950/20 dark:to-amber-950/20">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-red-500 text-white">
+                <ShieldAlert className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-zinc-900 dark:text-zinc-100">Live Threat Demo</h3>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">Split-screen view: watch agents act while the Shield blocks threats in real-time</p>
+              </div>
+            </div>
+            <Button
+              onClick={() => router.push("/demos/live")}
+              className="bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-500/20 px-5 py-2 text-sm font-semibold"
+            >
+              <Play className="h-4 w-4 mr-2" /> Launch Live Demo
+            </Button>
+          </div>
+        </div>
 
         {/* Seed all button */}
         <div className="mt-6 flex items-center gap-4">
