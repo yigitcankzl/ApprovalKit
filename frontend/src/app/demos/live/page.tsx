@@ -139,29 +139,105 @@ export default function LiveThreatDemoPage() {
     if (!selectedAgent || isTyping || !text.trim()) return;
     const agentId = selectedAgent.id, agentTitle = selectedAgent.title;
     addMessage(agentId, { role: "user", text: text.trim() }); setInputText(""); setIsTyping(true);
-    try {
-      const res = await api.chatWithAgent(agentId, text.trim(), agentTitle, sessionIds[agentId] || "");
-      if (res.session_id) setSessionIds(prev => ({ ...prev, [agentId]: res.session_id }));
-      addMessage(agentId, { role: "agent", text: res.response || "Done." });
 
-      // Show actions one by one with staggered delay
-      const actions = res.actions || (res.action ? [res.action] : []);
-      for (let i = 0; i < actions.length; i++) {
-        if (i > 0) await new Promise(r => setTimeout(r, 800));
-        const a = actions[i];
-        const realStatus = a.status || "auto_approved";
-        if (!shieldEnabled) {
-          addMessage(agentId, { role: "tool", text: `${a.connection}/${a.action}`, toolName: a.action, toolArgs: a.params, toolStatus: "auto_approved" });
-          addEvent({ agentId, agentTitle, type: "auto_approved", action: a.action, connection: a.connection, params: a.params || {}, message: `EXECUTED WITHOUT OVERSIGHT — ${a.action}` });
-        } else {
-          const toolMsgId = addMessage(agentId, { role: "tool", text: `${a.connection}/${a.action}`, toolName: a.action, toolArgs: a.params, toolStatus: realStatus === "auto_approved" ? "auto_approved" : realStatus === "pending" ? "pending" : "blocked", jobId: a.job_id });
-          let eventType: ShieldEvent["type"] = "auto_approved";
-          if (realStatus === "pending") eventType = "pending"; else if (realStatus === "blocked") eventType = "blocked";
-          const rn = a.rule_name || "";
-          if ((rn.toLowerCase().includes("large") || rn.toLowerCase().includes("cfo")) && realStatus === "pending") eventType = "step_up";
-          if (rn.toLowerCase().includes("mass") || rn.toLowerCase().includes("scope")) eventType = "scope_creep";
-          addEvent({ agentId, agentTitle, type: eventType, action: a.action, connection: a.connection, params: a.params || {}, message: a.message || `${a.action} — ${realStatus}`, jobId: a.job_id });
-          if (realStatus === "pending" && a.job_id) pollJob(agentId, a.job_id, toolMsgId);
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    const sessionId = sessionIds[agentId] || "";
+
+    try {
+      // Use streaming endpoint — tool results arrive one by one in real-time
+      const resp = await fetch(`${API_BASE}/api/v1/demo/agents/${agentId}/chat/stream`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(user?.sub ? { "X-User-Sub": user.sub as string } : {}) },
+        body: JSON.stringify({ message: text.trim(), agent_title: agentTitle, session_id: sessionId }),
+      });
+
+      if (!resp.ok || !resp.body) throw new Error("Stream failed");
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let agentMsgId: string | null = null;
+      let agentText = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split("\n");
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+
+            if (data.type === "thinking") {
+              // Already showing typing indicator
+            }
+            else if (data.type === "token") {
+              // Streaming text from LLM
+              agentText += data.content;
+              if (!agentMsgId) {
+                agentMsgId = addMessage(agentId, { role: "agent", text: agentText });
+              } else {
+                updateMessage(agentId, agentMsgId, { text: agentText });
+              }
+            }
+            else if (data.type === "tool_call") {
+              // LLM is calling a tool — show "running" card
+              addMessage(agentId, { role: "tool", text: `${data.name}`, toolName: data.name, toolArgs: data.args, toolStatus: "running" });
+            }
+            else if (data.type === "tool_result") {
+              // Tool executed — show result in shield + update chat card
+              const r = data.result || {};
+              const status = r.status || "auto_approved";
+              const mapped = { connection: r.connection || "unknown", action: r.action || data.name, params: r.params || data.args || {} };
+
+              // Update the last "running" tool card
+              setMessages(prev => {
+                const msgs = prev[agentId] || [];
+                const lastToolIdx = msgs.findLastIndex(m => m.role === "tool" && m.toolStatus === "running");
+                if (lastToolIdx >= 0) {
+                  const updated = [...msgs];
+                  updated[lastToolIdx] = {
+                    ...updated[lastToolIdx],
+                    text: `${mapped.connection}/${mapped.action}`,
+                    toolArgs: mapped.params,
+                    toolStatus: status === "auto_approved" ? "auto_approved" : status === "pending" ? "pending" : "blocked",
+                    jobId: r.job_id,
+                  };
+                  return { ...prev, [agentId]: updated };
+                }
+                return prev;
+              });
+
+              // Shield event
+              if (!shieldEnabled) {
+                addEvent({ agentId, agentTitle, type: "auto_approved", action: mapped.action, connection: mapped.connection, params: mapped.params, message: `EXECUTED WITHOUT OVERSIGHT — ${mapped.action}` });
+              } else {
+                let eventType: ShieldEvent["type"] = "auto_approved";
+                if (status === "pending") eventType = "pending"; else if (status === "blocked") eventType = "blocked";
+                const rn = r.rule_name || "";
+                if ((rn.toLowerCase().includes("large") || rn.toLowerCase().includes("cfo")) && status === "pending") eventType = "step_up";
+                if (rn.toLowerCase().includes("mass") || rn.toLowerCase().includes("scope")) eventType = "scope_creep";
+                addEvent({ agentId, agentTitle, type: eventType, action: mapped.action, connection: mapped.connection, params: mapped.params, message: r.message || `${mapped.action} — ${status}`, jobId: r.job_id });
+                if (status === "pending" && r.job_id) {
+                  // Find tool msg id for polling
+                  const msgs = messages[agentId] || [];
+                  const toolMsg = msgs.findLast((m: ChatMessage) => m.jobId === r.job_id);
+                  if (toolMsg) pollJob(agentId, r.job_id, toolMsg.id);
+                }
+              }
+            }
+            else if (data.type === "done") {
+              if (data.session_id) setSessionIds(prev => ({ ...prev, [agentId]: data.session_id }));
+              // If no streaming text came through, show the response
+              if (!agentMsgId && data.response) {
+                addMessage(agentId, { role: "agent", text: data.response });
+              }
+            }
+            else if (data.type === "error") {
+              addMessage(agentId, { role: "system", text: data.message || "An error occurred" });
+            }
+          } catch {}
         }
       }
     } catch (e: any) { addMessage(agentId, { role: "system", text: `Error: ${e.message}` }); }
