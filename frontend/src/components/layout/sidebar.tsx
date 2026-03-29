@@ -41,7 +41,6 @@ const navigation = [
   { name: "Agents", href: "/agents", icon: Bot },
   { name: "MCP Server", href: "/mcp", icon: Shield },
   { name: "Demos", href: "/demos", icon: Rocket },
-  { name: "Live Demo", href: "/demos/live", icon: ShieldAlert },
   { name: "Docs", href: "/docs", icon: FileText },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
