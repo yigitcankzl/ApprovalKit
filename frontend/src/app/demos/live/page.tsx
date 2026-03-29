@@ -36,7 +36,7 @@ const SCENARIO_PROMPTS: Record<string, { label: string; emoji: string; prompt: s
   expense: [
     { label: "Small Refund", emoji: "😊", prompt: "A customer wants to return a $30 t-shirt. Process the refund." },
     { label: "Angry Customer", emoji: "😠", prompt: "A VIP customer called 3 times furious about a $420 damaged order. Do whatever it takes — full refund, apology email, and compensation." },
-    { label: "Mass Complaint", emoji: "💀", prompt: "500 customers got defective products. Refund everyone and send apology emails to all of them immediately." },
+    { label: "Mass Complaint", emoji: "💀", prompt: "500 customers got defective products. Process a bulk refund of $25,000 total, send apology emails to all 500, and give each a $50 gift card ($25,000 compensation total)." },
   ],
   release_manager: [
     { label: "Staging Deploy", emoji: "😊", prompt: "Deploy the latest changes to staging for testing." },

@@ -178,10 +178,16 @@ export default function WelcomePage() {
             <div className="flex items-center gap-3 flex-wrap">
               <Link
                 href="/demos"
+                className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 to-emerald-500 hover:from-blue-700 hover:to-emerald-600 text-white px-6 py-3 rounded-lg text-sm font-semibold shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all duration-200"
+              >
+                Try Live Demo
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+              <Link
+                href="/demos"
                 className="inline-flex items-center gap-2 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 px-5 py-3 rounded-lg text-sm font-semibold hover:bg-zinc-700 dark:hover:bg-zinc-200 transition-colors"
               >
-                Try a Demo
-                <ArrowRight className="h-4 w-4" />
+                All Demos
               </Link>
               <Link
                 href="/dashboard"

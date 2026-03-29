@@ -113,29 +113,46 @@ export default function DemosPage() {
           that triggers real ApprovalKit approval flows. Click any agent to start chatting.
         </p>
 
-        {/* Seed all button */}
-        <div className="mt-6 flex items-center gap-4">
-          {seeded ? (
-            <Badge variant="success" className="text-sm py-1.5 px-4">
-              <CheckCircle2 className="h-4 w-4 mr-2" /> All demo data seeded
-            </Badge>
-          ) : (
-            <Button
-              onClick={handleSeedAll}
-              disabled={seedingAll}
-              className="bg-gradient-to-r from-blue-600 to-emerald-500 hover:from-blue-700 hover:to-emerald-600 text-white shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all duration-200 px-6 py-2.5 text-sm font-semibold"
-            >
-              {seedingAll ? (
-                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Seeding all demo data...</>
+      </div>
+
+      {/* Setup All Demos — prominent card */}
+      <div className="mb-12">
+        <Card className="border-2 border-dashed border-blue-300 dark:border-blue-700 bg-gradient-to-r from-blue-50/50 to-emerald-50/50 dark:from-blue-950/20 dark:to-emerald-950/20">
+          <CardContent className="p-6 flex flex-col sm:flex-row items-center gap-5">
+            <div className="p-3 rounded-2xl bg-gradient-to-br from-blue-600 to-emerald-500 text-white shrink-0">
+              <Zap className="h-6 w-6" />
+            </div>
+            <div className="flex-1 text-center sm:text-left">
+              <h2 className="text-lg font-bold text-zinc-800 dark:text-zinc-200">
+                Quick Start: Setup All Demos
+              </h2>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                Creates connections, approvers, and rules for all 15 agents in one click.
+                Run this first so every demo works out of the box.
+              </p>
+            </div>
+            <div className="shrink-0">
+              {seeded ? (
+                <Badge variant="success" className="text-sm py-2 px-5">
+                  <CheckCircle2 className="h-4 w-4 mr-2" /> All demo data seeded
+                </Badge>
               ) : (
-                <><Play className="h-4 w-4 mr-2" /> Setup All Demos</>
+                <Button
+                  onClick={handleSeedAll}
+                  disabled={seedingAll}
+                  size="lg"
+                  className="bg-gradient-to-r from-blue-600 to-emerald-500 hover:from-blue-700 hover:to-emerald-600 text-white shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all duration-200 px-8 py-3 text-sm font-semibold"
+                >
+                  {seedingAll ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Seeding all demo data...</>
+                  ) : (
+                    <><Play className="h-4 w-4 mr-2" /> Setup All Demos</>
+                  )}
+                </Button>
               )}
-            </Button>
-          )}
-          <span className="text-xs text-zinc-400">
-            Creates connections, approvers, and rules for all agents
-          </span>
-        </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Category sections */}
