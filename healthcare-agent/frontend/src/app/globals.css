@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-white rounded-xl shadow-sm border border-gray-200 p-6;
+  }
+  .btn-primary {
+    @apply bg-healthcare-600 text-white px-4 py-2 rounded-lg hover:bg-healthcare-700 transition-colors font-medium;
+  }
+  .btn-danger {
+    @apply bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors font-medium;
+  }
+  .btn-secondary {
+    @apply bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors font-medium;
+  }
+  .badge {
+    @apply px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  .badge-success {
+    @apply badge bg-green-100 text-green-800;
+  }
+  .badge-warning {
+    @apply badge bg-yellow-100 text-yellow-800;
+  }
+  .badge-danger {
+    @apply badge bg-red-100 text-red-800;
+  }
+  .badge-info {
+    @apply badge bg-blue-100 text-blue-800;
+  }
+  .badge-gray {
+    @apply badge bg-gray-100 text-gray-800;
+  }
+  .table-header {
+    @apply text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-4 py-3;
+  }
+  .table-cell {
+    @apply px-4 py-3 text-sm text-gray-900;
+  }
+}
