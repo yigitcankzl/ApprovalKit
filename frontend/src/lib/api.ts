@@ -97,6 +97,12 @@ export const api = {
   sendTestRequest: (data: { connection: string; action: string; params: Record<string, any> }) =>
     fetchAPI("/api/v1/test-request", { method: "POST", body: JSON.stringify(data) }),
   getJobStatus: (jobId: string) => fetchAPI(`/api/v1/test-status/${jobId}`),
+  testRequest: (data: { connection: string; action: string; params: Record<string, any> }) =>
+    fetchAPI("/api/v1/test-request", { method: "POST", body: JSON.stringify(data) }),
+  approveJob: (jobId: string) =>
+    fetchAPI(`/api/v1/jobs/${jobId}/decision`, { method: "POST", body: JSON.stringify({ decision: "approve" }) }),
+  rejectJob: (jobId: string) =>
+    fetchAPI(`/api/v1/jobs/${jobId}/decision`, { method: "POST", body: JSON.stringify({ decision: "reject" }) }),
 
   // Consent
   getConsent: () => fetchAPI("/api/v1/consent"),

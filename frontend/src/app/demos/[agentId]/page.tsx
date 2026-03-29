@@ -10,8 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import {
-  ArrowLeft, Bot, CheckCircle2, CreditCard, FlaskConical, Loader2,
-  Mail, Package, Server, Shield, ShoppingCart, Users, Play,
+  ArrowLeft, Banknote, Bot, CheckCircle2, CreditCard, FlaskConical, GitBranch, Loader2,
+  Mail, Package, Plane, Server, Shield, ShoppingCart, Users, Play,
   Building2, Heart, GraduationCap, Scale, Home, Film, Leaf,
   Briefcase, AlertTriangle, Database, Key, FileCheck, UserPlus,
   DoorOpen, ClipboardList, UserCheck, Headphones, Lock, Clock,
@@ -22,9 +22,9 @@ import {
 
 const ICON_MAP: Record<string, React.ElementType> = {
   ShoppingCart, Users, Server, Package, FlaskConical, CreditCard, Mail, Bot,
-  Building2, Heart, GraduationCap, Scale, Home, Film, Leaf,
-  Briefcase, AlertTriangle, Database, Key, FileCheck, UserPlus,
-  DoorOpen, ClipboardList, UserCheck, Headphones, Lock, Clock,
+  Building2, Heart, GraduationCap, Scale, Home, Film, Leaf, Banknote,
+  Briefcase, AlertTriangle, Database, Key, FileCheck, UserPlus, GitBranch,
+  DoorOpen, ClipboardList, UserCheck, Headphones, Lock, Clock, Plane,
   Stethoscope, Pill, Microscope, BookOpen, Award, Coins, Shield,
   FileSignature, ShieldCheck, Lightbulb, Wrench, UserSearch,
   MessageSquare, FileText, Zap, TreePine, Play,
