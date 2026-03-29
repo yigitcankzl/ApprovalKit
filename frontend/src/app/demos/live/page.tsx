@@ -329,7 +329,7 @@ export default function LiveThreatDemoPage() {
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all border ${
                 isActive
                   ? "bg-blue-900/30 text-blue-300 border-blue-700/50 shadow-md"
-                  : "bg-zinc-900 text-zinc-500 border-zinc-800 hover:text-zinc-300 hover:border-zinc-600"
+                  : "bg-zinc-800/30 text-zinc-500 border-zinc-700/40 hover:text-zinc-300 hover:border-zinc-500"
               }`}
             >
               <Icon className="h-4 w-4" />
@@ -343,16 +343,16 @@ export default function LiveThreatDemoPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" style={{ height: "calc(100vh - 280px)" }}>
 
         {/* LEFT: Agent Chat */}
-        <Card className="bg-zinc-900 border-zinc-800 flex flex-col overflow-hidden">
+        <Card className="bg-zinc-50/5 dark:bg-zinc-900/40 border-zinc-200/20 dark:border-zinc-700/50 flex flex-col overflow-hidden">
           {/* Scenario buttons */}
           {selectedAgent && (
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-800">
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-700/30">
               {scenarios.map((s, i) => (
                 <button
                   key={i}
                   onClick={() => sendMessage(s.prompt)}
                   disabled={isTyping || !setupDone || !hasAIKey}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-zinc-700 hover:border-blue-600 bg-zinc-800 hover:bg-blue-900/20 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-zinc-700/50 hover:border-blue-600 bg-zinc-800/40 hover:bg-blue-900/20 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   <span>{s.emoji}</span>
                   <span>{s.label}</span>
@@ -393,7 +393,7 @@ export default function LiveThreatDemoPage() {
           </div>
 
           {/* Input */}
-          <div className="px-4 py-3 border-t border-zinc-800">
+          <div className="px-4 py-3 border-t border-zinc-700/30">
             <form onSubmit={(e) => { e.preventDefault(); sendMessage(inputText); }} className="flex gap-2">
               <input
                 ref={inputRef}
@@ -402,7 +402,7 @@ export default function LiveThreatDemoPage() {
                 onChange={(e) => setInputText(e.target.value)}
                 placeholder={selectedAgent ? `Tell ${selectedAgent.title} what to do...` : "Select an agent"}
                 disabled={isTyping || !setupDone || !hasAIKey}
-                className="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600/50 disabled:opacity-30"
+                className="flex-1 bg-zinc-800/40 border border-zinc-700/50 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600/50 disabled:opacity-30"
               />
               <Button type="submit" disabled={isTyping || !inputText.trim() || !setupDone || !hasAIKey} className="rounded-xl px-4 shadow-md hover:shadow-lg">
                 <Send className="h-4 w-4" />
@@ -412,7 +412,7 @@ export default function LiveThreatDemoPage() {
         </Card>
 
         {/* RIGHT: Shield Panel */}
-        <Card className={`flex flex-col overflow-hidden ${!shieldEnabled ? "bg-red-950/10 border-red-900/50" : "bg-zinc-900 border-zinc-800"}`}>
+        <Card className={`flex flex-col overflow-hidden ${!shieldEnabled ? "bg-red-950/10 border-red-900/50" : "bg-zinc-50/5 dark:bg-zinc-900/40 border-zinc-200/20 dark:border-zinc-700/50"}`}>
           <div className={`flex items-center gap-2 px-4 py-3 border-b ${!shieldEnabled ? "border-red-900/50" : "border-zinc-800"}`}>
             {shieldEnabled
               ? <Shield className="h-4 w-4 text-blue-400" />
@@ -526,7 +526,7 @@ function ChatBubble({ message, shieldOff }: { message: ChatMessage; shieldOff?: 
   }
 
   if (message.role === "system") {
-    return <div className="text-center"><span className="text-xs text-zinc-600 bg-zinc-800 px-3 py-1 rounded-full">{message.text}</span></div>;
+    return <div className="text-center"><span className="text-xs text-zinc-500 bg-zinc-800/30 px-3 py-1 rounded-full">{message.text}</span></div>;
   }
 
   return (
@@ -535,7 +535,7 @@ function ChatBubble({ message, shieldOff }: { message: ChatMessage; shieldOff?: 
         <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-blue-600 to-emerald-500 flex items-center justify-center mt-0.5">
           <Sparkles className="h-3.5 w-3.5 text-white" />
         </div>
-        <div className="bg-zinc-800 text-zinc-200 rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap shadow-md">{message.text}</div>
+        <div className="bg-zinc-800/50 text-zinc-200 rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap shadow-md">{message.text}</div>
       </div>
     </div>
   );
