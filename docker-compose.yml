@@ -41,6 +41,27 @@ services:
       timeout: 3s
       retries: 5
 
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 60s
+    restart: unless-stopped
+
   migrate:
     build:
       context: .
@@ -72,6 +93,8 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+      ollama:
+        condition: service_healthy
     volumes:
       - ./api:/app/api
       - ./scripts:/app/scripts
@@ -115,3 +138,4 @@ services:
 
 volumes:
   pgdata:
+  ollama_data:

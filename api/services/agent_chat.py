@@ -47,30 +47,29 @@ CRITICAL BEHAVIOR RULES:
 
 AGENT_PROMPTS: dict[str, str] = {
     "expense": _CORE_BEHAVIOR + """
-You are the company's AI Expense Management Agent. Employees come to you with situations — broken equipment, upcoming trips, team events, supply needs — and you handle the expense process autonomously.
+You are the company's AI E-Commerce Operations Agent. You handle customer refunds, payments, email communications, and team notifications autonomously.
 
-Your capabilities: Submit expense requests, notify teams via Slack.
+Your capabilities:
+- submit_expense: Process refunds and charges via Stripe (use for ANY money-related action)
+- send_customer_email: Send emails to customers via Gmail (apology, confirmation, receipt)
+- notify_slack: Send internal notifications to Slack channels
 
-Approval rules (you enforce these automatically):
-- Under $500: Auto-approved
-- $500–$4,999: Manager approval required
-- $5,000+: Manager + CFO must both approve
-- Manager can reduce amounts (partial approval)
+CRITICAL: You MUST use the appropriate tool for EACH action. If a situation requires a refund AND an email AND a Slack notification, call ALL THREE tools separately. Never bundle multiple actions into one tool call.
 
-IMPORTANT RULES:
-- Only use submit_expense when the user describes a NEED or COST. Not every message requires an expense.
-- Use notify_slack when the user wants to COMMUNICATE something to a team/channel. This does NOT require an expense.
-- You can use both tools in one turn if the situation requires both (e.g. "plan a dinner and notify the team").
-- Never submit an expense unless there is a clear cost/purchase involved.
+Approval rules:
+- Charges/refunds under $100: Auto-approved
+- $100–$499: Manager approval required
+- $500+: Manager + CFO must both approve (step-up)
+- External emails: Always require Manager approval
+- Internal Slack: Auto-approved
 
 EXAMPLES:
-- "My laptop screen cracked" → submit_expense($2,000, equipment, "laptop replacement")
-- "We hit Q1 targets, plan a celebration dinner" → submit_expense($800, team_event, "Q1 celebration dinner")
-- "Let the team know about the big deal on Slack" → notify_slack ONLY. No expense needed.
-- "Book a conference trip and tell finance" → submit_expense($5,000+, travel) AND notify_slack(#finance)
-- "We're out of printer paper" → submit_expense($50, office_supplies)
+- "Customer wants $30 refund" → submit_expense($30, refund, "product return") — auto-approved
+- "Angry customer, $420 damaged order, wants refund + apology" → submit_expense($420, refund, "damaged order refund") AND send_customer_email(customer, "Apology for damaged order") AND notify_slack(#customer_service, "VIP refund processed")
+- "500 customers got defective products" → submit_expense($15000, refund, "bulk defective product refund for 500 customers") AND send_customer_email(customers, "Mass apology for defective products")
+- "Give customer $200 compensation" → submit_expense($200, compensation, "customer compensation gift card")
 
-Always tell the user: what you did, the amount (if expense), which approval flow applies.""",
+ALWAYS execute ALL relevant tools. A refund situation needs: 1) the refund 2) customer email 3) team notification.""",
 
     "release_manager": _CORE_BEHAVIOR + """
 You are the team's AI Release Manager. Engineers come to you with deployment needs, issues, and release requests — you handle CI/CD operations autonomously.
@@ -354,24 +353,37 @@ AGENT_TOOLS: dict[str, list[dict]] = {
     "expense": [
         {
             "name": "submit_expense",
-            "description": "Submit an expense request for approval through ApprovalKit. Use this whenever the user wants to submit, request, or claim an expense.",
+            "description": "Process a financial transaction: refund, charge, or compensation via Stripe. ALWAYS use this for any money-related action (refunds, purchases, compensations, gift cards).",
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "amount_usd": {"type": "number", "description": "Expense amount in USD"},
-                    "category": {"type": "string", "enum": ["office_supplies", "equipment", "travel", "team_event", "software", "training"], "description": "Expense category"},
-                    "description": {"type": "string", "description": "Brief description of the expense"},
+                    "amount_usd": {"type": "number", "description": "Amount in USD"},
+                    "category": {"type": "string", "enum": ["refund", "compensation", "office_supplies", "equipment", "travel", "team_event", "software", "training"], "description": "Transaction category"},
+                    "description": {"type": "string", "description": "Brief description of the transaction"},
                 },
                 "required": ["amount_usd", "category", "description"],
             },
         },
         {
-            "name": "notify_slack",
-            "description": "Send a notification to a Slack channel about an expense.",
+            "name": "send_customer_email",
+            "description": "Send an email to a customer via Gmail. Use for apologies, confirmations, receipts, or any customer communication. ALWAYS use this when the situation involves communicating with a customer.",
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "channel": {"type": "string", "description": "Slack channel (e.g. #finance, #general)"},
+                    "to": {"type": "string", "description": "Recipient email address (e.g. customer@example.com)"},
+                    "subject": {"type": "string", "description": "Email subject line"},
+                    "body": {"type": "string", "description": "Email body text"},
+                },
+                "required": ["to", "subject", "body"],
+            },
+        },
+        {
+            "name": "notify_slack",
+            "description": "Send an internal notification to a Slack channel. Use for team updates and internal communication.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "channel": {"type": "string", "description": "Slack channel (e.g. #customer_service, #finance)"},
                     "message": {"type": "string", "description": "Message to post"},
                 },
                 "required": ["channel", "message"],
@@ -1015,9 +1027,12 @@ AGENT_TOOLS: dict[str, list[dict]] = {
 _TOOL_ACTION_MAP: dict[str, dict[str, dict]] = {
     "expense": {
         "submit_expense": {"connection": "stripe-prod", "action": "charge",
-                           "param_map": lambda p: {"type": "expense", "amount_usd": p["amount_usd"],
+                           "param_map": lambda p: {"amount_usd": p["amount_usd"],
                                                    "category": p["category"], "description": p["description"],
-                                                   "customer": "employee@company.com"}},
+                                                   "customer": "customer@example.com"}},
+        "send_customer_email": {"connection": "gmail-prod", "action": "send_email",
+                                "param_map": lambda p: {"to": p["to"], "subject": p["subject"],
+                                                        "body": p["body"]}},
         "notify_slack": {"connection": "slack-prod", "action": "send_message",
                          "param_map": lambda p: p},
     },
@@ -1389,22 +1404,35 @@ def _execute_tool(agent_id: str, tool_name: str, tool_args: dict, workspace_id: 
                 "success": True,
                 "status": "auto_approved",
                 "message": "No matching rule — auto-approved. Action executed via Token Vault.",
+                "rule_name": None,
                 "connection": action["connection"],
                 "action": action["action"],
                 "params": action["params"],
             }
 
-        # Create real approval job via test-request (fires CIBA Guardian push)
-        _fire_approval_request(action["connection"], action["action"], action["params"], workspace_id)
+        # Create real approval job via test-request (synchronous to get job_id)
+        job_result = _fire_approval_request_sync(action["connection"], action["action"], action["params"], workspace_id)
+
+        approvers = []
+        try:
+            for ra in matched_rule.approvers:
+                if hasattr(ra, 'approver') and ra.approver:
+                    approvers.append(ra.approver.name)
+                elif hasattr(ra, 'name'):
+                    approvers.append(ra.name)
+        except Exception:
+            pass
 
         return {
             "success": True,
-            "status": "pending",
+            "status": job_result.get("status", "pending") if job_result else "pending",
             "message": f"Approval required. Rule: {matched_rule.name} ({matched_rule.model.value}). "
                        f"Guardian push notification sent to approver(s). "
                        f"Check the Dashboard to approve or reject.",
-            "rule": matched_rule.name,
+            "rule_name": matched_rule.name,
             "model": matched_rule.model.value,
+            "approvers": approvers,
+            "job_id": job_result.get("job_id") if job_result else None,
             "connection": action["connection"],
             "action": action["action"],
             "params": action["params"],
@@ -1412,6 +1440,26 @@ def _execute_tool(agent_id: str, tool_name: str, tool_args: dict, workspace_id: 
     except Exception as e:
         logger.error(f"Tool execution error: {e}")
         return {"success": False, "error": str(e)}
+
+
+def _fire_approval_request_sync(connection: str, action: str, params: dict, user_sub: str) -> dict | None:
+    """Synchronous approval request — returns job_id so frontend can poll."""
+    import httpx
+
+    try:
+        resp = httpx.post(
+            "http://api:8000/api/v1/test-request",
+            json={"connection": connection, "action": action, "params": params},
+            headers={"X-User-Sub": user_sub},
+            timeout=15,
+        )
+        logger.info(f"Approval request sync: {connection}/{action} → {resp.status_code} {resp.text[:200]}")
+        if resp.status_code in (200, 201, 202):
+            return resp.json()
+        return None
+    except Exception as e:
+        logger.error(f"Approval request sync failed: {e}")
+        return None
 
 
 def _fire_approval_request(connection: str, action: str, params: dict, user_sub: str):
@@ -1592,7 +1640,7 @@ def _build_gemini_contents(history: list[dict]) -> list[dict]:
 # ── Main Processing ──────────────────────────────────────────────────────────
 
 _PROVIDER_CONFIG = {
-    "ollama": {"type": "openai", "base_url": "http://localhost:11434/v1", "model": "llama3.1:8b", "needs_api_key": False},
+    "ollama": {"type": "openai", "base_url": "http://ollama:11434/v1", "model": "llama3.1:8b", "needs_api_key": False},
     "gemini": {"type": "gemini", "model": "models/gemini-2.0-flash"},
     "groq": {"type": "openai", "base_url": "https://api.groq.com/openai/v1", "model": "llama-3.3-70b-versatile"},
     "openrouter": {"type": "openai", "base_url": "https://openrouter.ai/api/v1", "model": "meta-llama/llama-3.3-70b-instruct:free"},
@@ -1747,27 +1795,36 @@ def process_message(agent_id: str, message: str, agent_title: str = "", session_
 
         suggestions = AGENT_SUGGESTIONS.get(agent_id, [])[:3]
 
-        # Build action summary for frontend
+        # Build action summaries for frontend (ALL actions, not just last)
         action = None
-        if all_actions:
-            last_successful = next((a for a in reversed(all_actions) if a["result"].get("success")), None)
-            if last_successful:
-                mapped = _map_tool_to_action(agent_id, last_successful["tool"], last_successful["args"])
-                if mapped:
-                    action = {
-                        **mapped,
-                        "job_id": last_successful["result"].get("job_id"),
-                        "status": last_successful["result"].get("status"),
-                        "executed": True,
-                    }
+        all_action_results = []
+        for act in all_actions:
+            mapped = _map_tool_to_action(agent_id, act["tool"], act["args"])
+            if mapped:
+                action_item = {
+                    **mapped,
+                    "job_id": act["result"].get("job_id"),
+                    "status": act["result"].get("status"),
+                    "executed": True,
+                    "rule_name": act["result"].get("rule_name"),
+                    "model": act["result"].get("model"),
+                    "approvers": act["result"].get("approvers", []),
+                    "message": act["result"].get("message"),
+                }
+                all_action_results.append(action_item)
+                if act["result"].get("success"):
+                    action = action_item  # last successful for backward compat
 
         return {
             "response": response_text or "Done.",
             "action": action,
+            "actions": all_action_results,
             "actions_taken": len(all_actions),
             "suggestions": suggestions,
             "type": "action" if all_actions else "chat",
             "session_id": session_id,
+            "rule_name": action.get("rule_name") if action else None,
+            "message": action.get("message") if action else None,
         }
 
     except ImportError:
@@ -1817,12 +1874,15 @@ def _process_openai_compatible(
         all_actions = []
 
         for _round in range(MAX_TOOL_ROUNDS):
-            response = client.chat.completions.create(
-                model=model,
-                messages=messages,
-                tools=openai_tools if openai_tools else None,
-                temperature=0.7,
-            )
+            create_kwargs = {
+                "model": model,
+                "messages": messages,
+                "temperature": 0.7,
+            }
+            if openai_tools:
+                create_kwargs["tools"] = openai_tools
+                create_kwargs["tool_choice"] = "auto"
+            response = client.chat.completions.create(**create_kwargs)
 
             choice = response.choices[0]
             msg = choice.message
@@ -1878,20 +1938,34 @@ def _process_openai_compatible(
         suggestions = AGENT_SUGGESTIONS.get(agent_id, [])[:3]
 
         action = None
-        if all_actions:
-            last_ok = next((a for a in reversed(all_actions) if a["result"].get("success")), None)
-            if last_ok:
-                mapped = _map_tool_to_action(agent_id, last_ok["tool"], last_ok["args"])
-                if mapped:
-                    action = {**mapped, "job_id": last_ok["result"].get("job_id"), "status": last_ok["result"].get("status"), "executed": True}
+        all_action_results = []
+        for act in all_actions:
+            mapped = _map_tool_to_action(agent_id, act["tool"], act["args"])
+            if mapped:
+                action_item = {
+                    **mapped,
+                    "job_id": act["result"].get("job_id"),
+                    "status": act["result"].get("status"),
+                    "executed": True,
+                    "rule_name": act["result"].get("rule_name"),
+                    "model": act["result"].get("model"),
+                    "approvers": act["result"].get("approvers", []),
+                    "message": act["result"].get("message"),
+                }
+                all_action_results.append(action_item)
+                if act["result"].get("success"):
+                    action = action_item
 
         return {
             "response": response_text or "Done.",
             "action": action,
+            "actions": all_action_results,
             "actions_taken": len(all_actions),
             "suggestions": suggestions,
             "type": "action" if all_actions else "chat",
             "session_id": session_id,
+            "rule_name": action.get("rule_name") if action else None,
+            "message": action.get("message") if action else None,
         }
 
     except ImportError:

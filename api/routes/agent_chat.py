@@ -252,7 +252,7 @@ async def check_ollama():
     """Check if Ollama is running and which models are available."""
     try:
         async with httpx.AsyncClient(timeout=3) as c:
-            r = await c.get("http://localhost:11434/api/tags")
+            r = await c.get("http://ollama:11434/api/tags")
             models = r.json().get("models", [])
             model_names = [m.get("name", "") for m in models]
             has_model = any("llama3.1" in n or "llama3.2" in n or "llama3.3" in n for n in model_names)
