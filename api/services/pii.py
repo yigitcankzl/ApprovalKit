@@ -7,7 +7,9 @@ before storing in audit trail. Keeps first/last chars for debugging.
 import re
 
 _EMAIL_RE = re.compile(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}')
-_PII_PARAM_KEYS = {"email", "customer", "recipient", "beneficiary", "name", "username"}
+_PII_PARAM_KEYS = {"email", "customer", "recipient", "beneficiary", "name", "username",
+                    "patient_name", "patient_id", "user_email", "account_holder",
+                    "contact", "subject_email", "phone", "address", "ssn", "account_email"}
 
 
 def _mask_email(email: str) -> str:

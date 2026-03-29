@@ -12,11 +12,11 @@ Decrypted at runtime, never exposed to the frontend after initial save.
 """
 
 import json
+import logging
 import httpx
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
-from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import BaseModel, Field
 
 from api.database import get_db
 from api.models.workspace import Workspace
@@ -31,7 +31,7 @@ router = APIRouter(prefix="/api/v1/demo/agents", tags=["agent-chat"])
 
 
 class ChatRequest(BaseModel):
-    message: str
+    message: str = Field(..., max_length=10000)
     agent_title: str = ""
     session_id: str = ""
 
@@ -208,8 +208,7 @@ async def chat_with_agent_stream(
 
                 # Execute tool calls
                 for tc in tc_list:
-                    import json as _json
-                    tool_args = _json.loads(tc["function"]["arguments"]) if tc["function"]["arguments"] else {}
+                    tool_args = json.loads(tc["function"]["arguments"]) if tc["function"]["arguments"] else {}
 
                     yield f"data: {json.dumps({'type': 'tool_call', 'name': tc['function']['name'], 'args': tool_args})}\n\n"
 
@@ -231,7 +230,8 @@ async def chat_with_agent_stream(
             yield f"data: {json.dumps({'type': 'done', 'response': response_text, 'session_id': session_id, 'actions_taken': len(all_actions)})}\n\n"
 
         except Exception as e:
-            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+            logging.getLogger(__name__).error(f"Streaming chat error: {e}")
+            yield f"data: {json.dumps({'type': 'error', 'message': 'An internal error occurred. Please try again.'})}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 

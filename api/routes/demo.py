@@ -104,6 +104,42 @@ APPROVERS = [
      "auth0_user_id": "demo|maintainer3",      "role": "maintainer3"},
 ]
 
+_AGENT_DEPS = {
+    "expense": {"conns": ["stripe-prod", "slack-prod"], "roles": ["manager", "cfo"]},
+    "release_manager": {"conns": ["github-main", "slack-prod"], "roles": ["maintainer", "lead_engineer", "oncall_engineer"]},
+    "security_incident": {"conns": ["github-prod", "slack-prod"], "roles": ["security_lead", "cto"]},
+    "account_takeover": {"conns": ["salesforce-prod", "stripe-prod", "gmail-prod", "slack-prod"], "roles": ["security_lead", "legal", "cs_manager"]},
+    "recruitment": {"conns": ["gmail-prod", "github-prod", "slack-prod"], "roles": ["hr_manager", "cfo", "ceo", "it_manager", "cto"]},
+    "access_provisioning": {"conns": ["github-prod", "slack-prod"], "roles": ["it_manager", "cto", "cfo", "hr_manager"]},
+    "patient_data": {"conns": ["google-drive-prod", "gmail-prod", "slack-prod"], "roles": ["doctor", "patient_rep", "ethics_board", "chief_doctor"]},
+    "prescription_refill": {"conns": ["gmail-prod", "slack-prod"], "roles": ["doctor", "pharmacist"]},
+    "gdpr_request": {"conns": ["github-prod", "gmail-prod", "slack-prod"], "roles": ["privacy_officer", "cto", "legal"]},
+    "api_key_rotation": {"conns": ["github-prod", "slack-prod", "gmail-prod"], "roles": ["security_lead", "cto"]},
+    "finance": {"conns": ["stripe-prod", "gmail-prod", "slack-prod"], "roles": ["manager", "cfo"]},
+    "travelops": {"conns": ["stripe-prod", "gmail-prod", "slack-prod"], "roles": ["manager", "vp", "cfo"]},
+    "opensource": {"conns": ["github-prod", "stripe-prod", "slack-prod"], "roles": ["maintainer", "maintainer2", "maintainer3", "cfo", "cto"]},
+    "research": {"conns": ["stripe-prod", "gmail-prod", "slack-prod"], "roles": ["pi", "dept_head", "cfo"]},
+    "comms": {"conns": ["slack-prod", "gmail-prod"], "roles": ["manager", "ceo"]},
+}
+
+_AGENT_RULE_PREFIXES = {
+    "expense": ["[Expense]"],
+    "release_manager": ["[Release]"],
+    "security_incident": ["[Security]", "[Shared]"],
+    "account_takeover": ["[ATO]"],
+    "recruitment": ["[HR]"],
+    "access_provisioning": ["[Access]"],
+    "patient_data": ["[Patient]"],
+    "prescription_refill": ["[Rx]"],
+    "gdpr_request": ["[GDPR]"],
+    "api_key_rotation": ["[KeyRotation]"],
+    "finance": ["[Finance]"],
+    "travelops": ["[Travel]"],
+    "opensource": ["[OSS]"],
+    "research": ["[Research]"],
+    "comms": ["[Comms]"],
+}
+
 
 def _build_rules(ar: dict[str, uuid.UUID]) -> list[dict]:
     """Build all rules for the 10 demo agents. `ar` maps role → approver UUID."""
@@ -1420,25 +1456,6 @@ async def seed_demo_data(
     If agent_id is provided, only creates resources needed by that agent."""
     created = {"connections": 0, "approvers": 0, "rules": 0, "skipped": 0}
 
-    # Map agent_id → needed connections and approver roles
-    _AGENT_DEPS = {
-        "expense": {"conns": ["stripe-prod", "slack-prod"], "roles": ["manager", "cfo"]},
-        "release_manager": {"conns": ["github-main", "slack-prod"], "roles": ["maintainer", "lead_engineer", "oncall_engineer"]},
-        "security_incident": {"conns": ["github-prod", "slack-prod"], "roles": ["security_lead", "cto"]},
-        "account_takeover": {"conns": ["salesforce-prod", "stripe-prod", "gmail-prod", "slack-prod"], "roles": ["security_lead", "legal", "cs_manager"]},
-        "recruitment": {"conns": ["gmail-prod", "github-prod", "slack-prod"], "roles": ["hr_manager", "cfo", "ceo", "it_manager", "cto"]},
-        "access_provisioning": {"conns": ["github-prod", "slack-prod"], "roles": ["it_manager", "cto", "cfo", "hr_manager"]},
-        "patient_data": {"conns": ["google-drive-prod", "gmail-prod", "slack-prod"], "roles": ["doctor", "patient_rep", "ethics_board", "chief_doctor"]},
-        "prescription_refill": {"conns": ["gmail-prod", "slack-prod"], "roles": ["doctor", "pharmacist"]},
-        "gdpr_request": {"conns": ["github-prod", "gmail-prod", "slack-prod"], "roles": ["privacy_officer", "cto", "legal"]},
-        "api_key_rotation": {"conns": ["github-prod", "slack-prod", "gmail-prod"], "roles": ["security_lead", "cto"]},
-        "finance": {"conns": ["stripe-prod", "gmail-prod", "slack-prod"], "roles": ["manager", "cfo"]},
-        "travelops": {"conns": ["stripe-prod", "gmail-prod", "slack-prod"], "roles": ["manager", "vp", "cfo"]},
-        "opensource": {"conns": ["github-prod", "stripe-prod", "slack-prod"], "roles": ["maintainer", "maintainer2", "maintainer3", "cfo", "cto"]},
-        "research": {"conns": ["stripe-prod", "gmail-prod", "slack-prod"], "roles": ["pi", "dept_head", "cfo"]},
-        "comms": {"conns": ["slack-prod", "gmail-prod"], "roles": ["manager", "ceo"]},
-    }
-
     needed_conns = None
     needed_roles = None
     if agent_id and agent_id in _AGENT_DEPS:
@@ -1496,7 +1513,6 @@ async def seed_demo_data(
             continue
 
         # Skip if approver with same name already exists in this workspace
-        existing_by_name = None
         result_check = await db.execute(
             select(Approver).where(
                 Approver.workspace_id == workspace.id,
@@ -1526,25 +1542,6 @@ async def seed_demo_data(
     await db.flush()
 
     # ── Rules ────────────────────────────────────────────────────────────
-    # Map agent_id → rule name prefixes for filtering
-    _AGENT_RULE_PREFIXES = {
-        "expense": ["[Expense]"],
-        "release_manager": ["[Release]"],
-        "security_incident": ["[Security]", "[Shared]"],
-        "account_takeover": ["[ATO]"],
-        "recruitment": ["[HR]"],
-        "access_provisioning": ["[Access]"],
-        "patient_data": ["[Patient]"],
-        "prescription_refill": ["[Rx]"],
-        "gdpr_request": ["[GDPR]"],
-        "api_key_rotation": ["[KeyRotation]"],
-        "finance": ["[Finance]"],
-        "travelops": ["[Travel]"],
-        "opensource": ["[OSS]"],
-        "research": ["[Research]"],
-        "comms": ["[Comms]"],
-    }
-
     existing_rules = set()
     result = await db.execute(
         select(Rule.name).where(Rule.workspace_id == workspace.id)
@@ -1631,42 +1628,6 @@ async def clear_demo_data(
     delete_rules = body.rule_ids is None
     delete_approvers = body.approver_ids is None
     delete_connections = body.connection_ids is None
-
-    _AGENT_RULE_PREFIXES = {
-        "expense": ["[Expense]"],
-        "release_manager": ["[Release]"],
-        "security_incident": ["[Security]", "[Shared]"],
-        "account_takeover": ["[ATO]"],
-        "recruitment": ["[HR]"],
-        "access_provisioning": ["[Access]"],
-        "patient_data": ["[Patient]"],
-        "prescription_refill": ["[Rx]"],
-        "gdpr_request": ["[GDPR]"],
-        "api_key_rotation": ["[KeyRotation]"],
-        "finance": ["[Finance]"],
-        "travelops": ["[Travel]"],
-        "opensource": ["[OSS]"],
-        "research": ["[Research]"],
-        "comms": ["[Comms]"],
-    }
-
-    _AGENT_DEPS = {
-        "expense": {"conns": ["stripe-prod", "slack-prod"], "roles": ["manager", "cfo"]},
-        "release_manager": {"conns": ["github-main", "slack-prod"], "roles": ["maintainer", "lead_engineer", "oncall_engineer"]},
-        "security_incident": {"conns": ["github-prod", "slack-prod"], "roles": ["security_lead", "cto"]},
-        "account_takeover": {"conns": ["salesforce-prod", "stripe-prod", "gmail-prod", "slack-prod"], "roles": ["security_lead", "legal", "cs_manager"]},
-        "recruitment": {"conns": ["gmail-prod", "github-prod", "slack-prod"], "roles": ["hr_manager", "cfo", "ceo", "it_manager", "cto"]},
-        "access_provisioning": {"conns": ["github-prod", "slack-prod"], "roles": ["it_manager", "cto", "cfo", "hr_manager"]},
-        "patient_data": {"conns": ["google-drive-prod", "gmail-prod", "slack-prod"], "roles": ["doctor", "patient_rep", "ethics_board", "chief_doctor"]},
-        "prescription_refill": {"conns": ["gmail-prod", "slack-prod"], "roles": ["doctor", "pharmacist"]},
-        "gdpr_request": {"conns": ["github-prod", "gmail-prod", "slack-prod"], "roles": ["privacy_officer", "cto", "legal"]},
-        "api_key_rotation": {"conns": ["github-prod", "slack-prod", "gmail-prod"], "roles": ["security_lead", "cto"]},
-        "finance": {"conns": ["stripe-prod", "gmail-prod", "slack-prod"], "roles": ["manager", "cfo"]},
-        "travelops": {"conns": ["stripe-prod", "gmail-prod", "slack-prod"], "roles": ["manager", "vp", "cfo"]},
-        "opensource": {"conns": ["github-prod", "stripe-prod", "slack-prod"], "roles": ["maintainer", "maintainer2", "maintainer3", "cfo", "cto"]},
-        "research": {"conns": ["stripe-prod", "gmail-prod", "slack-prod"], "roles": ["pi", "dept_head", "cfo"]},
-        "comms": {"conns": ["slack-prod", "gmail-prod"], "roles": ["manager", "ceo"]},
-    }
 
     if agent_id and agent_id in _AGENT_RULE_PREFIXES:
         demo_prefixes = tuple(_AGENT_RULE_PREFIXES[agent_id])

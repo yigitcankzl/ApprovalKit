@@ -1517,7 +1517,7 @@ def _fire_token_vault_execution(connection: str, action: str, params: dict, user
                     },
                     timeout=15,
                 )
-                logger.info(f"Token Exchange response: {token_resp.status_code} {token_resp.text[:200]}")
+                logger.info(f"Token Exchange response: {token_resp.status_code}")
                 if token_resp.status_code == 200:
                     access_token = token_resp.json().get("access_token", "")
                     logger.info(f"Token Exchange succeeded for {connection} (provider={provider})")
@@ -1676,7 +1676,7 @@ def process_message(agent_id: str, message: str, agent_title: str = "", session_
             for _retry in range(3):
                 try:
                     response = client.models.generate_content(
-                        model="models/gemini-2.0-flash",
+                        model=pconfig["model"],
                         contents=contents,
                         config=config,
                     )

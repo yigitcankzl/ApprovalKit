@@ -426,6 +426,10 @@ async def _execute_salesforce(action: str, params: dict, creds: dict) -> dict:
     instance_url = params.get("instance_url", "https://login.salesforce.com")
     if not token:
         raise ValueError("Salesforce token not found")
+    from urllib.parse import urlparse as _urlparse
+    _host = _urlparse(instance_url).hostname or ""
+    if not (_host.endswith(".salesforce.com") or _host.endswith(".force.com")):
+        return {"success": False, "error": "Invalid Salesforce instance URL"}
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
     async with httpx.AsyncClient(timeout=15) as c:
@@ -639,6 +643,9 @@ async def _execute_shopify(action: str, params: dict, creds: dict) -> dict:
     shop = params.get("shop", "")
     if not token or not shop:
         raise ValueError("Shopify token or shop not found")
+    import re as _re
+    if not _re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9\-]*\.myshopify\.com", shop):
+        return {"success": False, "error": "Invalid shop domain: must match *.myshopify.com"}
     headers = {"X-Shopify-Access-Token": token, "Content-Type": "application/json"}
 
     async with httpx.AsyncClient(timeout=15) as c:
