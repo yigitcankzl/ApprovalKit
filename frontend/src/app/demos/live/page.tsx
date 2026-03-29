@@ -53,10 +53,25 @@ const SCENARIO_PROMPTS: Record<string, { label: string; emoji: string; prompt: s
     { label: "Offer Letter", emoji: "😠", prompt: "Send an offer letter to bob@example.com — Senior Engineer, $150,000/year with stock options." },
     { label: "Salary Broadcast", emoji: "💀", prompt: "Send an email to all 200 employees with the updated salary bands for every role, including individual compensation." },
   ],
+  account_takeover: [
+    { label: "Suspicious Login", emoji: "😊", prompt: "We detected a suspicious login from a new IP for user john@company.com. Notify them." },
+    { label: "Account Freeze", emoji: "😠", prompt: "User alice@company.com reports unauthorized access. Freeze the account and notify security." },
+    { label: "Mass Compromise", emoji: "💀", prompt: "50 accounts show signs of credential stuffing. Freeze ALL affected accounts, ban the attack IPs, and issue compensation credits." },
+  ],
+  access_provisioning: [
+    { label: "New Hire Access", emoji: "😊", prompt: "New developer Bob needs GitHub access to the main repo as a member." },
+    { label: "Admin Privileges", emoji: "😠", prompt: "Engineer Sarah needs admin access to the production GitHub organization." },
+    { label: "Financial System", emoji: "💀", prompt: "Grant full access to the financial system, billing database, and payment processing for the new CFO." },
+  ],
   patient_data: [
     { label: "Appointment Reminder", emoji: "😊", prompt: "Send a reminder to patient John Smith about his checkup tomorrow at 10am." },
     { label: "Record Sharing", emoji: "😠", prompt: "Dr. Wilson needs patient Jane Doe's cardiology records for a referral." },
     { label: "Bulk Data Export", emoji: "💀", prompt: "An insurance company wants complete medical records for all 50 cardiology patients for a coverage audit. Send everything." },
+  ],
+  prescription_refill: [
+    { label: "Routine Refill", emoji: "😊", prompt: "Refill Lisinopril 10mg for patient Mary Johnson, routine blood pressure medication." },
+    { label: "Controlled Substance", emoji: "😠", prompt: "Patient requests Oxycodone 10mg refill for chronic pain management." },
+    { label: "Dosage Change", emoji: "💀", prompt: "Increase Adderall from 20mg to 60mg for patient with ADHD. Triple the current dose." },
   ],
   finance: [
     { label: "Small Payment", emoji: "😊", prompt: "Pay invoice #1234 to Acme Corp for $200 for office supplies." },
@@ -77,6 +92,16 @@ const SCENARIO_PROMPTS: Record<string, { label: string; emoji: string; prompt: s
     { label: "Team Update", emoji: "😊", prompt: "Send a message to the engineering Slack channel about today's sprint review at 3pm." },
     { label: "Client Email", emoji: "😠", prompt: "Send a project update email to our client at bigcorp@example.com with the Q1 results." },
     { label: "Mass Blast", emoji: "💀", prompt: "Send a press release to all 10,000 newsletter subscribers AND post it on Discord AND Slack. Maximum reach!" },
+  ],
+  gdpr_request: [
+    { label: "Data Export", emoji: "😊", prompt: "User requests a copy of their personal data under GDPR Article 15." },
+    { label: "Account Deletion", emoji: "😠", prompt: "User wants complete deletion of their account and all associated data." },
+    { label: "Bulk Deletion", emoji: "💀", prompt: "Process GDPR deletion requests for 200 users from the EU. Delete all data across all systems immediately." },
+  ],
+  api_key_rotation: [
+    { label: "Routine Rotation", emoji: "😊", prompt: "Rotate the staging API key for the payment service as part of quarterly maintenance." },
+    { label: "Compromised Key", emoji: "😠", prompt: "The production Stripe API key may have been exposed in a log file. Rotate it immediately." },
+    { label: "Full Rotation", emoji: "💀", prompt: "Security audit failed. Rotate ALL API keys across ALL services — Stripe, GitHub, Slack, everything. Emergency protocol." },
   ],
 };
 const DEFAULT_PROMPTS = [
