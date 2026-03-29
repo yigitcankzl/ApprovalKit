@@ -51,21 +51,28 @@ AGENT_PROMPTS: dict[str, str] = {
 You are the company's AI E-Commerce Operations Agent. You handle customer refunds, payments, email communications, and team notifications.
 
 Your tools:
-- process_refund: Refund a customer via Stripe. Also sends an apology email automatically.
+- process_refund: Refund a customer via Stripe.
+- send_email: Send an email to a customer via Gmail (apology, confirmation, receipt).
 - process_compensation: Give customer a gift card or credit as compensation via Stripe.
 - notify_slack: Post a message to a Slack channel.
 
 Approval rules:
-- Under $100: Auto-approved
+- Charges under $100: Auto-approved
 - $100–$499: Manager approval required
 - $500+: Manager + CFO must both approve (step-up)
+- External emails: Always require Manager approval
+- Internal Slack: Auto-approved
 
-For customer complaints, ALWAYS call process_refund first, then process_compensation if needed, then notify_slack.
+For customer complaints, ALWAYS call ALL FOUR tools in this order:
+1. process_refund (the money)
+2. send_email (apology to customer)
+3. process_compensation (gift card if warranted)
+4. notify_slack (tell the team)
 
 EXAMPLES:
-- "Customer wants $30 refund" → process_refund($30)
-- "Angry customer, $420 damaged order" → process_refund($420) then process_compensation($100) then notify_slack
-- "500 defective products" → process_refund($15000) then notify_slack""",
+- "Customer wants $30 refund" → process_refund($30) then send_email then notify_slack
+- "Angry customer, $420 damaged order" → process_refund($420) then send_email(apology) then process_compensation($150) then notify_slack
+- "500 defective products" → process_refund($15000) then send_email(mass apology) then notify_slack""",
 
     "release_manager": _CORE_BEHAVIOR + """
 You are the team's AI Release Manager. Engineers come to you with deployment needs, issues, and release requests — you handle CI/CD operations autonomously.
@@ -349,15 +356,27 @@ AGENT_TOOLS: dict[str, list[dict]] = {
     "expense": [
         {
             "name": "process_refund",
-            "description": "Refund a customer via Stripe AND send them an apology email via Gmail. Use for any refund situation.",
+            "description": "Refund a customer via Stripe. Use for any refund or charge-back.",
             "input_schema": {
                 "type": "object",
                 "properties": {
                     "amount_usd": {"type": "number", "description": "Refund amount in USD"},
                     "reason": {"type": "string", "description": "Reason for refund"},
-                    "customer_email": {"type": "string", "description": "Customer email for apology"},
                 },
                 "required": ["amount_usd", "reason"],
+            },
+        },
+        {
+            "name": "send_email",
+            "description": "Send an email to a customer via Gmail. Use for apologies, confirmations, receipts.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "to": {"type": "string", "description": "Customer email address"},
+                    "subject": {"type": "string", "description": "Email subject"},
+                    "body": {"type": "string", "description": "Email body text"},
+                },
+                "required": ["to", "subject", "body"],
             },
         },
         {
@@ -1024,11 +1043,9 @@ _TOOL_ACTION_MAP: dict[str, dict[str, dict]] = {
         "process_refund": {"connection": "stripe-prod", "action": "charge",
                            "param_map": lambda p: {"amount_usd": p["amount_usd"],
                                                    "description": f"Refund: {p['reason']}",
-                                                   "customer": p.get("customer_email", "customer@example.com")},
-                           "also_execute": {"connection": "gmail-prod", "action": "send_email",
-                                           "param_map": lambda p: {"to": p.get("customer_email", "customer@example.com"),
-                                                                   "subject": f"Refund Confirmation - ${p['amount_usd']}",
-                                                                   "body": f"We apologize for the inconvenience. A refund of ${p['amount_usd']} has been submitted for: {p['reason']}. Please allow 3-5 business days."}}},
+                                                   "customer": "customer@example.com"}},
+        "send_email": {"connection": "gmail-prod", "action": "send_email",
+                       "param_map": lambda p: {"to": p["to"], "subject": p["subject"], "body": p["body"]}},
         "process_compensation": {"connection": "stripe-prod", "action": "charge",
                                  "param_map": lambda p: {"amount_usd": p["amount_usd"],
                                                          "description": f"Compensation: {p['reason']}",
@@ -1357,10 +1374,6 @@ def _execute_tool(agent_id: str, tool_name: str, tool_args: dict, workspace_id: 
     if not action:
         return {"success": False, "error": f"Unknown tool: {tool_name}"}
 
-    # Check for secondary action (e.g. process_refund also sends email)
-    agent_tools = _TOOL_ACTION_MAP.get(agent_id, {})
-    tool_def = agent_tools.get(tool_name, {})
-    also_execute = tool_def.get("also_execute")
 
     try:
         from sqlalchemy import create_engine, select
@@ -1961,22 +1974,6 @@ def _process_openai_compatible(
 
             result = _execute_tool(agent_id, tc.function.name, tool_args, workspace_id)
             all_actions.append({"tool": tc.function.name, "args": tool_args, "result": result})
-
-            # Fire secondary action if defined (e.g. process_refund also sends email)
-            _tool_def = _TOOL_ACTION_MAP.get(agent_id, {}).get(tc.function.name, {})
-            _also = _tool_def.get("also_execute")
-            if _also and result.get("success"):
-                try:
-                    sec_params = _also["param_map"](tool_args)
-                    _fire_token_vault_execution(_also["connection"], _also["action"], sec_params, workspace_id)
-                    all_actions.append({"tool": "auto_email", "args": sec_params, "result": {
-                        "success": True, "status": "auto_approved",
-                        "message": f"Email sent to {sec_params.get('to', 'customer')} via Token Vault",
-                        "connection": _also["connection"], "action": _also["action"], "params": sec_params,
-                    }})
-                    logger.info(f"Secondary action fired: {_also['connection']}/{_also['action']}")
-                except Exception as e:
-                    logger.warning(f"Secondary action failed: {e}")
 
             logger.info(f"Tool result: {result.get('status', 'error')} — {result.get('message', result.get('error', ''))}")
 
