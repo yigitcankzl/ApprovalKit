@@ -2,14 +2,19 @@
 Agent Chat Endpoint
 ===================
 POST /api/v1/demo/agents/{agent_id}/chat
+POST /api/v1/demo/agents/{agent_id}/chat/stream
 GET  /api/v1/demo/agents/{agent_id}/suggestions
 DELETE /api/v1/demo/agents/{agent_id}/session/{session_id}
+GET  /api/v1/demo/ollama-status
 
 AI API key is stored encrypted in the user's workspace.
 Decrypted at runtime, never exposed to the frontend after initial save.
 """
 
+import json
+import httpx
 from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,13 +44,11 @@ class ChatResponse(BaseModel):
     session_id: str = ""
 
 
-@router.post("/{agent_id}/chat", response_model=ChatResponse)
-async def chat_with_agent(
-    agent_id: str,
-    req: ChatRequest,
-    workspace: Workspace = Depends(get_current_workspace),
-):
-    # Read AI API key + provider: Vault first, then Fernet fallback
+def _resolve_ai_credentials(workspace: Workspace) -> tuple[str, str]:
+    """Resolve AI API key and provider from workspace config.
+
+    Returns (provider, api_key). For Ollama, api_key may be empty.
+    """
     api_key = ""
     provider = "gemini"
     if workspace.ai_api_key_encrypted == "vault":
@@ -59,6 +62,21 @@ async def chat_with_agent(
             provider, api_key = decrypted.split(":", 1)
         else:
             api_key = decrypted
+
+    # Ollama doesn't need an API key
+    if provider == "ollama":
+        api_key = api_key or "ollama"
+
+    return provider, api_key
+
+
+@router.post("/{agent_id}/chat", response_model=ChatResponse)
+async def chat_with_agent(
+    agent_id: str,
+    req: ChatRequest,
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    provider, api_key = _resolve_ai_credentials(workspace)
 
     result = process_message(
         agent_id, req.message, req.agent_title, req.session_id,
@@ -77,3 +95,17 @@ async def get_agent_suggestions(agent_id: str):
 async def delete_session(agent_id: str, session_id: str):
     clear_session(f"{agent_id}:{session_id}")
     return {"status": "cleared"}
+
+
+@router.get("/ollama-status")
+async def check_ollama():
+    """Check if Ollama is running and which models are available."""
+    try:
+        async with httpx.AsyncClient(timeout=3) as c:
+            r = await c.get("http://localhost:11434/api/tags")
+            models = r.json().get("models", [])
+            model_names = [m.get("name", "") for m in models]
+            has_model = any("llama3.1" in n or "llama3.2" in n or "llama3.3" in n for n in model_names)
+            return {"running": True, "has_model": has_model, "models": model_names}
+    except Exception:
+        return {"running": False, "has_model": False, "models": []}

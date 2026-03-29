@@ -1115,6 +1115,7 @@ def _build_gemini_contents(history: list[dict]) -> list[dict]:
 # ── Main Processing ──────────────────────────────────────────────────────────
 
 _PROVIDER_CONFIG = {
+    "ollama": {"type": "openai", "base_url": "http://localhost:11434/v1", "model": "llama3.1:8b", "needs_api_key": False},
     "gemini": {"type": "gemini", "model": "models/gemini-2.0-flash"},
     "groq": {"type": "openai", "base_url": "https://api.groq.com/openai/v1", "model": "llama-3.3-70b-versatile"},
     "openrouter": {"type": "openai", "base_url": "https://openrouter.ai/api/v1", "model": "meta-llama/llama-3.3-70b-instruct:free"},
@@ -1138,7 +1139,9 @@ def process_message(agent_id: str, message: str, agent_title: str = "", session_
 
     session_key = f"{agent_id}:{session_id}"
 
-    if not api_key:
+    pconfig = _PROVIDER_CONFIG.get(provider, _PROVIDER_CONFIG["gemini"])
+
+    if not api_key and pconfig.get("needs_api_key", True):
         return _fallback_response(agent_id, message, session_id)
 
     # Get or create session
@@ -1149,8 +1152,6 @@ def process_message(agent_id: str, message: str, agent_title: str = "", session_
 
     system_prompt = AGENT_PROMPTS.get(agent_id, f"You are a helpful AI assistant called {agent_title}.")
     tools = AGENT_TOOLS.get(agent_id, [])
-
-    pconfig = _PROVIDER_CONFIG.get(provider, _PROVIDER_CONFIG["gemini"])
 
     # Route to provider-specific implementation
     if pconfig["type"] == "openai":
@@ -1310,7 +1311,7 @@ def _process_openai_compatible(
     try:
         from openai import OpenAI
 
-        client = OpenAI(api_key=api_key, base_url=pconfig["base_url"])
+        client = OpenAI(api_key=api_key or "ollama", base_url=pconfig["base_url"])
         model = pconfig["model"]
 
         # Convert tools to OpenAI format
@@ -1426,12 +1427,15 @@ def _process_openai_compatible(
 def _fallback_response(agent_id: str, message: str, session_id: str, error: str = "") -> dict:
     """Fallback when AI API is unavailable."""
     if error:
-        resp = f"AI error: {error}\n\nPlease check your Gemini API key and try again."
+        resp = f"AI error: {error}\n\nPlease check your API key and try again."
     else:
         resp = (
-            "To chat with this agent, enter your Gemini API key using the 🔑 button above.\n\n"
-            "Get a free key at https://aistudio.google.com/apikey\n\n"
-            "You can also use the ⚡ Quick Scenarios panel to test approval flows directly without an API key."
+            "To chat with this agent, select a provider and enter your API key using the key button above.\n\n"
+            "Options:\n"
+            "- **Ollama** (local, free): Install from ollama.com, no API key needed\n"
+            "- **Groq** (free, fast): Get a key at console.groq.com/keys\n"
+            "- **Gemini** (free): Get a key at aistudio.google.com/apikey\n\n"
+            "You can also use the Quick Scenarios panel to test approval flows directly without an API key."
         )
 
     return {

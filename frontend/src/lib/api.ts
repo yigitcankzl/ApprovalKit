@@ -128,6 +128,8 @@ export const api = {
     fetchAPI(`/api/v1/demo/agents/${agentId}/suggestions`),
   clearAgentSession: (agentId: string, sessionId: string) =>
     fetchAPI(`/api/v1/demo/agents/${agentId}/session/${sessionId}`, { method: "DELETE" }),
+  checkOllamaStatus: () =>
+    fetchAPI("/api/v1/demo/agents/ollama-status"),
 
   // AI API Key (encrypted server-side)
   saveAIKey: (apiKey: string, provider: string = "gemini") =>

@@ -295,6 +295,7 @@ export function AgentChat({ agent }: { agent: DemoAgent }) {
   const [currentProvider, setCurrentProvider] = useState("");
   const [showKeyInput, setShowKeyInput] = useState(false);
   const [savingKey, setSavingKey] = useState(false);
+  const [ollamaStatus, setOllamaStatus] = useState<{running: boolean, has_model: boolean} | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -326,6 +327,10 @@ export function AgentChat({ agent }: { agent: DemoAgent }) {
         if (data.provider) setCurrentProvider(data.provider);
       })
       .catch(() => {});
+    // Check Ollama availability
+    api.checkOllamaStatus()
+      .then((data: { running: boolean; has_model: boolean }) => setOllamaStatus(data))
+      .catch(() => setOllamaStatus({ running: false, has_model: false }));
   }, [agent.id]);
 
   const addMsg = (type: MsgType, text: string, meta?: ChatMessage["meta"]) => {
@@ -631,8 +636,9 @@ export function AgentChat({ agent }: { agent: DemoAgent }) {
             ) : (
               <>
                 {/* Provider selector */}
-                <div className="flex gap-1.5 mb-2">
+                <div className="flex gap-1.5 mb-2 flex-wrap">
                   {[
+                    { id: "ollama", label: "Ollama", hint: "Local, free", noKey: true },
                     { id: "groq", label: "Groq", hint: "Free, fast" },
                     { id: "gemini", label: "Gemini", hint: "Google" },
                     { id: "openrouter", label: "OpenRouter", hint: "Free models" },
@@ -653,41 +659,80 @@ export function AgentChat({ agent }: { agent: DemoAgent }) {
                   ))}
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <div className="flex-1">
-                    <input
-                      type="password"
-                      value={keyInput}
-                      onChange={(e) => setKeyInput(e.target.value)}
-                      placeholder={`Paste your ${selectedProvider === "groq" ? "Groq" : selectedProvider === "openrouter" ? "OpenRouter" : selectedProvider === "mistral" ? "Mistral" : "Gemini"} API key...`}
-                      className="w-full rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-3 py-2 text-xs text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                {selectedProvider === "ollama" ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className={`h-2 w-2 rounded-full ${ollamaStatus?.running ? (ollamaStatus.has_model ? "bg-green-500" : "bg-amber-500") : "bg-red-500"}`} />
+                      <span className="text-xs text-zinc-500">
+                        {ollamaStatus?.running
+                          ? ollamaStatus.has_model
+                            ? "Ollama running with Llama model"
+                            : "Ollama running — pull a model: ollama pull llama3.1:8b"
+                          : "Ollama not detected"}
+                      </span>
+                    </div>
+                    <Button
+                      size="sm"
+                      disabled={!ollamaStatus?.running || !ollamaStatus?.has_model || savingKey}
+                      onClick={async () => {
+                        setSavingKey(true);
+                        try {
+                          await api.saveAIKey("ollama", "ollama");
+                          setHasAIKey(true);
+                          setCurrentProvider("ollama");
+                        } catch {}
+                        setSavingKey(false);
+                      }}
+                      className="h-8 px-3 text-xs"
+                    >
+                      {savingKey ? <Loader2 className="h-3 w-3 animate-spin" /> : "Use Ollama"}
+                    </Button>
+                    {!ollamaStatus?.running && (
+                      <p className="text-[10px] text-zinc-400">
+                        Install: <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded">curl -fsSL https://ollama.com/install.sh | sh</code>
+                        <br />Then: <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded">ollama pull llama3.1:8b && ollama serve</code>
+                      </p>
+                    )}
                   </div>
-                  <Button
-                    size="sm"
-                    disabled={!keyInput.trim() || savingKey}
-                    onClick={async () => {
-                      setSavingKey(true);
-                      try {
-                        await api.saveAIKey(keyInput.trim(), selectedProvider);
-                        setHasAIKey(true);
-                        setCurrentProvider(selectedProvider);
-                        setKeyInput("");
-                      } catch {}
-                      setSavingKey(false);
-                    }}
-                    className="h-8 px-3 text-xs"
-                  >
-                    {savingKey ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
-                  </Button>
-                </div>
-                <p className="text-[10px] text-zinc-400 mt-1.5">
-                  {selectedProvider === "groq" && <>Free key from <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">console.groq.com/keys</a> — 30 req/min, Llama 3.3 70B</>}
-                  {selectedProvider === "gemini" && <>Free key from <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">aistudio.google.com/apikey</a></>}
-                  {selectedProvider === "openrouter" && <>Free key from <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">openrouter.ai/keys</a> — free models available</>}
-                  {selectedProvider === "mistral" && <>Free key from <a href="https://console.mistral.ai/api-keys" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">console.mistral.ai/api-keys</a></>}
-                  {" — encrypted and stored on the server."}
-                </p>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1">
+                        <input
+                          type="password"
+                          value={keyInput}
+                          onChange={(e) => setKeyInput(e.target.value)}
+                          placeholder={`Paste your ${selectedProvider === "groq" ? "Groq" : selectedProvider === "openrouter" ? "OpenRouter" : selectedProvider === "mistral" ? "Mistral" : "Gemini"} API key...`}
+                          className="w-full rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-3 py-2 text-xs text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <Button
+                        size="sm"
+                        disabled={!keyInput.trim() || savingKey}
+                        onClick={async () => {
+                          setSavingKey(true);
+                          try {
+                            await api.saveAIKey(keyInput.trim(), selectedProvider);
+                            setHasAIKey(true);
+                            setCurrentProvider(selectedProvider);
+                            setKeyInput("");
+                          } catch {}
+                          setSavingKey(false);
+                        }}
+                        className="h-8 px-3 text-xs"
+                      >
+                        {savingKey ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
+                      </Button>
+                    </div>
+                    <p className="text-[10px] text-zinc-400 mt-1.5">
+                      {selectedProvider === "groq" && <>Free key from <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">console.groq.com/keys</a> — 30 req/min, Llama 3.3 70B</>}
+                      {selectedProvider === "gemini" && <>Free key from <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">aistudio.google.com/apikey</a></>}
+                      {selectedProvider === "openrouter" && <>Free key from <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">openrouter.ai/keys</a> — free models available</>}
+                      {selectedProvider === "mistral" && <>Free key from <a href="https://console.mistral.ai/api-keys" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">console.mistral.ai/api-keys</a></>}
+                      {" — encrypted and stored on the server."}
+                    </p>
+                  </>
+                )}
               </>
             )}
           </div>
