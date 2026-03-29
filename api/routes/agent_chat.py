@@ -39,9 +39,13 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     response: str
     action: dict | None = None
+    actions: list[dict] = []
+    actions_taken: int = 0
     suggestions: list[str] = []
     type: str = "chat"
     session_id: str = ""
+    rule_name: str | None = None
+    message: str | None = None
 
 
 def _resolve_ai_credentials(workspace: Workspace) -> tuple[str, str]:
