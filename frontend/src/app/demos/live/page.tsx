@@ -143,8 +143,26 @@ export default function LiveThreatDemoPage() {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     const sessionId = sessionIds[agentId] || "";
 
+    // Shield OFF: use non-streaming endpoint (no approval waiting)
+    if (!shieldEnabled) {
+      try {
+        const res = await api.chatWithAgent(agentId, text.trim(), agentTitle, sessionId);
+        if (res.session_id) setSessionIds(prev => ({ ...prev, [agentId]: res.session_id }));
+        addMessage(agentId, { role: "agent", text: res.response || "Done." });
+        const actions = res.actions || (res.action ? [res.action] : []);
+        for (let i = 0; i < actions.length; i++) {
+          if (i > 0) await new Promise(r => setTimeout(r, 600));
+          const a = actions[i];
+          addMessage(agentId, { role: "tool", text: `${a.connection || "unknown"}/${a.action || "unknown"}`, toolName: a.action, toolArgs: a.params, toolStatus: "auto_approved" });
+          addEvent({ agentId, agentTitle, type: "auto_approved", action: a.action || "unknown", connection: a.connection || "unknown", params: a.params || {}, message: `EXECUTED WITHOUT OVERSIGHT — ${a.action || "unknown"}` });
+        }
+      } catch (e: any) { addMessage(agentId, { role: "system", text: `Error: ${e.message}` }); }
+      setIsTyping(false); inputRef.current?.focus();
+      return;
+    }
+
     try {
-      // Use streaming endpoint — tool results arrive one by one in real-time
+      // Shield ON: use streaming endpoint with approval waiting
       const resp = await fetch(`${API_BASE}/api/v1/demo/agents/${agentId}/chat/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(user?.sub ? { "X-User-Sub": user.sub as string } : {}) },
