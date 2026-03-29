@@ -71,7 +71,7 @@ subject_token={auth0_refresh_token}
 connection={stripe|github|slack|...}
 ```
 
-**15 built-in service handlers** execute actions directly: Stripe, GitHub, Slack, Google (Gmail/Calendar/Drive), Microsoft (Outlook/OneDrive), Salesforce, Notion, Jira, Discord, Linear, HubSpot, Shopify, PayPal, Dropbox, Asana.
+**16 built-in service handlers** execute actions directly: Stripe, GitHub, Slack, Google (Gmail/Calendar/Drive/Sheets), Microsoft (Outlook/OneDrive), Salesforce, Notion, Jira, Discord, Linear, HubSpot, Shopify, PayPal, Dropbox, Amadeus.
 
 **Generic Webhook** — connect any REST API without writing code. Configure URL + method + headers + body template via dashboard. Token Vault renders `{{token}}`, `{{action}}`, `{{param}}` placeholders at execution time.
 
@@ -157,55 +157,22 @@ SSE live feed via Redis pub/sub shows approval events as they happen. Pending ap
 | Auth | Auth0 Token Vault, CIBA, FGA, nextjs-auth0 v4, per-agent HMAC |
 | SDK | Python, pip-installable, sync + async, jitter polling |
 | Execution | 15 built-in handlers + generic webhook (any REST API) |
-| Infrastructure | Docker Compose (6 services), standalone TravelOps demo |
+| Infrastructure | Docker Compose (8 services), Ollama GPU support, Healthcare companion demo |
 
 ---
 
 ## Quick Start
 
 ```bash
-git clone <repo-url> && cd ApprovalKit
-cp .env.example .env && cp frontend/.env.local.example frontend/.env.local
-docker compose up -d
-
-# Open dashboard — first login redirects to /setup wizard
-open http://localhost:3000
+git clone https://github.com/yigitcankzl/ApprovalKit.git
+cd ApprovalKit
+chmod +x setup.sh
+./setup.sh
 ```
 
-### Run the demo agent
+This starts all services (PostgreSQL, Redis, Vault, Ollama, API, Worker, Frontend), downloads the AI model, and seeds demo data. Open `http://localhost:3000` and start using the demo agents.
 
-```bash
-pip install requests
-APPROVALKIT_URL=http://localhost:8000 \
-APPROVALKIT_API_KEY=<from settings> \
-APPROVALKIT_HMAC_SECRET=<from settings> \
-python examples/shopping_bot.py
-```
-
-The shopping bot charges $349 → Guardian push goes to your phone → approve → Token Vault executes the Stripe charge. The agent never sees the Stripe API key.
-
----
-
-## TravelOps Agent (Companion Demo)
-
-A complete **corporate travel booking agent** that demonstrates ApprovalKit in a real-world scenario. Available as a separate project:
-
-```
-travelops/
-├── with-approvalkit/       # Safe: Token Vault, Guardian approval, audit trail
-├── without-approvalkit/    # Unsafe: Agent holds API keys, no approval
-├── backend/                # Standalone FastAPI dashboard
-└── frontend/               # Travel booking UI on port 3001
-```
-
-The side-by-side comparison shows why human-in-the-loop approval matters:
-
-| | Without ApprovalKit | With ApprovalKit |
-|---|---|---|
-| $3200 flight | Charged immediately | Manager + CFO both approve |
-| Credentials | Agent holds Stripe key | Agent never sees key |
-| Wrong amount | Money gone | Approver catches it |
-| Audit trail | None | Full log with timestamps |
+**For detailed setup instructions, Auth0 configuration, and using your own tenant, see [SETUP.md](SETUP.md).**
 
 ---
 
@@ -239,7 +206,7 @@ The side-by-side comparison shows why human-in-the-loop approval matters:
 | Approvers | CRUD + Guardian auto-linking + delegation + workspace isolation |
 | Audit Log | Filterable event log with PII masking, binding messages, Token Vault receipts |
 | Connect Agent | Per-agent API key generation, SDK code snippets, live testing |
-| Agents | 7 demo agents (backend-served) + My Agents tab with scenarios |
+| Agents | 14 demo agents (backend-served) + My Agents tab with scenarios |
 | Setup | Full-page onboarding wizard (Auth0 creds + connections), no sidebar |
 | Settings | Edit existing workspace credentials (sidebar layout) |
 | Docs | Full SDK reference, API endpoints, approval models |
