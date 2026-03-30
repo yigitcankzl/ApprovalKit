@@ -666,7 +666,7 @@ export default function LiveThreatDemoPage() {
       </div>
 
       {/* Split Screen */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" style={{ height: "calc(100vh - 320px)" }}>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" style={{ height: "calc(100vh - 220px)" }}>
 
         {/* LEFT: Agent Chat */}
         <div className="rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 bg-white/50 dark:bg-zinc-900/20 flex flex-col overflow-hidden">
