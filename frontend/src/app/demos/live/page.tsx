@@ -301,7 +301,7 @@ export default function LiveThreatDemoPage() {
   const urlChain = chainIdFromUrl ? CHAIN_SCENARIOS.find(c => c.id === chainIdFromUrl) : null;
 
   const currentMessages = activeChain
-    ? [...activeChain.steps.map(s => s.agentId), "orchestrator", "risk_assessor", "validator", "summary"]
+    ? [...activeChain.steps.map(s => s.agentId), "orchestrator", "sub_agents", "risk_assessor", "validator", "summary"]
         .flatMap(id => messages[id] || [])
         .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
     : selectedAgent ? (messages[selectedAgent.id] || []) : [];
@@ -335,14 +335,36 @@ export default function LiveThreatDemoPage() {
     resetSummary();
     setMessages({});
 
-    // ── SUB-AGENT 1: Risk Assessment (before execution) ──
+    // ── PRE-EXECUTION SUB-AGENTS ──
+    const planDesc = chain.steps.map((s, i) => `${i+1}. ${s.agentTitle} — ${s.role} [tools: ${(s.allowedTools || []).join(", ")}]`).join("\n");
+    const planContext = `SCENARIO: ${chain.scenario}\n\nPLAN:\n${planDesc}`;
+
+    // Risk Assessor
     try {
-      const planDesc = chain.steps.map((s, i) => `${i+1}. ${s.agentTitle} — ${s.role} [tools: ${(s.allowedTools || []).join(", ")}]`).join("\n");
-      addMessage("risk_assessor", { role: "system", text: "🛡️ Risk Assessor analyzing plan..." });
-      const risk = await api.runSubAgent("risk_assessor", `SCENARIO: ${chain.scenario}\n\nPLAN:\n${planDesc}`);
-      addMessage("risk_assessor", { role: "agent", text: `🛡️ Risk Assessment:\n${risk.analysis}` });
-      await new Promise(r => setTimeout(r, 1000));
+      addMessage("sub_agents", { role: "system", text: "🛡️ Risk Assessor analyzing plan..." });
+      const risk = await api.runSubAgent("risk_assessor", planContext);
+      addMessage("sub_agents", { role: "agent", text: `🛡️ Risk Assessment:\n${risk.analysis}` });
     } catch {}
+
+    // Cost Estimator
+    try {
+      const cost = await api.runSubAgent("cost_estimator", planContext);
+      addMessage("sub_agents", { role: "agent", text: `💰 Cost Estimate:\n${cost.analysis}` });
+    } catch {}
+
+    // Compliance Checker
+    try {
+      const compliance = await api.runSubAgent("compliance_checker", planContext);
+      addMessage("sub_agents", { role: "agent", text: `📜 Compliance Check:\n${compliance.analysis}` });
+    } catch {}
+
+    // Rollback Planner
+    try {
+      const rollback = await api.runSubAgent("rollback_planner", planContext);
+      addMessage("sub_agents", { role: "agent", text: `🔄 Rollback Plan:\n${rollback.analysis}` });
+    } catch {}
+
+    await new Promise(r => setTimeout(r, 500));
 
     // Accumulate context from each step's results
     const chainContext: string[] = [];
@@ -430,11 +452,19 @@ export default function LiveThreatDemoPage() {
       }
     }
 
-    // ── SUB-AGENT 3: Summary (after chain completes) ──
+    // ── POST-CHAIN SUB-AGENTS ──
+    const allActionsContext = `SCENARIO: ${chain.scenario}\n\nALL ACTIONS:\n${chainContext.join("\n\n")}`;
+
+    // Audit Reporter
     try {
-      addMessage("summary", { role: "system", text: "📋 Summary Agent compiling results..." });
-      const summaryResult = await api.runSubAgent("summary", `SCENARIO: ${chain.scenario}\n\nALL ACTIONS:\n${chainContext.join("\n\n")}`);
-      addMessage("summary", { role: "agent", text: `📋 Executive Summary:\n${summaryResult.analysis}` });
+      const audit = await api.runSubAgent("audit_reporter", allActionsContext);
+      addMessage("sub_agents", { role: "agent", text: `📝 Audit Trail:\n${audit.analysis}` });
+    } catch {}
+
+    // Summary Agent
+    try {
+      const summaryResult = await api.runSubAgent("summary", allActionsContext);
+      addMessage("sub_agents", { role: "agent", text: `📋 Executive Summary:\n${summaryResult.analysis}` });
     } catch {}
 
     setChainRunning(false);
