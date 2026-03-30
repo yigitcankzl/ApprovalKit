@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Copy, Check, Terminal, Blocks } from "lucide-react";
+import { Copy, Check, Terminal, Monitor, Package } from "lucide-react";
 
 function CopyBlock({ code, label }: { code: string; label?: string }) {
   const [copied, setCopied] = useState(false);
@@ -52,11 +52,26 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 
 
 export default function MCPPage() {
-  const claudeCodeCmd = `pip install "approvalkit @ git+https://github.com/yigitcankzl/ApprovalKit.git#subdirectory=sdk" && claude mcp add approvalkit \\
+  const claudeCodeCmd = `claude mcp add approvalkit python3 /path/to/ApprovalKit/sdk/approvalkit/mcp_server.py \\
   -e APPROVALKIT_URL=http://localhost:8000 \\
   -e APPROVALKIT_API_KEY=YOUR_API_KEY \\
-  -e APPROVALKIT_HMAC_SECRET=YOUR_HMAC_SECRET \\
-  -- approvalkit-mcp`;
+  -e APPROVALKIT_HMAC_SECRET=YOUR_HMAC_SECRET`;
+
+  const claudeDesktopConfig = `{
+  "mcpServers": {
+    "approvalkit": {
+      "command": "python3",
+      "args": ["/path/to/ApprovalKit/sdk/approvalkit/mcp_server.py"],
+      "env": {
+        "APPROVALKIT_URL": "http://localhost:8000",
+        "APPROVALKIT_API_KEY": "YOUR_API_KEY",
+        "APPROVALKIT_HMAC_SECRET": "YOUR_HMAC_SECRET"
+      }
+    }
+  }
+}`;
+
+  const pipInstallCmd = `pip install mcp httpx`;
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -100,25 +115,62 @@ export default function MCPPage() {
         </CardContent>
       </Card>
 
-      {/* Claude Code setup */}
+      {/* Setup options */}
       <div className="space-y-4">
+        {/* Prerequisites */}
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                <Package className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Prerequisites</h3>
+                <p className="text-xs text-zinc-400">Install MCP SDK (one-time)</p>
+              </div>
+            </div>
+            <CopyBlock code={pipInstallCmd} label="Terminal" />
+          </CardContent>
+        </Card>
+
+        {/* Claude Code CLI */}
         <Card className="border-green-200 dark:border-green-800">
           <CardContent className="p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-1.5 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                  <Terminal className="h-4 w-4 text-green-600 dark:text-green-400" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Claude Code (CLI)</h3>
-                  <p className="text-xs text-zinc-400">Paste in your terminal to set up</p>
-                </div>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-1.5 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                <Terminal className="h-4 w-4 text-green-600 dark:text-green-400" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Claude Code (CLI)</h3>
+                <p className="text-xs text-zinc-400">One command to connect</p>
               </div>
             </div>
             <CopyBlock code={claudeCodeCmd} label="Terminal" />
             <div className="mt-3 flex items-center gap-3">
               <CopyButton text={claudeCodeCmd} label="Copy command" />
-              <span className="text-xs text-zinc-400">Replace keys, paste in terminal, press Enter</span>
+              <span className="text-xs text-zinc-400">Replace keys with yours from <a href="/agents" className="text-blue-500 hover:underline">Agents</a> page</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Claude Desktop */}
+        <Card className="border-purple-200 dark:border-purple-800">
+          <CardContent className="p-5">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-1.5 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                <Monitor className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Claude Desktop (macOS / Windows)</h3>
+                <p className="text-xs text-zinc-400">Add to claude_desktop_config.json</p>
+              </div>
+            </div>
+            <CopyBlock code={claudeDesktopConfig} label="claude_desktop_config.json" />
+            <div className="mt-3 flex items-center gap-3">
+              <CopyButton text={claudeDesktopConfig} label="Copy config" />
+              <span className="text-xs text-zinc-400">
+                macOS: ~/Library/Application Support/Claude/ · Windows: %APPDATA%\Claude\
+              </span>
             </div>
           </CardContent>
         </Card>
