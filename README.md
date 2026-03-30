@@ -1,8 +1,27 @@
 # ApprovalKit
 
+[![Auth0 Token Vault](https://img.shields.io/badge/Auth0-Token%20Vault-blue?logo=auth0)](https://auth0.com/ai/docs/intro/token-vault)
+[![Python SDK](https://img.shields.io/badge/SDK-Python-green?logo=python)](sdk/)
+[![MCP Server](https://img.shields.io/badge/MCP-Compatible-purple)](sdk/approvalkit/mcp_server.py)
+[![Docker](https://img.shields.io/badge/Docker-Compose-blue?logo=docker)](docker-compose.yml)
+[![30 Services](https://img.shields.io/badge/Services-30%20Handlers-orange)](api/services/token_vault.py)
+[![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
+
 **Human Approval Middleware for AI Agents**
 
 > One decorator. Any agent. Credentials never leave Auth0 Token Vault.
+
+```
+pip install ./sdk
+```
+
+```python
+@kit.requires_approval(connection="stripe-prod", action="charge")
+def charge_customer(amount, email):
+    pass  # Token Vault executes — agent never sees credentials
+```
+
+Works with **LangChain**, **CrewAI**, **OpenAI Function Calling**, **Claude MCP**, or any Python agent.
 
 ---
 

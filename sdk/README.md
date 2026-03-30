@@ -134,6 +134,92 @@ The agent **never sees** the OAuth token. Credentials stay in Auth0 Token Vault.
 | `ApprovalDenied("timeout")` | Approver didn't respond in time | Increase rule timeout or check Guardian enrollment |
 | `Connection refused` | ApprovalKit API not running | Check `base_url` and API health (`/health`) |
 
+## Framework Integrations
+
+### LangChain
+
+```python
+from langchain.tools import StructuredTool
+from approvalkit import ApprovalKit
+
+kit = ApprovalKit(base_url="http://localhost:8000", api_key="ak_...", hmac_secret="...")
+
+def charge_customer(amount: float, customer: str, description: str) -> str:
+    result = kit.gate("stripe-prod", "charge", {
+        "amount_usd": amount, "customer": customer, "description": description
+    })
+    return f"Approved: {result['status']}"
+
+stripe_tool = StructuredTool.from_function(
+    func=charge_customer,
+    name="charge_customer",
+    description="Charge a customer via Stripe (requires human approval for amounts > $100)",
+)
+
+# Use in your LangChain agent
+# agent = create_react_agent(llm, [stripe_tool], ...)
+```
+
+### CrewAI
+
+```python
+from crewai.tools import tool
+from approvalkit import ApprovalKit
+
+kit = ApprovalKit(base_url="http://localhost:8000", api_key="ak_...", hmac_secret="...")
+
+@tool("deploy_to_production")
+def deploy_to_production(ref: str, environment: str) -> str:
+    """Deploy code to production (requires maintainer approval)."""
+    result = kit.gate("github-main", "deploy", {"ref": ref, "environment": environment})
+    return f"Deployed: {result['status']}"
+
+# Use in your CrewAI task
+# task = Task(description="Deploy the hotfix", tools=[deploy_to_production], agent=devops_agent)
+```
+
+### OpenAI Function Calling
+
+```python
+from approvalkit import ApprovalKit
+
+kit = ApprovalKit(base_url="http://localhost:8000", api_key="ak_...", hmac_secret="...")
+
+# Define as OpenAI function
+tools = [{
+    "type": "function",
+    "function": {
+        "name": "send_email",
+        "description": "Send email to customer (requires approval)",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "to": {"type": "string"},
+                "subject": {"type": "string"},
+                "body": {"type": "string"},
+            },
+        },
+    },
+}]
+
+# When OpenAI calls the function:
+def handle_tool_call(name, args):
+    if name == "send_email":
+        return kit.gate("gmail-prod", "send_email", args)
+```
+
+### Claude MCP
+
+```bash
+# One command to add ApprovalKit to Claude Code:
+claude mcp add approvalkit python3 /path/to/sdk/approvalkit/mcp_server.py \
+  -e APPROVALKIT_URL=http://localhost:8000 \
+  -e APPROVALKIT_API_KEY=ak_... \
+  -e APPROVALKIT_HMAC_SECRET=...
+```
+
+Then ask Claude: *"Charge $420 to Stripe for a refund"* — Claude calls `request_approval` MCP tool automatically.
+
 ## Full Example
 
 ```python
