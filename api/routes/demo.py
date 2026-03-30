@@ -1357,7 +1357,7 @@ async def clear_demo_data(
         target_roles = set(_AGENT_DEPS[agent_id]["roles"])
     else:
         demo_prefixes = ("[Expense]", "[Release]", "[Security]", "[ATO]", "[HR]", "[Access]",
-                         "[Patient]", "[Rx]", "[GDPR]", "[KeyRotation]", "[Shared]", "[Demo]")
+                         "[GDPR]", "[KeyRotation]", "[Shared]", "[Demo]")
         target_conns = None
         target_roles = None
 

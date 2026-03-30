@@ -921,27 +921,6 @@ _TOOL_ACTION_MAP: dict[str, dict[str, dict]] = {
         "notify_slack": {"connection": "slack-prod", "action": "send_message",
                          "param_map": lambda p: p},
     },
-    "patient_data": {
-        "share_records": {"connection": "google-drive-prod", "action": "share",
-                          "param_map": lambda p: p},
-        "send_notification": {"connection": "gmail-prod", "action": "send_email",
-                              "param_map": lambda p: {"recipient": p["recipient"], "subject": p["subject"],
-                                                      "type": p["type"]}},
-    },
-    "prescription_refill": {
-        "process_refill": {"connection": "gmail-prod", "action": "send_email",
-                           "param_map": lambda p: {"type": "controlled_refill" if p.get("is_controlled") else
-                                                   "dosage_change" if p.get("is_dosage_change") else
-                                                   "new_prescription" if p.get("is_new_prescription") else
-                                                   "routine_refill",
-                                                   "patient_id": p["patient_id"],
-                                                   "medication": p["medication"], "dosage": p["dosage"],
-                                                   "recipient": "pharmacy@clinic.com",
-                                                   "subject": f"Rx Refill: {p['medication']} {p['dosage']}"}},
-        "notify_pharmacy": {"connection": "slack-prod", "action": "send_message",
-                            "param_map": lambda p: {"channel": "#pharmacy",
-                                                    "message": p["message"]}},
-    },
     "gdpr_request": {
         "process_deletion": {"connection": "github-prod", "action": "deploy",
                              "param_map": lambda p: {"type": "gdpr_deletion", "env": "production",
@@ -1099,20 +1078,6 @@ AGENT_SUGGESTIONS: dict[str, list[str]] = {
         "Finance team is onboarding a new analyst who needs the reporting tools",
         "Tom from the backend team accepted an offer at another company, last day is Friday",
         "The external contractor's project wrapped up, we should clean up their access",
-    ],
-    "patient_data": [
-        "Dr. Wilson is covering for Dr. Smith today and needs access to his patients",
-        "We're referring patient P-2847 to the cardiology department at Mount Sinai",
-        "Aetna Insurance sent a records request for patient P-1156, claim #AC-29481",
-        "The Johns Hopkins research team needs de-identified data from our cardiac ward",
-        "Patient P-3390's family is asking for copies of the recent MRI results",
-    ],
-    "prescription_refill": [
-        "Mrs. Johnson called, she's running low on her Lisinopril 10mg",
-        "Patient P-4422 is here for their monthly Adderall 20mg pickup",
-        "Dr. Patel reviewed the labs and wants to adjust the Metformin dosage for P-2891",
-        "Walk-in patient with strep throat, Dr. Kim wants to prescribe Amoxicillin 500mg",
-        "Patient P-1837 is asking about switching from brand to generic for their statin",
     ],
     "gdpr_request": [
         "We received a 'right to be forgotten' email from a user in Berlin",
