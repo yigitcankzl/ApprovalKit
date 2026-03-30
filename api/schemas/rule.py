@@ -6,7 +6,7 @@ from api.models.rule import ApprovalModel, TimeoutAction
 
 class ConditionSchema(BaseModel):
     field: str = Field(min_length=1, max_length=100)
-    operator: str = Field(pattern=r"^(eq|ne|gt|gte|lt|lte|in|not_in|contains)$")
+    operator: str = Field(pattern=r"^(eq|ne|gt|gte|lt|lte|in|not_in|contains|starts_with|ends_with|regex|between|exists|not_exists)$")
     value: str | int | float | bool | list
 
 
@@ -32,6 +32,10 @@ class RuleCreate(BaseModel):
     step_up_model: ApprovalModel | None = None
     step_up_conditions: list[ConditionSchema] = Field(default_factory=list)
     approval_checklist: list[dict] | None = None  # [{"id": "amount", "label": "I verified the amount"}]
+    max_requests_per_hour: int | None = Field(default=None, ge=1, le=10000)
+    approval_expiry_seconds: int | None = Field(default=None, ge=60, le=86400)
+    trigger_rules: list[dict] | None = None  # [{"connection": ..., "action": ..., "params": {...}}]
+    on_approve_actions: list[dict] | None = None  # [{"connection": ..., "action": ..., "params": {...}}]
 
 
 class RuleUpdate(BaseModel):
@@ -55,6 +59,10 @@ class RuleUpdate(BaseModel):
     step_up_model: ApprovalModel | None = None
     step_up_conditions: list[ConditionSchema] | None = None
     approval_checklist: list[dict] | None = None
+    max_requests_per_hour: int | None = None
+    approval_expiry_seconds: int | None = None
+    trigger_rules: list[dict] | None = None
+    on_approve_actions: list[dict] | None = None
 
 
 class RuleResponse(BaseModel):
@@ -81,6 +89,10 @@ class RuleResponse(BaseModel):
     step_up_model: str | None = None
     step_up_conditions: list[dict] = []
     approval_checklist: list[dict] | None = None
+    max_requests_per_hour: int | None = None
+    approval_expiry_seconds: int | None = None
+    trigger_rules: list[dict] | None = None
+    on_approve_actions: list[dict] | None = None
     created_at: str
     updated_at: str
 

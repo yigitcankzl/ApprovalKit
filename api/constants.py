@@ -35,6 +35,13 @@ BUDGET_DAILY_TTL = 86400          # 24 hours
 BUDGET_WEEKLY_TTL = 604800        # 7 days
 BUDGET_MONTHLY_TTL = 2678400      # 31 days
 
+# Agent rate limiting (per-agent hourly request counter)
+REDIS_KEY_AGENT_RATE = "agent_rate:{agent_id}:{connection}"
+AGENT_RATE_WINDOW_SECONDS = 3600  # 1 hour sliding window
+
+# Approval expiry (approved but not executed within window → void)
+DEFAULT_APPROVAL_EXPIRY_SECONDS = 1800  # 30 minutes
+
 # Webhook
 WEBHOOK_TIMEOUT_SECONDS = 10
 WEBHOOK_MAX_RETRIES = 3

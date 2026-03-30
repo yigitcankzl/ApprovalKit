@@ -13,6 +13,7 @@ from api.services.rule_engine import (
     evaluate_conditions, render_binding_message,
     is_in_blackout, check_time_window, compute_risk_score,
     get_required_approval_count, build_escalation_chain,
+    RULE_TEMPLATES,
 )
 from api.middleware.fga import require_rule_read, require_rule_write, require_workspace_admin
 from api.middleware.workspace import get_current_workspace
@@ -53,6 +54,10 @@ def _rule_to_response(rule: Rule) -> dict:
         "step_up_model": rule.step_up_model.value if rule.step_up_model and isinstance(rule.step_up_model, ApprovalModel) else None,
         "step_up_conditions": rule.step_up_conditions or [],
         "approval_checklist": rule.approval_checklist,
+        "max_requests_per_hour": rule.max_requests_per_hour,
+        "approval_expiry_seconds": rule.approval_expiry_seconds,
+        "trigger_rules": rule.trigger_rules,
+        "on_approve_actions": rule.on_approve_actions,
         "created_at": rule.created_at.isoformat(),
         "updated_at": rule.updated_at.isoformat(),
     }
@@ -87,6 +92,10 @@ async def create_rule(
         step_up_model=data.step_up_model,
         step_up_conditions=[c.model_dump() for c in data.step_up_conditions] if data.step_up_conditions else None,
         approval_checklist=data.approval_checklist,
+        max_requests_per_hour=data.max_requests_per_hour,
+        approval_expiry_seconds=data.approval_expiry_seconds,
+        trigger_rules=data.trigger_rules,
+        on_approve_actions=data.on_approve_actions,
     )
     db.add(rule)
     await db.flush()
@@ -112,6 +121,29 @@ async def list_rules(
     )
     rules = result.scalars().all()
     return [_rule_to_response(r) for r in rules]
+
+
+@router.get("/templates")
+async def list_templates(
+    category: str | None = Query(None, description="Filter by category: finance, devops, communication, compliance"),
+):
+    """Return pre-built rule templates for common scenarios."""
+    templates = RULE_TEMPLATES
+    if category:
+        templates = [t for t in templates if t.get("category") == category]
+    return {
+        "templates": templates,
+        "categories": sorted(set(t["category"] for t in RULE_TEMPLATES)),
+    }
+
+
+@router.get("/templates/{template_id}")
+async def get_template(template_id: str):
+    """Return a specific rule template by ID."""
+    for t in RULE_TEMPLATES:
+        if t["id"] == template_id:
+            return t
+    raise HTTPException(status_code=404, detail=f"Template '{template_id}' not found")
 
 
 @router.get("/{rule_id}", response_model=RuleResponse)

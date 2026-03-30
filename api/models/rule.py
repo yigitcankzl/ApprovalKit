@@ -54,6 +54,13 @@ class Rule(Base):
     # Actions to execute via Token Vault after approval
     # e.g. [{"connection": "gmail-prod", "action": "send_email", "params": {"to": "...", "subject": "..."}}]
     on_approve_actions: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    # Agent rate limiting: max requests per hour for this connection (0 = unlimited)
+    max_requests_per_hour: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Approval expiry: approved decisions expire if not executed within N seconds
+    approval_expiry_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Rule chaining: trigger additional rules after this one is approved
+    # e.g. [{"connection": "gmail-prod", "action": "send_email", "params": {"subject": "Invoice for {{amount}}"}}]
+    trigger_rules: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     priority: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)

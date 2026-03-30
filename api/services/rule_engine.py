@@ -1,6 +1,6 @@
 import operator
 import re
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from typing import Any
 
 import redis.asyncio as aioredis
@@ -13,6 +13,7 @@ from api.constants import (
     REDIS_KEY_COOLDOWN, COOLDOWN_WINDOW_SECONDS,
     REDIS_KEY_BUDGET_DAILY, REDIS_KEY_BUDGET_WEEKLY, REDIS_KEY_BUDGET_MONTHLY,
     BUDGET_DAILY_TTL, BUDGET_WEEKLY_TTL, BUDGET_MONTHLY_TTL,
+    REDIS_KEY_AGENT_RATE, AGENT_RATE_WINDOW_SECONDS,
 )
 
 OPERATORS = {
@@ -485,3 +486,174 @@ def render_binding_message(template: str | None, params: dict) -> str:
     for key, value in params.items():
         result = result.replace(f"{{{{{key}}}}}", str(value))
     return result
+
+
+async def check_agent_rate_limit(
+    agent_id: str, connection: str, max_per_hour: int, redis_client: aioredis.Redis,
+) -> dict:
+    """Check if agent has exceeded the per-hour request limit for a connection.
+
+    Uses a simple Redis counter with hourly TTL.
+    Returns {"allowed": bool, "current": int, "limit": int}.
+    """
+    if not max_per_hour or max_per_hour <= 0:
+        return {"allowed": True, "current": 0, "limit": 0}
+
+    key = REDIS_KEY_AGENT_RATE.format(agent_id=agent_id, connection=connection)
+    current = await redis_client.get(key)
+    count = int(current) if current else 0
+
+    return {
+        "allowed": count < max_per_hour,
+        "current": count,
+        "limit": max_per_hour,
+    }
+
+
+async def increment_agent_rate(
+    agent_id: str, connection: str, redis_client: aioredis.Redis,
+):
+    """Increment agent request counter for rate limiting."""
+    key = REDIS_KEY_AGENT_RATE.format(agent_id=agent_id, connection=connection)
+    pipe = redis_client.pipeline()
+    pipe.incr(key)
+    pipe.expire(key, AGENT_RATE_WINDOW_SECONDS)
+    await pipe.execute()
+
+
+def check_approval_expiry(approved_at: datetime, expiry_seconds: int | None) -> dict:
+    """Check if an approved decision has expired (not executed in time).
+
+    Returns {"valid": bool, "expired_at": str | None, "remaining_seconds": int}.
+    """
+    if not expiry_seconds or expiry_seconds <= 0:
+        return {"valid": True, "expired_at": None, "remaining_seconds": -1}
+
+    deadline = approved_at + timedelta(seconds=expiry_seconds)
+    now = datetime.utcnow()
+
+    if now > deadline:
+        return {
+            "valid": False,
+            "expired_at": deadline.isoformat(),
+            "remaining_seconds": 0,
+        }
+
+    remaining = int((deadline - now).total_seconds())
+    return {
+        "valid": True,
+        "expired_at": deadline.isoformat(),
+        "remaining_seconds": remaining,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Rule Templates — pre-built rule configurations for common scenarios
+# ---------------------------------------------------------------------------
+
+RULE_TEMPLATES = [
+    {
+        "id": "high_value_payment",
+        "name": "High-Value Payment Guard",
+        "description": "Require manager + CFO approval for payments over $5,000. Auto-escalate on timeout.",
+        "category": "finance",
+        "connection": "stripe-prod",
+        "action": "charge",
+        "conditions": [{"field": "amount", "operator": "gte", "value": 5000}],
+        "model": "sequential",
+        "timeout_seconds": 1800,
+        "on_timeout": "escalate",
+        "step_up_model": "all_of_n",
+        "step_up_conditions": [{"field": "amount", "operator": "gte", "value": 10000}],
+        "max_requests_per_hour": 20,
+        "approval_expiry_seconds": 1800,
+        "context_template": "💳 Charge ${{amount}} to {{customer}} via Stripe",
+        "approval_checklist": [
+            {"id": "amount_verified", "label": "I verified the charge amount is correct"},
+            {"id": "customer_verified", "label": "I confirmed the customer identity"},
+        ],
+    },
+    {
+        "id": "production_deploy",
+        "name": "Production Deployment Gate",
+        "description": "Require team lead approval for production deployments. Block during off-hours.",
+        "category": "devops",
+        "connection": "github-main",
+        "action": "deploy",
+        "conditions": [{"field": "env", "operator": "eq", "value": "production"}],
+        "model": "specific",
+        "timeout_seconds": 900,
+        "on_timeout": "block",
+        "blackout_start": "22:00",
+        "blackout_end": "06:00",
+        "max_requests_per_hour": 5,
+        "approval_expiry_seconds": 900,
+        "context_template": "🚀 Deploy {{ref}} to {{env}} via GitHub",
+        "approval_checklist": [
+            {"id": "tests_pass", "label": "All CI tests are passing"},
+            {"id": "changelog", "label": "Changelog has been updated"},
+            {"id": "rollback_plan", "label": "Rollback plan is documented"},
+        ],
+    },
+    {
+        "id": "bulk_email",
+        "name": "Bulk Email Protection",
+        "description": "Approve email sends with rate limiting. Step-up for 100+ recipients.",
+        "category": "communication",
+        "connection": "gmail-prod",
+        "action": "send_email",
+        "conditions": [],
+        "model": "any_one",
+        "timeout_seconds": 600,
+        "on_timeout": "block",
+        "max_requests_per_hour": 50,
+        "approval_expiry_seconds": 600,
+        "step_up_model": "all_of_n",
+        "step_up_conditions": [{"field": "recipient_count", "operator": "gte", "value": 100}],
+        "context_template": "📧 Send email '{{subject}}' to {{to}}",
+        "trigger_rules": [
+            {"connection": "slack-prod", "action": "send_message", "params": {"channel": "#email-audit", "text": "Email sent: {{subject}} → {{to}}"}}
+        ],
+    },
+    {
+        "id": "sensitive_data_access",
+        "name": "Sensitive Data Access",
+        "description": "K-of-N approval for accessing sensitive customer data. Full audit trail.",
+        "category": "compliance",
+        "connection": "salesforce-prod",
+        "action": "export_data",
+        "conditions": [{"field": "data_type", "operator": "in", "value": ["pii", "financial", "medical"]}],
+        "model": "k_of_n",
+        "k_value": 2,
+        "timeout_seconds": 3600,
+        "on_timeout": "block",
+        "max_requests_per_hour": 3,
+        "approval_expiry_seconds": 300,
+        "context_template": "🔒 Export {{data_type}} data: {{query}}",
+        "approval_checklist": [
+            {"id": "business_need", "label": "There is a legitimate business need for this data"},
+            {"id": "minimized", "label": "Data scope has been minimized to what is necessary"},
+            {"id": "compliant", "label": "Export complies with data protection regulations"},
+        ],
+    },
+    {
+        "id": "refund_processing",
+        "name": "Refund Processing",
+        "description": "Auto-approve small refunds, require approval for large ones. Chain to notification.",
+        "category": "finance",
+        "connection": "stripe-prod",
+        "action": "refund",
+        "conditions": [{"field": "amount", "operator": "gt", "value": 100}],
+        "model": "any_one",
+        "timeout_seconds": 1200,
+        "on_timeout": "block",
+        "max_requests_per_hour": 30,
+        "approval_expiry_seconds": 1200,
+        "step_up_model": "sequential",
+        "step_up_conditions": [{"field": "amount", "operator": "gte", "value": 1000}],
+        "context_template": "💸 Refund ${{amount}} to {{customer}} — reason: {{reason}}",
+        "trigger_rules": [
+            {"connection": "gmail-prod", "action": "send_email", "params": {"to": "{{customer}}", "subject": "Your refund of ${{amount}} has been processed"}}
+        ],
+    },
+]
