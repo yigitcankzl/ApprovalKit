@@ -107,6 +107,16 @@ export const api = {
   // Consent
   getConsent: () => fetchAPI("/api/v1/consent"),
 
+  // Compliance
+  getComplianceStats: (days?: number) => fetchAPI(`/api/v1/audit/compliance-stats${days ? `?days=${days}` : ""}`),
+  exportCompliance: (params?: { format?: string; days?: number; connection?: string }) => {
+    const search = new URLSearchParams();
+    if (params?.format) search.set("format", params.format);
+    if (params?.days) search.set("days", String(params.days));
+    if (params?.connection) search.set("connection", params.connection);
+    return fetchAPI(`/api/v1/audit/export?${search.toString()}`);
+  },
+
   // Workspace
   setupWorkspace: (data: Record<string, any>) =>
     fetchAPI("/api/v1/workspace/setup", { method: "POST", body: JSON.stringify(data) }),

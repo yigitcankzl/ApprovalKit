@@ -15,6 +15,7 @@ class ApprovalModel(str, enum.Enum):
     ALL_OF_N = "all_of_n"
     K_OF_N = "k_of_n"
     SEQUENTIAL = "sequential"
+    FGA_DYNAMIC = "fga_dynamic"
 
 
 class TimeoutAction(str, enum.Enum):

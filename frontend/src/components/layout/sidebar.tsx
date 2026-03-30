@@ -30,6 +30,8 @@ import {
   Sun,
   Stethoscope,
   ExternalLink,
+  ShieldCheck,
+  ClipboardCheck,
 } from "lucide-react";
 
 const navigation = [
@@ -38,6 +40,8 @@ const navigation = [
   { name: "Rules", href: "/rules", icon: GitBranch },
   { name: "Approvers", href: "/approvers", icon: Users },
   { name: "Audit Log", href: "/audit", icon: ScrollText },
+  { name: "Compliance", href: "/audit/compliance", icon: ClipboardCheck },
+  { name: "Consent", href: "/consent", icon: ShieldCheck },
   { name: "Agents", href: "/agents", icon: Bot },
   { name: "MCP Server", href: "/mcp", icon: Shield },
   { name: "Demos", href: "/demos", icon: Rocket },

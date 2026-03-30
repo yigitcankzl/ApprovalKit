@@ -11,7 +11,7 @@ from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 
 from api.config import get_settings
 import api.models  # noqa: F401 — registers all ORM mappers before any query runs
-from api.routes import request, rules, approvers, audit, connections, workspace, consent, demo, agents, agent_chat
+from api.routes import request, rules, approvers, audit, connections, workspace, consent, demo, agents, agent_chat, auth0_webhook, email_approval, auth0_logs
 
 settings = get_settings()
 
@@ -91,6 +91,9 @@ app.include_router(consent.router)
 app.include_router(demo.router)
 app.include_router(agent_chat.router)
 app.include_router(agents.router)
+app.include_router(auth0_webhook.router)
+app.include_router(email_approval.router)
+app.include_router(auth0_logs.router)
 
 
 @app.get("/")

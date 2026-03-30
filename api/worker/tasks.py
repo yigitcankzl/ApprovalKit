@@ -204,12 +204,82 @@ def _resolve_delegation(approver):
     return approver
 
 
+async def _process_fga_dynamic(job: ApprovalJob, rule: Rule):
+    """
+    FGA Dynamic Approval Routing
+    =============================
+    Instead of using a static approver list from rule_approvers, this model
+    queries Auth0 FGA at runtime to find all users with the required relation
+    on the relevant object (e.g. all budget_owners of department:engineering).
+
+    The FGA relation and object are specified in the rule's conditions:
+      conditions = {"fga_relation": "budget_owner", "fga_object": "department:engineering"}
+
+    This enables dynamic, relationship-based approval routing that automatically
+    adapts when team membership changes in FGA — no rule updates needed.
+    """
+    from api.services.fga import fga_client
+    from api.models.approver import Approver
+
+    # Extract FGA query from rule conditions
+    conditions = rule.conditions if isinstance(rule.conditions, dict) else {}
+    fga_relation = conditions.get("fga_relation", "can_approve")
+    fga_object = conditions.get("fga_object", f"workspace:{job.workspace_id}")
+
+    # Query FGA for eligible approvers
+    fga_users = await fga_client.list_users(relation=fga_relation, obj=fga_object)
+    if not fga_users:
+        logger.warning(f"FGA dynamic: no users found for {fga_relation} on {fga_object}")
+        # Fall back to rule_approvers if FGA returns empty
+        if rule.rule_approvers:
+            logger.info("FGA dynamic: falling back to static rule_approvers")
+            return await _process_any_one(job, rule)
+        return {"status": "blocked"}
+
+    # Resolve FGA user IDs to Approver records
+    session = await _get_db_session()
+    try:
+        # Extract auth0 user IDs from FGA format (e.g. "user:auth0|abc" -> "auth0|abc")
+        auth0_ids = [u.split(":", 1)[1] if ":" in u else u for u in fga_users]
+
+        async with session.begin():
+            result = await session.execute(
+                select(Approver).where(
+                    Approver.workspace_id == job.workspace_id,
+                    Approver.auth0_user_id.in_(auth0_ids),
+                )
+            )
+            approvers = result.scalars().all()
+
+        if not approvers:
+            logger.warning(f"FGA dynamic: found FGA users {auth0_ids} but no matching Approver records")
+            if rule.rule_approvers:
+                return await _process_any_one(job, rule)
+            return {"status": "blocked"}
+
+        # Send CIBA to each resolved approver (any_one pattern)
+        binding_msg = render_binding_message(rule.context_template, job.params)
+        for approver in approvers:
+            try:
+                result = await _send_ciba(approver, binding_msg, rule, f"{job.connection}:{job.action}", job_id=str(job.id))
+                if result["status"] in ("approved", "rejected"):
+                    return result
+            except Exception as e:
+                logger.error(f"FGA dynamic CIBA error for {approver.name}: {e}")
+                continue
+
+        return {"status": "timeout"}
+    finally:
+        await session.close()
+
+
 MODEL_PROCESSORS = {
     ApprovalModel.ANY_ONE: _process_any_one,
     ApprovalModel.SPECIFIC: _process_specific,
     ApprovalModel.SEQUENTIAL: _process_sequential,
     ApprovalModel.ALL_OF_N: _process_all_of_n,
     ApprovalModel.K_OF_N: _process_k_of_n,
+    ApprovalModel.FGA_DYNAMIC: _process_fga_dynamic,
 }
 
 
@@ -253,6 +323,25 @@ async def _process_job(job_id: str):
                 event_type=AuditEventType.CIBA_SENT,
             )
             session.add(audit)
+
+        # Send email approval links to all approvers (parallel channel alongside CIBA)
+        try:
+            from api.services.email_approval import send_approval_email
+            binding_msg = render_binding_message(rule.context_template, job.params)
+            for ra in rule.rule_approvers:
+                approver = ra.approver
+                if approver.email:
+                    await send_approval_email(
+                        approver_email=approver.email,
+                        approver_name=approver.name,
+                        job_id=str(job.id),
+                        connection=job.connection,
+                        action=job.action,
+                        binding_message=binding_msg,
+                        timeout_seconds=rule.timeout_seconds,
+                    )
+        except Exception as e:
+            logger.warning(f"Email approval dispatch failed for job {job_id}: {e}")
 
         # Step-up authentication: escalate model if conditions met
         effective_model = rule.model

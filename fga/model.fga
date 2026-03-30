@@ -20,6 +20,15 @@ type audit_log
                  or (agent_owner from workspace and agent)
                  or viewer from workspace
 
+type department
+  relations
+    define workspace: [workspace]
+    define budget_owner: [user]
+    define tech_lead: [user]
+    define manager: [user]
+    define member: [user]
+    define can_approve: budget_owner or tech_lead or manager
+
 type rule
   relations
     define workspace: [workspace]
