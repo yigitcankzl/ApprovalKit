@@ -396,7 +396,9 @@ async def orchestrate(
             scenario = data.get("scenario", req.message)
 
             if not plan:
-                raise ValueError("Empty plan returned")
+                # Fallback: use expense agent for vague requests
+                plan = [OrchestrateStep(agent_id="expense", agent_title="E-Commerce Agent", role="Handle the request", allowed_tools=["process_refund", "notify_slack"])]
+                scenario = req.message
 
             return OrchestrateResponse(plan=plan, scenario=scenario)
 
