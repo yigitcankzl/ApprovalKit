@@ -150,6 +150,42 @@ const CHAIN_SCENARIOS: ChainScenario[] = [
       { agentId: "comms", agentTitle: "Communications Agent", prompt: "Send a welcome message to #general on Slack announcing Alice is joining the engineering team. Also email the team at engineering@company.com." },
     ],
   },
+  {
+    id: "fraud_response",
+    title: "Fraud Detection & Response",
+    emoji: "🏦",
+    description: "Finance → Security → Communications → Finance: 4 agents handle a suspicious transaction",
+    steps: [
+      { agentId: "finance", agentTitle: "Finance Agent", prompt: "A suspicious $5,000 transaction was flagged on a customer account. Freeze the payment and hold the funds pending investigation." },
+      { agentId: "security_incident", agentTitle: "Security Agent", prompt: "A potential fraud case was detected — $5,000 suspicious transaction. Lock the affected repository access and log a critical security alert to the team on Slack." },
+      { agentId: "comms", agentTitle: "Communications Agent", prompt: "Send a security notification email to affected-customer@example.com informing them their account is secured and the suspicious transaction is under review. Also alert #fraud-team on Slack." },
+      { agentId: "finance", agentTitle: "Finance Agent", prompt: "Process a full $5,000 refund to the affected customer after the fraud investigation confirmed unauthorized access." },
+    ],
+  },
+  {
+    id: "product_launch",
+    title: "Product Launch",
+    emoji: "🚀",
+    description: "DevOps → Open Source → Communications → Finance: Full launch lifecycle across 4 teams",
+    steps: [
+      { agentId: "release_manager", agentTitle: "DevOps Agent", prompt: "Deploy version v3.0.0 to production — this is the big product launch release." },
+      { agentId: "opensource", agentTitle: "Open Source Agent", prompt: "Create the v3.0.0 release tag on GitHub with release notes about the new product features." },
+      { agentId: "comms", agentTitle: "Communications Agent", prompt: "Send a product launch announcement email to press@techcrunch.com and post the announcement on Slack #general and #marketing." },
+      { agentId: "finance", agentTitle: "Finance Agent", prompt: "Allocate $2,000 for the product launch marketing campaign — social media ads and promotional materials." },
+    ],
+  },
+  {
+    id: "vendor_payment",
+    title: "Vendor Payment Cycle",
+    emoji: "💳",
+    description: "Finance → Communications → Finance → Communications: End-to-end vendor payment with notifications",
+    steps: [
+      { agentId: "finance", agentTitle: "Finance Agent", prompt: "Process invoice payment of $3,500 to our design agency Acme Design Co for the Q1 branding project." },
+      { agentId: "comms", agentTitle: "Communications Agent", prompt: "Send a payment confirmation email to billing@acmedesign.com confirming the $3,500 payment for the Q1 branding project is being processed." },
+      { agentId: "finance", agentTitle: "Finance Agent", prompt: "Issue a $500 early payment bonus to Acme Design Co as they delivered the branding project 2 weeks early." },
+      { agentId: "comms", agentTitle: "Communications Agent", prompt: "Notify #accounting on Slack that vendor payments for Acme Design Co have been processed — $3,500 invoice + $500 early delivery bonus." },
+    ],
+  },
 ];
 
 const ICON_MAP: Record<string, React.ElementType> = { CreditCard, Server, Users, Package, FlaskConical, Zap, Banknote, Plane, GitBranch, MessageSquare, Shield, Bot, Play };

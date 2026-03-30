@@ -129,11 +129,14 @@ export default function DemosPage() {
         <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
           Watch multiple agents collaborate on a single scenario — each agent handles its domain, approvals cascade across the chain.
         </p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[
             { id: "incident_response", emoji: "🔗", title: "Customer Incident Response", agents: "E-Commerce → Comms → Finance", desc: "3 agents handle a defective product complaint: refund, apology email, compensation" },
             { id: "security_breach", emoji: "🚨", title: "Security Breach Response", agents: "Security → DevOps → Comms", desc: "Coordinated incident response: lock repos, rollback production, notify team" },
             { id: "employee_onboarding", emoji: "👋", title: "Employee Onboarding", agents: "HR → Access → Comms", desc: "Automated onboarding: offer letter, GitHub access, team welcome" },
+            { id: "fraud_response", emoji: "🏦", title: "Fraud Detection & Response", agents: "Finance → Security → Comms → Finance", desc: "4 agents handle suspicious $5K transaction: freeze, investigate, notify, refund" },
+            { id: "product_launch", emoji: "🚀", title: "Product Launch", agents: "DevOps → Open Source → Comms → Finance", desc: "Full launch lifecycle: deploy, GitHub release, press announcement, ad budget" },
+            { id: "vendor_payment", emoji: "💳", title: "Vendor Payment Cycle", agents: "Finance → Comms → Finance → Comms", desc: "End-to-end payment: invoice, confirmation email, bonus, team notification" },
           ].map(chain => (
             <Card key={chain.id}
               className="group border-l-4 border-l-purple-500 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 cursor-pointer"
