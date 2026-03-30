@@ -251,39 +251,39 @@ export default function CompliancePage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-end gap-1 h-32">
+            <div className="flex items-end gap-[2px] h-40">
               {trendDays.map((day) => {
                 const dayData = stats.daily_trend[day];
                 const total = Object.values(dayData).reduce((a, b) => a + b, 0);
                 const approved = dayData["approved"] || 0;
                 const rejected = (dayData["rejected"] || 0) + (dayData["blocked"] || 0);
                 const other = total - approved - rejected;
-                const height = (total / maxDaily) * 100;
+                const barH = Math.max((total / maxDaily) * 128, 3);
 
                 return (
-                  <div key={day} className="flex-1 flex flex-col items-center gap-1" title={`${day}: ${total} actions`}>
-                    <div className="w-full flex flex-col-reverse" style={{ height: `${Math.max(height, 4)}%` }}>
+                  <div key={day} className="flex-1 flex flex-col items-center justify-end h-full" title={`${day}: ${total} actions`}>
+                    <div className="w-full flex flex-col-reverse rounded-t overflow-hidden" style={{ height: `${barH}px` }}>
                       {approved > 0 && (
                         <div
-                          className="w-full bg-emerald-400 dark:bg-emerald-500 rounded-t-sm"
+                          className="w-full bg-emerald-500 dark:bg-emerald-400"
                           style={{ height: `${(approved / total) * 100}%`, minHeight: "2px" }}
                         />
                       )}
                       {other > 0 && (
                         <div
-                          className="w-full bg-blue-400 dark:bg-blue-500"
+                          className="w-full bg-blue-500 dark:bg-blue-400"
                           style={{ height: `${(other / total) * 100}%`, minHeight: "2px" }}
                         />
                       )}
                       {rejected > 0 && (
                         <div
-                          className="w-full bg-red-400 dark:bg-red-500 rounded-t-sm"
+                          className="w-full bg-red-500 dark:bg-red-400"
                           style={{ height: `${(rejected / total) * 100}%`, minHeight: "2px" }}
                         />
                       )}
                     </div>
-                    <span className="text-[9px] text-zinc-400 rotate-[-45deg] origin-top-left whitespace-nowrap">
-                      {day.slice(5)}
+                    <span className="text-[8px] text-zinc-400 mt-1.5 truncate w-full text-center">
+                      {day.slice(8)}
                     </span>
                   </div>
                 );

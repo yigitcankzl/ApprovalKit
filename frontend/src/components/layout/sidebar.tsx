@@ -131,12 +131,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         })}
       </nav>
 
-      <div className={cn("px-3 pb-2", collapsed && "px-2")}>
-        {!collapsed && (
-          <span></span>
-        )}
-      </div>
-
       {/* Theme toggle */}
       <div className={cn("px-3 pb-2", collapsed && "px-2")}>
         <button
