@@ -48,10 +48,7 @@ BASE_URL = os.environ.get("APPROVALKIT_URL", "http://localhost:8000").rstrip("/"
 API_KEY = os.environ.get("APPROVALKIT_API_KEY", "")
 HMAC_SECRET = os.environ.get("APPROVALKIT_HMAC_SECRET", "")
 
-mcp = FastMCP(
-    "ApprovalKit",
-    description="Human approval middleware for AI agents. Request approval before executing high-stakes actions.",
-)
+mcp = FastMCP("ApprovalKit")
 
 
 def _sign(body: str) -> tuple[str, str]:
