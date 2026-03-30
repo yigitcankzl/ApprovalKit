@@ -258,6 +258,7 @@ export default function LiveThreatDemoPage() {
   const [seeding, setSeeding] = useState(false);
   const [hasAIKey, setHasAIKey] = useState(false);
   const [shieldEnabled, setShieldEnabled] = useState(true);
+  const [shieldCollapsed, setShieldCollapsed] = useState(false);
   const [activeChain, setActiveChain] = useState<ChainScenario | null>(null);
   const [chainStepIndex, setChainStepIndex] = useState(0);
   const [chainRunning, setChainRunning] = useState(false);
@@ -666,10 +667,10 @@ export default function LiveThreatDemoPage() {
       </div>
 
       {/* Split Screen */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" style={{ height: "calc(100vh - 220px)" }}>
+      <div className="flex gap-4" style={{ height: "calc(100vh - 220px)" }}>
 
         {/* LEFT: Agent Chat */}
-        <div className="rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 bg-white/50 dark:bg-zinc-900/20 flex flex-col overflow-hidden">
+        <div className={`rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 bg-white/50 dark:bg-zinc-900/20 flex flex-col overflow-hidden transition-all duration-300 ${shieldCollapsed ? "flex-1" : "w-1/2"}`}>
           {/* Scenarios */}
           {(selectedAgent || chainIdFromUrl) && (
             <div className="border-b border-zinc-200/40 dark:border-zinc-800/40">
@@ -830,24 +831,30 @@ export default function LiveThreatDemoPage() {
         </div>
 
         {/* RIGHT: Shield Panel */}
-        <div className={`rounded-xl border flex flex-col overflow-hidden ${
+        <div className={`rounded-xl border flex flex-col overflow-hidden transition-all duration-300 ${
+          shieldCollapsed ? "w-10" : "w-1/2"
+        } ${
           !shieldEnabled
             ? "border-red-200/60 dark:border-red-900/40 bg-red-50/30 dark:bg-red-950/10"
             : "border-zinc-200/60 dark:border-zinc-800/60 bg-white/50 dark:bg-zinc-900/20"
         }`}>
-          <div className={`flex items-center gap-2 px-4 py-2.5 border-b ${!shieldEnabled ? "border-red-200/40 dark:border-red-900/30" : "border-zinc-200/40 dark:border-zinc-800/40"}`}>
-            {shieldEnabled
-              ? <Shield className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-              : <ShieldOff className="h-4 w-4 text-red-600 dark:text-red-400 animate-pulse" />}
-            <span className={`text-[11px] font-semibold uppercase tracking-widest ${!shieldEnabled ? "text-red-600 dark:text-red-400" : "text-zinc-500 dark:text-zinc-400"}`}>
-              {shieldEnabled ? "ApprovalKit Shield" : "No Protection"}
-            </span>
-            <div className="flex-1" />
-            <span className="text-[11px] text-zinc-400 tabular-nums">{events.length} events</span>
-            {events.length > 0 && <button onClick={resetSummary} className="text-[11px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors ml-2">Clear</button>}
+          <div className={`flex items-center gap-2 px-2 py-2.5 border-b ${!shieldEnabled ? "border-red-200/40 dark:border-red-900/30" : "border-zinc-200/40 dark:border-zinc-800/40"}`}>
+            <button onClick={() => setShieldCollapsed(prev => !prev)} className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors" title={shieldCollapsed ? "Expand Shield" : "Collapse Shield"}>
+              {shieldEnabled
+                ? <Shield className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                : <ShieldOff className="h-4 w-4 text-red-600 dark:text-red-400 animate-pulse" />}
+            </button>
+            {!shieldCollapsed && <>
+              <span className={`text-[11px] font-semibold uppercase tracking-widest ${!shieldEnabled ? "text-red-600 dark:text-red-400" : "text-zinc-500 dark:text-zinc-400"}`}>
+                {shieldEnabled ? "ApprovalKit Shield" : "No Protection"}
+              </span>
+              <div className="flex-1" />
+              <span className="text-[11px] text-zinc-400 tabular-nums">{events.length} events</span>
+              {events.length > 0 && <button onClick={resetSummary} className="text-[11px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors ml-2">Clear</button>}
+            </>}
           </div>
 
-          <div className="flex-1 overflow-y-auto p-3 space-y-2">
+          <div className={`flex-1 overflow-y-auto p-3 space-y-2 ${shieldCollapsed ? "hidden" : ""}`}>
             {events.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-zinc-400">
                 <Activity className="h-14 w-14 mb-3 opacity-10" />
@@ -858,7 +865,7 @@ export default function LiveThreatDemoPage() {
             <div ref={eventsEndRef} />
           </div>
 
-          {events.length > 0 && (
+          {events.length > 0 && !shieldCollapsed && (
             <div className={`px-4 py-3 border-t ${!shieldEnabled ? "border-red-200/40 dark:border-red-900/30" : "border-zinc-200/40 dark:border-zinc-800/40"}`}>
               {shieldEnabled ? (
                 <div className="grid grid-cols-4 gap-3 text-center">
