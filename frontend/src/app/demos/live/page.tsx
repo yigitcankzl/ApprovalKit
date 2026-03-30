@@ -768,13 +768,39 @@ export default function LiveThreatDemoPage() {
 
           {/* Input */}
           <div className="px-4 py-3 border-t border-zinc-200/40 dark:border-zinc-800/40">
-            <form onSubmit={(e) => { e.preventDefault(); sendMessage(inputText); }} className="flex gap-2">
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              if (!inputText.trim()) return;
+              if (chainIdFromUrl && !selectedAgent) {
+                // Chain mode: orchestrate → auto-plan → run chain
+                setIsTyping(true);
+                setInputText("");
+                addMessage("orchestrator", { role: "user", text: inputText.trim() });
+                try {
+                  const plan = await api.orchestrate(inputText.trim());
+                  addMessage("orchestrator", { role: "system", text: `Plan: ${plan.plan.map((s: any) => s.agent_title).join(" → ")}` });
+                  const dynamicChain: ChainScenario = {
+                    id: "dynamic", title: "Auto-Planned Chain", emoji: "🧠",
+                    description: plan.scenario, scenario: plan.scenario,
+                    steps: plan.plan.map((s: any) => ({ agentId: s.agent_id, agentTitle: s.agent_title, role: s.role, allowedTools: s.allowed_tools })),
+                    prompts: [],
+                  };
+                  setIsTyping(false);
+                  await runChain(dynamicChain);
+                } catch (err: any) {
+                  addMessage("orchestrator", { role: "system", text: `Planning failed: ${err.message}` });
+                  setIsTyping(false);
+                }
+              } else {
+                sendMessage(inputText);
+              }
+            }} className="flex gap-2">
               <input ref={inputRef} type="text" value={inputText} onChange={(e) => setInputText(e.target.value)}
-                placeholder={selectedAgent ? `Tell ${selectedAgent.title} what to do...` : "Select an agent"}
-                disabled={isTyping || !setupDone || !hasAIKey}
+                placeholder={chainIdFromUrl ? "Describe a situation — AI will plan which agents to use..." : selectedAgent ? `Tell ${selectedAgent.title} what to do...` : "Select an agent"}
+                disabled={isTyping || chainRunning || !setupDone || !hasAIKey}
                 className="flex-1 rounded-xl px-4 py-2.5 text-sm border border-zinc-200/60 dark:border-zinc-700/40 bg-white dark:bg-zinc-900/30 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 disabled:opacity-30"
               />
-              <Button type="submit" disabled={isTyping || !inputText.trim() || !setupDone || !hasAIKey} className="rounded-xl px-4 shadow-md hover:shadow-lg transition-shadow">
+              <Button type="submit" disabled={isTyping || chainRunning || !inputText.trim() || !setupDone || !hasAIKey} className="rounded-xl px-4 shadow-md hover:shadow-lg transition-shadow">
                 <Send className="h-4 w-4" />
               </Button>
             </form>

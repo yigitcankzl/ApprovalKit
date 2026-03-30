@@ -135,6 +135,8 @@ export const api = {
     fetchAPI("/api/v1/demo/delete", { method: "POST", body: JSON.stringify(body) }),
 
   // Agent Chat
+  orchestrate: (message: string) =>
+    fetchAPI("/api/v1/demo/agents/orchestrate", { method: "POST", body: JSON.stringify({ message }) }),
   chatWithAgent: (agentId: string, message: string, agentTitle: string = "", sessionId: string = "", allowedTools?: string[]) =>
     fetchAPI(`/api/v1/demo/agents/${agentId}/chat`, {
       method: "POST",
