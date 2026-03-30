@@ -71,9 +71,22 @@ subject_token={auth0_refresh_token}
 connection={stripe|github|slack|...}
 ```
 
-**16 built-in service handlers** execute actions directly: Stripe, GitHub, Slack, Google (Gmail/Calendar/Drive/Sheets), Microsoft (Outlook/OneDrive), Salesforce, Notion, Jira, Discord, Linear, HubSpot, Shopify, PayPal, Dropbox, Amadeus.
+All actions execute through **Auth0 Token Vault** — the agent never sees credentials. Token Vault supports 27+ OAuth providers:
 
-**Generic Webhook** — connect any REST API without writing code. Configure URL + method + headers + body template via dashboard. Token Vault renders `{{token}}`, `{{action}}`, `{{param}}` placeholders at execution time.
+| Category | Services |
+|----------|----------|
+| **Payments** | Stripe, PayPal, Shopify, Freshbooks |
+| **Code & DevOps** | GitHub, Bitbucket, DigitalOcean |
+| **Communication** | Slack, Discord, Microsoft Outlook |
+| **Productivity** | Google (Gmail, Calendar, Drive, Sheets), Microsoft, Notion, Jira, Linear, HubSpot, Basecamp |
+| **Storage** | Dropbox, Box, Google Drive, OneDrive |
+| **Social** | X (Twitter), Twitch, Snapchat, Tumblr, Spotify |
+| **Data & AI** | Amazon, Figma, Hugging Face, Fitbit |
+| **Enterprise** | Salesforce, Microsoft Entra (Azure AD), Google Workspace |
+
+ApprovalKit has **19 built-in service handlers** for direct execution: Stripe, GitHub, Slack, Google (Gmail/Calendar/Drive/Sheets), Microsoft (Outlook/OneDrive), Salesforce, Notion, Jira, Discord, Linear, HubSpot, Shopify, PayPal, Amadeus.
+
+Existing MCP servers (GitHub, Slack, Stripe, etc.) give agents **direct API access with no oversight**. ApprovalKit sits in front — same actions, but with human approval, credential isolation via Token Vault, and full audit trail.
 
 ### CIBA (Client-Initiated Backchannel Authentication)
 
@@ -156,7 +169,7 @@ SSE live feed via Redis pub/sub shows approval events as they happen. Pending ap
 | Frontend | Next.js 14, React 18, Tailwind CSS, TypeScript, dark mode |
 | Auth | Auth0 Token Vault, CIBA, FGA, nextjs-auth0 v4, per-agent HMAC |
 | SDK | Python, pip-installable, sync + async, jitter polling |
-| Execution | 15 built-in handlers + generic webhook (any REST API) |
+| Execution | 19 built-in handlers, all via Auth0 Token Vault |
 | Infrastructure | Docker Compose (8 services), Ollama GPU support, Healthcare companion demo |
 
 ---
@@ -192,7 +205,7 @@ This starts all services (PostgreSQL, Redis, Vault, Ollama, API, Worker, Fronten
 12. **PII Masking** — Emails and names masked in audit logs automatically
 13. **Rate Limiting** — Per-agent API key + per-job decision limits
 14. **Refresh Token Encryption** — OAuth tokens encrypted at rest, decrypted only at execution
-15. **Generic Webhook** — Any REST API without handler code, template-based execution
+15. **27+ Token Vault Providers** — Any Auth0 OAuth connection works out of the box
 
 ---
 
@@ -201,7 +214,7 @@ This starts all services (PostgreSQL, Redis, Vault, Ollama, API, Worker, Fronten
 | Page | Description |
 |------|-------------|
 | Dashboard | Real-time stats, SSE live feed, pending approvals, security status |
-| Connections | Add Service (15 built-in) + Custom Webhook, inline action edit, OAuth connect |
+| Connections | 27+ services via Token Vault, inline action edit, OAuth connect |
 | Rules | Approval rules with step-up, expandable cards with Check Rule / Run Live |
 | Approvers | CRUD + Guardian auto-linking + delegation + workspace isolation |
 | Audit Log | Filterable event log with PII masking, binding messages, Token Vault receipts |
@@ -222,7 +235,7 @@ This starts all services (PostgreSQL, Redis, Vault, Ollama, API, Worker, Fronten
 **Core:** `POST /request`, `GET /status/:id`, `POST /test-request`, `POST /jobs/:id/decision`
 **Rules:** CRUD + `POST /simulate` (dry-run with risk score)
 **Approvers:** CRUD + `GET /link-url` + delegation (workspace-scoped)
-**Connections:** CRUD + `PUT /:id` (inline edit) + Connected Accounts flow + Generic Webhook
+**Connections:** CRUD + `PUT /:id` (inline edit) + Connected Accounts flow via Token Vault
 **Agents:** CRUD + scenarios + regenerate-key + revoke (workspace-scoped)
 **Monitoring:** SSE events, audit log, dashboard stats, CIBA quota, security status, consent
 **Workspace:** Setup + credentials (encrypted), per-user isolation via X-User-Sub
@@ -265,7 +278,7 @@ async def async_charge(amount, customer):
 
 3. **Connected Accounts flow is different from login flow.** Token Exchange requires tokens stored via `/me/v1/connected-accounts`, not `/authorize`. This distinction is critical and not obvious from documentation.
 
-4. **Generic webhook unlocks infinite integrations.** Built-in handlers are great for popular services, but template-based webhook execution means any REST API works without code changes.
+4. **Token Vault supports 27+ providers out of the box.** Any service with an Auth0 OAuth connection works — Stripe, GitHub, Slack, Google, Microsoft, Salesforce, and more. No credential management needed.
 
 5. **Per-agent isolation matters.** Each agent gets its own API key and HMAC signature. Revoking one agent doesn't affect others. Rate limits are per-agent.
 
