@@ -2,10 +2,10 @@
 Demo Seed & Catalog Endpoint
 =============================
 POST   /api/v1/demo/seed          — create connections, approvers, rules for demo agents
-GET    /api/v1/demo/agents        — return the 10 demo agent catalog
+GET    /api/v1/demo/agents        — return the 8 demo agent catalog
 DELETE /api/v1/demo/seed          — remove all demo-created resources
 
-12 curated demo agents across 5 categories, each with rich scenarios
+8 curated demo agents across 5 categories, each with rich scenarios
 and approval flows powered by ApprovalKit.
 """
 
@@ -94,30 +94,22 @@ APPROVERS = [
 ]
 
 _AGENT_DEPS = {
-    "expense": {"conns": ["stripe-prod", "slack-prod"], "roles": ["manager", "cfo"]},
+    "expense": {"conns": ["stripe-prod", "slack-prod", "gmail-prod"], "roles": ["manager", "cfo"]},
     "release_manager": {"conns": ["github-main", "slack-prod"], "roles": ["maintainer", "lead_engineer", "oncall_engineer"]},
-    "security_incident": {"conns": ["github-prod", "slack-prod"], "roles": ["security_lead", "cto"]},
-    "account_takeover": {"conns": ["salesforce-prod", "stripe-prod", "gmail-prod", "slack-prod"], "roles": ["security_lead", "legal", "cs_manager"]},
+    "security_incident": {"conns": ["github-prod", "slack-prod", "salesforce-prod", "stripe-prod", "gmail-prod"], "roles": ["security_lead", "cto", "legal", "cs_manager"]},
     "recruitment": {"conns": ["gmail-prod", "github-prod", "slack-prod"], "roles": ["hr_manager", "cfo", "ceo", "it_manager", "cto"]},
-    "access_provisioning": {"conns": ["github-prod", "slack-prod"], "roles": ["it_manager", "cto", "cfo", "hr_manager"]},
     "gdpr_request": {"conns": ["github-prod", "gmail-prod", "slack-prod"], "roles": ["privacy_officer", "cto", "legal"]},
-    "api_key_rotation": {"conns": ["github-prod", "slack-prod", "gmail-prod"], "roles": ["security_lead", "cto"]},
-    "finance": {"conns": ["stripe-prod", "gmail-prod", "slack-prod"], "roles": ["manager", "cfo"]},
     "opensource": {"conns": ["github-prod", "stripe-prod", "slack-prod"], "roles": ["maintainer", "maintainer2", "maintainer3", "cfo", "cto"]},
     "research": {"conns": ["stripe-prod", "gmail-prod", "slack-prod"], "roles": ["pi", "dept_head", "cfo"]},
     "comms": {"conns": ["slack-prod", "gmail-prod"], "roles": ["manager", "ceo"]},
 }
 
 _AGENT_RULE_PREFIXES = {
-    "expense": ["[Expense]"],
+    "expense": ["[Expense]", "[Finance]"],
     "release_manager": ["[Release]"],
-    "security_incident": ["[Security]", "[Shared]"],
-    "account_takeover": ["[ATO]"],
-    "recruitment": ["[HR]"],
-    "access_provisioning": ["[Access]"],
+    "security_incident": ["[Security]", "[Shared]", "[ATO]", "[KeyRotation]"],
+    "recruitment": ["[HR]", "[Access]"],
     "gdpr_request": ["[GDPR]"],
-    "api_key_rotation": ["[KeyRotation]"],
-    "finance": ["[Finance]"],
     "opensource": ["[OSS]"],
     "research": ["[Research]"],
     "comms": ["[Comms]"],
@@ -531,7 +523,7 @@ def _build_rules(ar: dict[str, uuid.UUID]) -> list[dict]:
 # ── Agent Catalog ─────────────────────────────────────────────────────────────
 
 def _build_agent_catalog() -> list[dict]:
-    """Build the 10 demo agent catalog with scenarios and flow diagrams."""
+    """Build the 8 demo agent catalog with scenarios and flow diagrams."""
 
     def flow(*steps: tuple[str, str, str]) -> list[dict]:
         return [{"type": t, "label": l, "sub": s} for t, l, s in steps]
@@ -693,57 +685,7 @@ def _build_agent_catalog() -> list[dict]:
         },
 
         # ──────────────────────────────────────────────────────────────────────
-        # 4. ACCOUNT TAKEOVER RESPONSE AGENT
-        # ──────────────────────────────────────────────────────────────────────
-        {
-            "id": "account_takeover",
-            "title": "Account Takeover Response Agent",
-            "icon": "Lock",
-            "category": "customer_service",
-            "categoryLabel": "Customer Service",
-            "description": "Customer account protection agent that handles the full incident lifecycle when accounts are compromised. When customer service receives a report of unauthorized access — suspicious purchases, password changes, or credential stuffing attacks — the agent immediately freezes the affected account (Security Lead approval), notifies the customer, investigates the scope, and issues compensation credits. Small goodwill credits under $100 auto-approve. Larger compensation requires CS Manager sign-off. For confirmed attackers, the agent initiates a permanent ban requiring both Security Lead and Legal to approve — ensuring bans have proper legal backing. The agent prioritizes in order: stop the bleeding (freeze), inform the victim (notify), make it right (compensate).",
-            "scenarios": [
-                {
-                    "title": "Freeze compromised account",
-                    "description": "Immediately freeze a suspicious account. Security team approval.",
-                    "connection": "salesforce-prod", "action": "update_case",
-                    "params": {"type": "account_freeze", "email": "victim@example.com", "reason": "Unauthorized purchases detected — 3 transactions in 2 minutes from new IP"},
-                    "flow": flow(("agent", "ATO Agent", "Freeze"), ("platform", "Rule Engine", "specific"), ("approver", "Security Lead", "CIBA push"), ("action", "Frozen", "Account")),
-                    "badge": "warning", "badgeLabel": "FREEZE",
-                },
-                {
-                    "title": "Permanent ban (Security + Legal)",
-                    "description": "Ban a confirmed attacker. Requires Security Lead + Legal dual approval.",
-                    "connection": "salesforce-prod", "action": "update_case",
-                    "params": {"type": "permanent_ban", "email": "attacker@malicious.com", "reason": "Confirmed credential stuffing attack", "evidence": "47 failed attempts, 3 successful unauthorized accesses, IP matches known botnet"},
-                    "flow": flow(("agent", "ATO Agent", "Ban"), ("platform", "Rule Engine", "all_of_n"), ("approver", "Security Lead", "CIBA push"), ("approver", "Legal", "CIBA push"), ("action", "Banned", "Permanent")),
-                    "badge": "danger", "badgeLabel": "BAN",
-                },
-                {
-                    "title": "Compensation credit $150 (CS Manager)",
-                    "description": "Issue compensation to affected customer. CS Manager approval for $100+.",
-                    "connection": "stripe-prod", "action": "credit",
-                    "params": {"amount_usd": 150, "customer": "victim@example.com", "reason": "Account compromise — unauthorized charges reversed + goodwill credit"},
-                    "flow": flow(("agent", "ATO Agent", "Credit $150"), ("platform", "Rule Engine", "specific"), ("approver", "CS Manager", "CIBA push"), ("action", "Credited", "$150")),
-                    "badge": "info", "badgeLabel": "CREDIT",
-                },
-            ],
-            "setupInfo": [
-                {"type": "connection", "name": "salesforce-prod", "detail": "Salesforce for case management"},
-                {"type": "connection", "name": "stripe-prod", "detail": "Stripe for compensation"},
-                {"type": "connection", "name": "gmail-prod", "detail": "Gmail for security notifications"},
-                {"type": "connection", "name": "slack-prod", "detail": "Slack for alerts"},
-                {"type": "approver", "name": "Security Lead", "detail": "Approves account freezes + bans"},
-                {"type": "approver", "name": "Legal", "detail": "Co-approves permanent bans"},
-                {"type": "approver", "name": "CS Manager", "detail": "Approves compensation $100+"},
-                {"type": "rule", "name": "[ATO] Freeze account", "detail": "Freeze → security lead"},
-                {"type": "rule", "name": "[ATO] Permanent ban", "detail": "Ban → security + legal"},
-                {"type": "rule", "name": "[ATO] Compensation credit", "detail": "$100+ → CS manager"},
-            ],
-        },
-
-        # ──────────────────────────────────────────────────────────────────────
-        # 5. RECRUITMENT AGENT
+        # 4. RECRUITMENT AGENT
         # ──────────────────────────────────────────────────────────────────────
         {
             "id": "recruitment",
@@ -809,63 +751,7 @@ def _build_agent_catalog() -> list[dict]:
         },
 
         # ──────────────────────────────────────────────────────────────────────
-        # 6. ACCESS PROVISIONING AGENT
-        # ──────────────────────────────────────────────────────────────────────
-        {
-            "id": "access_provisioning",
-            "title": "Access Provisioning Agent",
-            "icon": "Key",
-            "category": "hr",
-            "categoryLabel": "Human Resources",
-            "description": "Zero-trust access provisioning agent that enforces least-privilege principles across all systems. When employees join, change roles, or leave — the agent handles every permission change. Standard access (GitHub member) requires IT Manager approval. Admin privileges escalate to CTO approval, preventing unauthorized privilege escalation. Financial system access triggers the highest bar: both CFO and CTO must approve, ensuring no single person can grant access to billing and payment systems. For offboarding, the agent immediately revokes all access across every connected system with HR Manager confirmation — no access lingers after an employee's last day. All permission changes flow through Auth0 Token Vault and are logged in the audit trail.",
-            "scenarios": [
-                {
-                    "title": "Standard access (IT Manager)",
-                    "description": "Grant standard GitHub membership. IT Manager approval.",
-                    "connection": "github-prod", "action": "add_member",
-                    "params": {"username": "jsmith", "org": "acme-corp", "role": "member", "system": "github"},
-                    "flow": flow(("agent", "Access Agent", "Grant"), ("platform", "Rule Engine", "specific"), ("approver", "IT Manager", "CIBA push"), ("action", "Granted", "Standard")),
-                    "badge": "info", "badgeLabel": "IT",
-                },
-                {
-                    "title": "Admin privileges (CTO)",
-                    "description": "Grant admin access. CTO approval required.",
-                    "connection": "github-prod", "action": "add_member",
-                    "params": {"username": "seniordev", "org": "acme-corp", "role": "admin", "system": "github"},
-                    "flow": flow(("agent", "Access Agent", "Grant admin"), ("platform", "Rule Engine", "specific"), ("approver", "CTO", "CIBA push"), ("action", "Granted", "Admin")),
-                    "badge": "warning", "badgeLabel": "CTO",
-                },
-                {
-                    "title": "Financial system (CFO + CTO)",
-                    "description": "Financial system access requires CFO + CTO dual approval.",
-                    "connection": "github-prod", "action": "add_member",
-                    "params": {"username": "accountant", "org": "acme-corp", "role": "member", "system": "financial"},
-                    "flow": flow(("agent", "Access Agent", "Grant finance"), ("platform", "Rule Engine", "all_of_n"), ("approver", "CFO", "CIBA push"), ("approver", "CTO", "CIBA push"), ("action", "Granted", "Financial")),
-                    "badge": "danger", "badgeLabel": "STEP-UP",
-                },
-                {
-                    "title": "Offboarding revoke all",
-                    "description": "Revoke all access for departing employee. HR Manager quick approval.",
-                    "connection": "github-prod", "action": "remove_member",
-                    "params": {"username": "departing", "org": "acme-corp", "reason": "offboarding"},
-                    "flow": flow(("agent", "Access Agent", "Revoke all"), ("platform", "Rule Engine", "any_one"), ("approver", "HR Manager", "CIBA push"), ("action", "Revoked", "All systems")),
-                    "badge": "info", "badgeLabel": "OFFBOARD",
-                },
-            ],
-            "setupInfo": [
-                {"type": "connection", "name": "github-prod", "detail": "GitHub for access management"},
-                {"type": "connection", "name": "slack-prod", "detail": "Slack for access notifications"},
-                {"type": "approver", "name": "IT Manager", "detail": "Approves standard access"},
-                {"type": "approver", "name": "CTO", "detail": "Approves admin access"},
-                {"type": "approver", "name": "CFO", "detail": "Co-approves financial access"},
-                {"type": "rule", "name": "[Access] Standard access", "detail": "Standard → IT manager"},
-                {"type": "rule", "name": "[Access] Admin privileges", "detail": "Admin → CTO"},
-                {"type": "rule", "name": "[Access] Financial system", "detail": "Finance → CFO + CTO"},
-            ],
-        },
-
-        # ──────────────────────────────────────────────────────────────────────
-        # 7. GDPR REQUEST AGENT
+        # 5. GDPR REQUEST AGENT
         # ──────────────────────────────────────────────────────────────────────
         {
             "id": "gdpr_request",
@@ -922,109 +808,7 @@ def _build_agent_catalog() -> list[dict]:
         },
 
         # ──────────────────────────────────────────────────────────────────────
-        # 10. API KEY ROTATION AGENT
-        # ──────────────────────────────────────────────────────────────────────
-        {
-            "id": "api_key_rotation",
-            "title": "API Key Rotation Agent",
-            "icon": "Zap",
-            "category": "devops",
-            "categoryLabel": "DevOps & Software",
-            "description": "Credential lifecycle agent that ensures API keys and secrets are rotated before they become security risks. Scheduled 90-day rotations auto-execute with zero downtime using a blue-green deployment strategy — no approval needed for routine hygiene. When a key is potentially compromised (found in a public repo, flagged by a security scan), the agent triggers an emergency rotation requiring Security Lead approval with a tight 3-minute window. Third-party API keys (SendGrid, Twilio, payment processors) require CTO approval since they affect vendor relationships. The nuclear option — rotating ALL production keys simultaneously — requires both CTO and Security Lead, ensuring infrastructure-wide credential changes have proper oversight. Auth0 Token Vault is central to this agent's design: rotated credentials are stored in Vault, never exposed to the agent itself.",
-            "scenarios": [
-                {
-                    "title": "Scheduled rotation — Stripe (auto)",
-                    "description": "Regular 90-day rotation. Auto-approved.",
-                    "connection": "github-prod", "action": "deploy",
-                    "params": {"type": "key_rotation", "env": "production", "service": "stripe", "urgency": "scheduled", "reason": "90-day rotation policy", "is_third_party": False, "migration_name": "rotate_stripe_key"},
-                    "flow": flow(("agent", "Key Agent", "Rotate"), ("platform", "Rule Engine", "No match"), ("action", "Rotated", "Stripe key")),
-                    "badge": "success", "badgeLabel": "AUTO",
-                },
-                {
-                    "title": "Emergency rotation — GitHub token (Security Lead)",
-                    "description": "Potentially compromised key. Security Lead approval, 3-min timeout.",
-                    "connection": "github-prod", "action": "deploy",
-                    "params": {"type": "key_rotation", "env": "production", "service": "github", "urgency": "emergency", "reason": "Token found in public gist — potential exposure", "is_third_party": False, "migration_name": "rotate_github_key"},
-                    "flow": flow(("agent", "Key Agent", "Emergency"), ("platform", "Rule Engine", "specific"), ("approver", "Security Lead", "Urgent CIBA"), ("action", "Rotated", "GitHub token")),
-                    "badge": "warning", "badgeLabel": "EMERGENCY",
-                },
-                {
-                    "title": "Third-party key — SendGrid (CTO)",
-                    "description": "Third-party API key rotation. CTO approval required.",
-                    "connection": "github-prod", "action": "deploy",
-                    "params": {"type": "key_rotation", "env": "production", "service": "sendgrid", "urgency": "scheduled", "reason": "Vendor security advisory — rotate recommended", "is_third_party": True, "migration_name": "rotate_sendgrid_key"},
-                    "flow": flow(("agent", "Key Agent", "3rd party"), ("platform", "Rule Engine", "specific"), ("approver", "CTO", "CIBA push"), ("action", "Rotated", "SendGrid key")),
-                    "badge": "info", "badgeLabel": "CTO",
-                },
-                {
-                    "title": "Full rotation — ALL keys (CTO + Security)",
-                    "description": "Nuclear option: rotate every production key. CTO + Security Lead.",
-                    "connection": "github-prod", "action": "deploy",
-                    "params": {"type": "key_rotation", "env": "production", "scope": "production", "urgency": "emergency", "reason": "Infrastructure breach — rotating all credentials", "migration_name": "rotate_all_keys"},
-                    "flow": flow(("agent", "Key Agent", "Rotate ALL"), ("platform", "Rule Engine", "all_of_n"), ("approver", "CTO", "CIBA push"), ("approver", "Security Lead", "CIBA push"), ("action", "Rotated", "All keys")),
-                    "badge": "danger", "badgeLabel": "CRITICAL",
-                },
-            ],
-            "setupInfo": [
-                {"type": "connection", "name": "github-prod", "detail": "GitHub for rotation scripts"},
-                {"type": "connection", "name": "slack-prod", "detail": "Slack for rotation alerts"},
-                {"type": "connection", "name": "gmail-prod", "detail": "Gmail for rotation reports"},
-                {"type": "approver", "name": "Security Lead", "detail": "Approves emergency rotations"},
-                {"type": "approver", "name": "CTO", "detail": "Approves third-party + full rotations"},
-                {"type": "rule", "name": "[KeyRotation] Emergency rotation", "detail": "Emergency → security lead"},
-                {"type": "rule", "name": "[KeyRotation] Third-party key", "detail": "3rd party → CTO"},
-                {"type": "rule", "name": "[KeyRotation] Full rotation", "detail": "All keys → CTO + security"},
-            ],
-        },
-
-        # ──────────────────────────────────────────────────────────────────────
-        # 11. FINANCE AGENT
-        # ──────────────────────────────────────────────────────────────────────
-        {
-            "id": "finance",
-            "title": "Finance Operations Agent",
-            "icon": "Banknote",
-            "category": "finance",
-            "categoryLabel": "Commerce & Finance",
-            "description": "Autonomous payment processing agent that handles invoices, vendor payments, and financial transfers. Small payments under $500 auto-approve. $500-$5,000 requires manager sign-off. Above $5,000 needs CFO approval. The agent enforces a $10,000 daily budget — once exceeded, all further payments are blocked until the next day. When processing bulk vendor payments, the agent adapts by trying individual payments to stay within budget limits. All transactions flow through Auth0 Token Vault, keeping Stripe and PayPal credentials server-side.",
-            "scenarios": [
-                {
-                    "title": "Small invoice — $200 (auto-approve)",
-                    "description": "Small vendor payment. Under $500, auto-approved.",
-                    "connection": "stripe-prod", "action": "charge",
-                    "params": {"amount_usd": 200, "customer": "Acme Corp", "description": "Office supplies invoice #1234", "method": "stripe"},
-                    "flow": flow(("agent", "Finance Agent", "Pay $200"), ("platform", "Rule Engine", "No match"), ("action", "Auto-Paid", "Token Vault")),
-                    "badge": "success", "badgeLabel": "AUTO",
-                },
-                {
-                    "title": "Design agency — $5,000 (CFO approval)",
-                    "description": "Large transfer. $5,000+ requires CFO approval.",
-                    "connection": "stripe-prod", "action": "charge",
-                    "params": {"amount_usd": 5000, "customer": "Creative Agency", "description": "Q1 branding project — overdue", "method": "stripe"},
-                    "flow": flow(("agent", "Finance Agent", "Pay $5,000"), ("platform", "Rule Engine", "specific"), ("approver", "CFO", "CIBA push"), ("action", "Approved", "Token Vault")),
-                    "badge": "warning", "badgeLabel": "CFO",
-                },
-                {
-                    "title": "Bulk vendors — $50,000 (budget block)",
-                    "description": "15 pending vendors totaling $50,000. Daily budget ($10,000) exceeded — BLOCKED.",
-                    "connection": "stripe-prod", "action": "charge",
-                    "params": {"amount_usd": 50000, "customer": "Multiple Vendors", "description": "Bulk vendor payment — 15 pending invoices"},
-                    "flow": flow(("agent", "Finance Agent", "Pay $50,000"), ("platform", "Rule Engine", "Budget check"), ("gate", "BLOCKED", "Daily limit exceeded")),
-                    "badge": "danger", "badgeLabel": "BLOCKED",
-                },
-            ],
-            "setupInfo": [
-                {"type": "connection", "name": "stripe-prod", "detail": "Stripe for payments"},
-                {"type": "connection", "name": "gmail-prod", "detail": "Gmail for invoices"},
-                {"type": "approver", "name": "Manager", "detail": "Approves $500-$5000"},
-                {"type": "approver", "name": "CFO", "detail": "Approves $5000+"},
-                {"type": "rule", "name": "[Finance] Medium", "detail": "$500-$4999 → manager"},
-                {"type": "rule", "name": "[Finance] Large", "detail": "$5000+ → CFO"},
-            ],
-        },
-
-        # ──────────────────────────────────────────────────────────────────────
-        # 13. OPEN SOURCE AGENT
+        # 6. OPEN SOURCE AGENT
         # ──────────────────────────────────────────────────────────────────────
         {
             "id": "opensource",
@@ -1071,7 +855,7 @@ def _build_agent_catalog() -> list[dict]:
         },
 
         # ──────────────────────────────────────────────────────────────────────
-        # 14. RESEARCH AGENT
+        # 7. RESEARCH AGENT
         # ──────────────────────────────────────────────────────────────────────
         {
             "id": "research",
@@ -1117,7 +901,7 @@ def _build_agent_catalog() -> list[dict]:
         },
 
         # ──────────────────────────────────────────────────────────────────────
-        # 15. COMMS AGENT
+        # 8. COMMS AGENT
         # ──────────────────────────────────────────────────────────────────────
         {
             "id": "comms",

@@ -50,12 +50,14 @@ CRITICAL BEHAVIOR RULES:
 AGENT_PROMPTS: dict[str, str] = {
     "expense": _CORE_BEHAVIOR + """
 You are the company's AI E-Commerce Operations Agent. You handle customer refunds, payments, email communications, and team notifications.
+Also handles vendor payments, invoices, and financial operations.
 
 Your tools:
 - process_refund: Refund a customer via Stripe.
 - send_email: Send an email to a customer via Gmail (apology, confirmation, receipt).
 - process_compensation: Give customer a gift card or credit as compensation via Stripe.
 - notify_slack: Post a message to a Slack channel.
+- process_payment: Process a payment to a vendor or payee via Stripe/PayPal.
 
 Approval rules:
 - Charges under $100: Auto-approved
@@ -63,6 +65,9 @@ Approval rules:
 - $500+: Manager + CFO must both approve (step-up)
 - External emails: Always require Manager approval
 - Internal Slack: Auto-approved
+- Vendor payments under $500: Auto-approved
+- Vendor payments $500–$4,999: Manager approval
+- Vendor payments $5,000+: CFO approval required
 
 For customer complaints, ALWAYS call ALL FOUR tools in this order:
 1. process_refund (the money)
@@ -73,7 +78,9 @@ For customer complaints, ALWAYS call ALL FOUR tools in this order:
 EXAMPLES:
 - "Customer wants $30 refund" → process_refund($30) then send_email then notify_slack
 - "Angry customer, $420 damaged order" → process_refund($420) then send_email(apology) then process_compensation($150) then notify_slack
-- "500 defective products" → process_refund($15000) then send_email(mass apology) then notify_slack""",
+- "500 defective products" → process_refund($15000) then send_email(mass apology) then notify_slack
+- "Pay invoice #1234 to Acme Corp for $200" → process_payment($200, "Acme Corp") auto-approved.
+- "Transfer $5,000 to the design agency" → process_payment($5,000) → CFO approval needed.""",
 
     "release_manager": _CORE_BEHAVIOR + """
 You are the team's AI Release Manager. Engineers come to you with deployment needs, issues, and release requests — you handle CI/CD operations autonomously.
@@ -98,43 +105,41 @@ For incidents, act fast. For routine deploys, confirm the target environment."""
 You are the AI Security Incident Response Agent. When someone reports a security issue, you act IMMEDIATELY. Every second counts.
 
 Your capabilities: Log alerts to #security, lock repositories, revoke production tokens.
+Also handles account takeovers: freeze accounts, ban users, issue compensation credits.
+Handles key rotation: rotate individual keys or all keys in emergency.
 
 Approval rules:
 - Alert logging: Auto (immediate)
 - Lock repo: Security Lead approval
 - Revoke all tokens: CTO + Security Lead (both must approve)
+- Freeze: Security team approval
+- Permanent ban: Security + Legal (both must approve)
+- Compensation under $100: Auto-approved
+- Compensation $100+: CS Manager approval
+- Scheduled key rotation: Auto-approved
+- Emergency key rotation (compromised): Security Lead approval
+- Third-party keys: CTO approval
+- Full rotation (all keys): CTO + Security Lead (both)
 
 EXAMPLES:
 - User says "We're seeing unusual API traffic from a single IP" → Log a medium alert immediately.
 - User says "Someone pushed suspicious code to the main repo" → Log a HIGH alert AND lock the repository. Do both.
 - User says "We think there's been a data breach" → FULL LOCKDOWN: Log CRITICAL alert, lock all repos, AND revoke all production tokens. Execute all three actions in sequence.
 - User says "Employee's GitHub account was compromised" → Lock the repo immediately, log an alert.
+- User says "Customer john@example.com says he didn't make those purchases" → IMMEDIATELY freeze the account.
+- User says "We caught a bot doing credential stuffing" → Freeze the bot's account AND initiate a permanent ban.
+- User says "A VIP customer lost $500 due to the breach" → Issue a $150 compensation credit (needs CS Manager approval).
+- User says "The Stripe key is due for its 90-day rotation" → Execute scheduled rotation (auto-approved).
+- User says "I think our GitHub token was exposed in a public gist" → EMERGENCY rotation immediately (Security Lead will approve).
+- User says "We had a full infrastructure breach" → ROTATE ALL KEYS. Nuclear option (CTO + Security Lead must both approve).
 
 NEVER hesitate during an incident. Act first, investigate later. Always explain the severity level and what you're doing.""",
 
-    "account_takeover": _CORE_BEHAVIOR + """
-You are the AI Account Takeover Response Agent. Customer service reps come to you when users report suspicious activity on their accounts. You handle the full response: freeze, investigate, compensate.
-
-Your capabilities: Freeze accounts, issue permanent bans, issue compensation credits, send security notifications.
-
-Approval rules:
-- Freeze: Security team approval
-- Permanent ban: Security + Legal (both must approve)
-- Compensation under $100: Auto-approved
-- Compensation $100+: CS Manager approval
-
-EXAMPLES:
-- User says "Customer john@example.com says he didn't make those purchases" → IMMEDIATELY freeze the account. Then send a security notification to the customer. Then suggest compensation.
-- User says "We caught a bot doing credential stuffing" → Freeze the bot's account AND initiate a permanent ban.
-- User says "The customer from the takeover case wants to be compensated" → Issue a $50 goodwill credit automatically (under $100).
-- User says "A VIP customer lost $500 due to the breach" → Issue a $150 compensation credit (needs CS Manager approval).
-
-Always prioritize: 1) Freeze (stop the bleeding) 2) Notify (inform the victim) 3) Compensate (make it right).""",
-
     "recruitment": _CORE_BEHAVIOR + """
 You are the AI Recruitment Agent for HR. Hiring managers and HR staff tell you about candidates and hiring decisions — you execute the paperwork and system access autonomously.
+Also manages system access: grant/revoke GitHub permissions, handle onboarding/offboarding access.
 
-Your capabilities: Send emails (invites, offers, terminations), add to GitHub org, post Slack announcements.
+Your capabilities: Send emails (invites, offers, terminations), add to GitHub org, post Slack announcements, grant access, revoke access.
 
 Approval rules:
 - Interview invites: Auto
@@ -143,31 +148,21 @@ Approval rules:
 - Terminations: HR Manager + CEO
 - GitHub member: IT Manager
 - GitHub admin: IT Manager + CTO
+- Standard access (member): IT Manager approval
+- Admin access: CTO approval
+- Financial systems: CFO + CTO (both)
+- Offboarding revoke: HR Manager approval
 
 EXAMPLES:
 - User says "We want to bring Sarah Chen in for a frontend interview next Thursday" → Send an interview invitation email immediately.
 - User says "We've decided to hire the candidate for the Senior Engineer role at $160k" → Send the offer letter (HR Manager will need to approve).
 - User says "The new hire starts Monday, username is schen on GitHub" → Add them to the GitHub org as member.
 - User says "We need to let go of the underperforming engineer in the backend team" → Send termination notice (HR + CEO must both approve). Handle this with appropriate gravity.
-- User says "John got promoted to Staff Engineer, bump him to $210k" → Send offer letter with new salary (HR + CFO must both approve since $180k+).""",
-
-    "access_provisioning": _CORE_BEHAVIOR + """
-You are the AI Access Provisioning Agent for IT. When people join, change roles, or leave — you handle all system access changes autonomously.
-
-Your capabilities: Grant access (standard/admin/financial), revoke access (offboarding), send Slack notifications.
-
-Approval rules:
-- Standard (member): IT Manager approval
-- Admin: CTO approval
-- Financial systems: CFO + CTO (both)
-- Offboarding revoke: HR Manager approval
-
-EXAMPLES:
+- User says "John got promoted to Staff Engineer, bump him to $210k" → Send offer letter with new salary (HR + CFO must both approve since $180k+).
 - User says "New developer starting Monday, username jsmith" → Grant standard GitHub access immediately (IT Manager will approve).
 - User says "Sarah needs admin access, she's now the team lead" → Grant admin privileges (CTO will approve).
-- User says "The new accountant needs access to our billing systems" → Grant financial system access (CFO + CTO must both approve). Explain the elevated approval.
-- User says "Mike left the company today" → Revoke ALL access immediately. This is an offboarding — cover every system.
-- User says "The intern's contract ended" → Revoke access with offboarding reason.""",
+- User says "Mike left the company today" → Revoke ALL access immediately. This is an offboarding.""",
+
 
 
     "gdpr_request": _CORE_BEHAVIOR + """
@@ -188,44 +183,6 @@ EXAMPLES:
 
 ALWAYS state: which systems are affected, the legal basis, and the regulatory deadline.""",
 
-    "api_key_rotation": _CORE_BEHAVIOR + """
-You are the AI API Key Rotation Agent for DevOps/Security. When engineers report key issues, expiry alerts, or security concerns — you handle credential rotation autonomously.
-
-Your capabilities: Rotate individual keys (scheduled/emergency), rotate third-party keys, rotate ALL keys (nuclear option), send Slack notifications.
-
-Approval rules:
-- Scheduled rotation: Auto-approved
-- Emergency (compromised): Security Lead approval
-- Third-party keys: CTO approval
-- Full rotation (all keys): CTO + Security Lead (both)
-
-EXAMPLES:
-- User says "The Stripe key is due for its 90-day rotation" → Execute scheduled rotation (auto-approved). Mention zero-downtime strategy.
-- User says "I think our GitHub token was exposed in a public gist" → EMERGENCY rotation immediately (Security Lead will approve). Act fast.
-- User says "SendGrid sent us a security advisory to rotate keys" → Rotate third-party key (CTO will approve since it's third-party).
-- User says "We had a full infrastructure breach" → ROTATE ALL KEYS. Nuclear option (CTO + Security Lead must both approve). Explain the blast radius.
-
-For emergencies, act IMMEDIATELY. Explain the rotation strategy (zero-downtime, blue-green) for non-emergency rotations.""",
-
-    "finance": _CORE_BEHAVIOR + """
-You are the company's AI Finance Agent. You handle payments, invoices, vendor transfers, and financial operations autonomously.
-
-Your capabilities: Process payments (PayPal/Stripe), send invoices via email, notify finance team via Slack.
-
-Approval rules:
-- Under $500: Auto-approved
-- $500–$4,999: Manager approval
-- $5,000+: CFO approval required
-- Daily budget: $10,000 (blocks if exceeded)
-- Bulk payments (5+ vendors): CFO + Manager (both must approve)
-
-EXAMPLES:
-- "Pay invoice #1234 to Acme Corp for $200 for office supplies" → process_payment($200, "Acme Corp") auto-approved.
-- "Transfer $5,000 to the design agency" → process_payment($5,000) → CFO approval needed.
-- "Pay all 15 pending vendor invoices, total $50,000" → Try to process bulk payment → BLOCKED (budget exceeded). Adapt by processing individually.
-- "Send a receipt to vendor@acme.com" → send_invoice email (auto).
-
-Always state: amount, vendor, which approval tier applies.""",
 
     "opensource": _CORE_BEHAVIOR + """
 You are the AI Open Source Maintenance Agent. You manage releases, PR merges, community engagement, and contributor payments.
@@ -353,6 +310,21 @@ AGENT_TOOLS: dict[str, list[dict]] = {
                 "required": ["channel", "message"],
             },
         },
+        {
+            "name": "process_payment",
+            "description": "Process a payment to a vendor or payee via Stripe/PayPal.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "amount_usd": {"type": "number", "description": "Payment amount in USD"},
+                    "vendor": {"type": "string", "description": "Vendor or payee name"},
+                    "invoice_id": {"type": "string", "description": "Invoice number or reference"},
+                    "method": {"type": "string", "enum": ["stripe", "paypal", "wire"], "description": "Payment method"},
+                    "description": {"type": "string", "description": "Payment description"},
+                },
+                "required": ["amount_usd", "vendor", "description"],
+            },
+        },
     ],
 
     "release_manager": [
@@ -434,9 +406,6 @@ AGENT_TOOLS: dict[str, list[dict]] = {
                 "required": ["scope", "reason"],
             },
         },
-    ],
-
-    "account_takeover": [
         {
             "name": "freeze_account",
             "description": "Freeze a compromised user account. Requires security team approval.",
@@ -476,16 +445,29 @@ AGENT_TOOLS: dict[str, list[dict]] = {
             },
         },
         {
-            "name": "send_notification",
-            "description": "Send a security notification email to the affected user.",
+            "name": "rotate_key",
+            "description": "Rotate an API key for a specific service.",
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "recipient": {"type": "string"},
-                    "subject": {"type": "string"},
-                    "type": {"type": "string", "enum": ["account_compromised", "account_restored", "security_alert"]},
+                    "service": {"type": "string", "description": "Service name (e.g. stripe, github, aws, sendgrid)"},
+                    "urgency": {"type": "string", "enum": ["scheduled", "emergency", "compromised"]},
+                    "reason": {"type": "string"},
+                    "is_third_party": {"type": "boolean", "description": "Whether this is a third-party key"},
                 },
-                "required": ["recipient", "subject", "type"],
+                "required": ["service", "urgency", "reason"],
+            },
+        },
+        {
+            "name": "rotate_all_keys",
+            "description": "Rotate ALL API keys simultaneously. Nuclear option requiring CTO + Security Lead.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "reason": {"type": "string"},
+                    "scope": {"type": "string", "enum": ["production", "staging", "all"]},
+                },
+                "required": ["reason", "scope"],
             },
         },
     ],
@@ -531,9 +513,6 @@ AGENT_TOOLS: dict[str, list[dict]] = {
                 "required": ["channel", "message"],
             },
         },
-    ],
-
-    "access_provisioning": [
         {
             "name": "grant_access",
             "description": "Grant system access to a user (GitHub org, admin privileges, etc.).",
@@ -559,18 +538,6 @@ AGENT_TOOLS: dict[str, list[dict]] = {
                     "reason": {"type": "string", "enum": ["offboarding", "security", "role_change"]},
                 },
                 "required": ["username", "org", "reason"],
-            },
-        },
-        {
-            "name": "notify_slack",
-            "description": "Send an access change notification to Slack.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "channel": {"type": "string"},
-                    "message": {"type": "string"},
-                },
-                "required": ["channel", "message"],
             },
         },
     ],
@@ -620,90 +587,6 @@ AGENT_TOOLS: dict[str, list[dict]] = {
         },
     ],
 
-    "api_key_rotation": [
-        {
-            "name": "rotate_key",
-            "description": "Rotate an API key for a specific service.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "service": {"type": "string", "description": "Service name (e.g. stripe, github, aws, sendgrid)"},
-                    "urgency": {"type": "string", "enum": ["scheduled", "emergency", "compromised"]},
-                    "reason": {"type": "string"},
-                    "is_third_party": {"type": "boolean", "description": "Whether this is a third-party key"},
-                },
-                "required": ["service", "urgency", "reason"],
-            },
-        },
-        {
-            "name": "rotate_all_keys",
-            "description": "Rotate ALL API keys simultaneously. Nuclear option requiring CTO + Security Lead.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "reason": {"type": "string"},
-                    "scope": {"type": "string", "enum": ["production", "staging", "all"]},
-                },
-                "required": ["reason", "scope"],
-            },
-        },
-        {
-            "name": "notify_slack",
-            "description": "Send a rotation notification to Slack.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "channel": {"type": "string"},
-                    "message": {"type": "string"},
-                },
-                "required": ["channel", "message"],
-            },
-        },
-    ],
-
-    "finance": [
-        {
-            "name": "process_payment",
-            "description": "Process a payment to a vendor or payee via Stripe/PayPal.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "amount_usd": {"type": "number", "description": "Payment amount in USD"},
-                    "vendor": {"type": "string", "description": "Vendor or payee name"},
-                    "invoice_id": {"type": "string", "description": "Invoice number or reference"},
-                    "method": {"type": "string", "enum": ["stripe", "paypal", "wire"], "description": "Payment method"},
-                    "description": {"type": "string", "description": "Payment description"},
-                },
-                "required": ["amount_usd", "vendor", "description"],
-            },
-        },
-        {
-            "name": "send_invoice",
-            "description": "Send an invoice or receipt via email.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "recipient": {"type": "string", "description": "Recipient email"},
-                    "subject": {"type": "string"},
-                    "amount_usd": {"type": "number"},
-                    "type": {"type": "string", "enum": ["invoice", "receipt", "reminder"]},
-                },
-                "required": ["recipient", "subject", "type"],
-            },
-        },
-        {
-            "name": "notify_slack",
-            "description": "Send a finance notification to Slack.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "channel": {"type": "string"},
-                    "message": {"type": "string"},
-                },
-                "required": ["channel", "message"],
-            },
-        },
-    ],
 
     "opensource": [
         {
@@ -876,6 +759,11 @@ _TOOL_ACTION_MAP: dict[str, dict[str, dict]] = {
                                                          "customer": "customer@example.com"}},
         "notify_slack": {"connection": "slack-prod", "action": "send_message",
                          "param_map": lambda p: p},
+        "process_payment": {"connection": "stripe-prod", "action": "charge",
+                            "param_map": lambda p: {"amount_usd": p["amount_usd"], "customer": p["vendor"],
+                                                    "description": p["description"],
+                                                    "invoice_id": p.get("invoice_id", ""),
+                                                    "method": p.get("method", "stripe")}},
     },
     "release_manager": {
         "deploy": {"connection": "github-main", "action": "deploy",
@@ -896,8 +784,6 @@ _TOOL_ACTION_MAP: dict[str, dict[str, dict]] = {
                       "param_map": lambda p: p},
         "revoke_tokens": {"connection": "github-prod", "action": "revoke_tokens",
                           "param_map": lambda p: p},
-    },
-    "account_takeover": {
         "freeze_account": {"connection": "salesforce-prod", "action": "update_case",
                            "param_map": lambda p: {"type": "account_freeze", "email": p["account_email"],
                                                    "reason": p["reason"]}},
@@ -907,9 +793,17 @@ _TOOL_ACTION_MAP: dict[str, dict[str, dict]] = {
         "issue_credit": {"connection": "stripe-prod", "action": "credit",
                          "param_map": lambda p: {"amount_usd": p["amount_usd"], "customer": p["account_email"],
                                                  "reason": p["reason"]}},
-        "send_notification": {"connection": "gmail-prod", "action": "send_email",
-                              "param_map": lambda p: {"recipient": p["recipient"], "subject": p["subject"],
-                                                      "type": p["type"]}},
+        "rotate_key": {"connection": "github-prod", "action": "deploy",
+                       "param_map": lambda p: {"type": "key_rotation", "env": "production",
+                                               "service": p["service"], "urgency": p["urgency"],
+                                               "reason": p["reason"],
+                                               "is_third_party": p.get("is_third_party", False),
+                                               "migration_name": f"rotate_{p['service']}_key"}},
+        "rotate_all_keys": {"connection": "github-prod", "action": "deploy",
+                            "param_map": lambda p: {"type": "key_rotation", "env": "production",
+                                                    "urgency": "emergency", "scope": p["scope"],
+                                                    "reason": p["reason"],
+                                                    "migration_name": "rotate_all_keys"}},
     },
     "recruitment": {
         "send_email": {"connection": "gmail-prod", "action": "send_email",
@@ -918,16 +812,12 @@ _TOOL_ACTION_MAP: dict[str, dict[str, dict]] = {
                           "param_map": lambda p: p},
         "notify_slack": {"connection": "slack-prod", "action": "send_message",
                          "param_map": lambda p: p},
-    },
-    "access_provisioning": {
         "grant_access": {"connection": "github-prod", "action": "add_member",
                          "param_map": lambda p: {"username": p["username"], "org": p["org"],
                                                  "role": p["role"],
                                                  "system": p.get("system", "github")}},
         "revoke_access": {"connection": "github-prod", "action": "remove_member",
                           "param_map": lambda p: p},
-        "notify_slack": {"connection": "slack-prod", "action": "send_message",
-                         "param_map": lambda p: p},
     },
     "gdpr_request": {
         "process_deletion": {"connection": "github-prod", "action": "deploy",
@@ -945,33 +835,6 @@ _TOOL_ACTION_MAP: dict[str, dict[str, dict]] = {
         "send_compliance_email": {"connection": "gmail-prod", "action": "send_email",
                                   "param_map": lambda p: {"recipient": p["recipient"], "subject": p["subject"],
                                                           "type": p["type"]}},
-    },
-    "api_key_rotation": {
-        "rotate_key": {"connection": "github-prod", "action": "deploy",
-                       "param_map": lambda p: {"type": "key_rotation", "env": "production",
-                                               "service": p["service"], "urgency": p["urgency"],
-                                               "reason": p["reason"],
-                                               "is_third_party": p.get("is_third_party", False),
-                                               "migration_name": f"rotate_{p['service']}_key"}},
-        "rotate_all_keys": {"connection": "github-prod", "action": "deploy",
-                            "param_map": lambda p: {"type": "key_rotation", "env": "production",
-                                                    "urgency": "emergency", "scope": p["scope"],
-                                                    "reason": p["reason"],
-                                                    "migration_name": "rotate_all_keys"}},
-        "notify_slack": {"connection": "slack-prod", "action": "send_message",
-                         "param_map": lambda p: p},
-    },
-    "finance": {
-        "process_payment": {"connection": "stripe-prod", "action": "charge",
-                            "param_map": lambda p: {"amount_usd": p["amount_usd"], "customer": p["vendor"],
-                                                    "description": p["description"],
-                                                    "invoice_id": p.get("invoice_id", ""),
-                                                    "method": p.get("method", "stripe")}},
-        "send_invoice": {"connection": "gmail-prod", "action": "send_email",
-                         "param_map": lambda p: {"recipient": p["recipient"], "subject": p["subject"],
-                                                 "type": p["type"], "amount_usd": p.get("amount_usd", 0)}},
-        "notify_slack": {"connection": "slack-prod", "action": "send_message",
-                         "param_map": lambda p: p},
     },
     "opensource": {
         "merge_pr": {"connection": "github-prod", "action": "merge_pr",
@@ -1051,6 +914,8 @@ AGENT_SUGGESTIONS: dict[str, list[str]] = {
         "I'm attending KubeCon in Paris next month, need to book flights and hotel",
         "We ran out of whiteboard markers and Post-it notes",
         "My keyboard stopped working, I need a replacement",
+        "Pay invoice #1234 to Acme Corp for $200 for office supplies",
+        "Transfer $5,000 to the design agency for the Q1 branding project, it's overdue",
     ],
     "release_manager": [
         "Feature branch feature/user-profiles is ready, can we get it on staging?",
@@ -1065,13 +930,10 @@ AGENT_SUGGESTIONS: dict[str, list[str]] = {
         "CloudTrail shows someone accessed the production S3 bucket at 3am",
         "We got an email from a researcher about an XSS vulnerability in our app",
         "Dependabot flagged a critical CVE in one of our production dependencies",
-    ],
-    "account_takeover": [
         "Customer alice@gmail.com called saying she sees orders she didn't place",
         "We noticed 50 accounts logged in from the same IP within one minute",
-        "The customer from ticket #4821 is asking when their account will be restored",
-        "A user reported that their email and password were changed without their knowledge",
-        "Our fraud detection flagged three accounts making identical $999 purchases",
+        "Our monitoring shows the Stripe production key is 87 days old",
+        "Someone accidentally pushed a .env file to a public repo on GitHub",
     ],
     "recruitment": [
         "We liked the React developer from the portfolio review, let's schedule a call",
@@ -1079,13 +941,8 @@ AGENT_SUGGESTIONS: dict[str, list[str]] = {
         "We need to make a competitive offer for the ML engineer — market rate is around $200k",
         "Jake in the QA team has been consistently missing deadlines for 3 months now",
         "New hire Maria starts next Monday, she needs access to our GitHub repos",
-    ],
-    "access_provisioning": [
         "We have a new junior developer joining the mobile team next week",
-        "Lisa got promoted to engineering manager, she'll need broader repo access",
-        "Finance team is onboarding a new analyst who needs the reporting tools",
         "Tom from the backend team accepted an offer at another company, last day is Friday",
-        "The external contractor's project wrapped up, we should clean up their access",
     ],
     "gdpr_request": [
         "We received a 'right to be forgotten' email from a user in Berlin",
@@ -1093,20 +950,6 @@ AGENT_SUGGESTIONS: dict[str, list[str]] = {
         "Marketing wants to send EU user analytics to our Mixpanel instance in the US",
         "A former employee is requesting an export of all their personal data we hold",
         "The French DPA sent us a notice about a complaint from one of our users",
-    ],
-    "api_key_rotation": [
-        "Our monitoring shows the Stripe production key is 87 days old",
-        "Someone accidentally pushed a .env file to a public repo on GitHub",
-        "We got a security bulletin from Twilio recommending all customers rotate keys",
-        "After the security audit, the recommendation is to rotate all production credentials",
-        "The shared API key with our payment processor expires in 3 days",
-    ],
-    "finance": [
-        "Pay invoice #1234 to Acme Corp for $200 for office supplies",
-        "Transfer $5,000 to the design agency for the Q1 branding project, it's overdue",
-        "Process all pending vendor payments — 15 vendors, total around $50,000",
-        "Send a payment receipt to billing@vendor.com for last month's SaaS subscription",
-        "We owe $8,500 to the catering company for the annual conference",
     ],
     "opensource": [
         "Merge the typo fix PR #42 into main branch",

@@ -439,16 +439,6 @@ export const AGENT_STORIES: Record<string, Story[]> = {
     ],
   }],
 
-  account_takeover: [{
-    id: "fraud_response",
-    title: "Handle Account Takeover Attempt",
-    prompt: "User reports unauthorized transactions on their account. Investigate and remediate.",
-    steps: [
-      { label: "Freeze account", description: "Immediately suspend the compromised account", connection: "salesforce-prod", action: "update_case", params: { type: "account_freeze", email: "victim@example.com", reason: "Multiple unauthorized transactions detected" }, expectApproval: true, approvers: ["Security Lead"] },
-      { label: "Issue compensation", description: "Refund $450 for unauthorized charges", connection: "stripe-prod", action: "credit", params: { amount_usd: 450, customer: "victim@example.com", reason: "Compensation for unauthorized transactions during account takeover" }, expectApproval: true, approvers: ["CS Manager"] },
-      { label: "Notify customer", description: "Email customer about account freeze and next steps", connection: "gmail-prod", action: "send_email", params: { type: "security_notice", recipient: "victim@example.com", subject: "Your account has been secured", body_preview: "We detected unauthorized activity and froze your account. $450 has been refunded." }, expectApproval: false },
-    ],
-  }],
 
   recruitment: [{
     id: "hire_engineer",
@@ -462,16 +452,6 @@ export const AGENT_STORIES: Record<string, Story[]> = {
     ],
   }],
 
-  access_provisioning: [{
-    id: "onboard_admin",
-    title: "Provision Admin Access for New CTO",
-    prompt: "New CTO starts Monday. Set up full admin access across all systems.",
-    steps: [
-      { label: "Grant GitHub admin", description: "Admin privileges — IT Manager + CTO required", connection: "github-prod", action: "add_member", params: { username: "newcto", org: "acme", role: "admin" }, expectApproval: true, approvers: ["IT Manager", "CTO"] },
-      { label: "Grant financial systems", description: "Access to billing — CFO + CTO required", connection: "github-prod", action: "add_member", params: { username: "newcto", system: "financial", role: "admin" }, expectApproval: true, approvers: ["CFO", "CTO"] },
-      { label: "Send access credentials", description: "Email with all access details", connection: "gmail-prod", action: "send_email", params: { type: "invite", recipient: "newcto@company.com", subject: "Your system access is ready", body_preview: "GitHub admin, financial systems — all provisioned." }, expectApproval: false },
-    ],
-  }],
 
   patient_data: [{
     id: "external_referral",
@@ -506,15 +486,4 @@ export const AGENT_STORIES: Record<string, Story[]> = {
     ],
   }],
 
-  api_key_rotation: [{
-    id: "emergency_rotation",
-    title: "Emergency Key Rotation After Leak",
-    prompt: "A production API key was accidentally committed to a public repo. Rotate everything.",
-    steps: [
-      { label: "Rotate leaked key", description: "Emergency rotation — Security Lead approval", connection: "github-prod", action: "deploy", params: { type: "key_rotation", service: "stripe-production", urgency: "emergency", reason: "Key leaked in public commit" }, expectApproval: true, approvers: ["Security Lead"] },
-      { label: "Rotate all related keys", description: "Full rotation — CTO + Security Lead both required", connection: "github-prod", action: "deploy", params: { type: "key_rotation", migration_name: "rotate_all_keys", scope: "production", reason: "Precautionary rotation after key leak", is_third_party: false }, expectApproval: true, approvers: ["CTO", "Security Lead"] },
-      { label: "Alert on Slack", description: "Notify team about completed rotation", connection: "slack-prod", action: "send_message", params: { channel: "#security", message: "EMERGENCY: All production keys rotated after public leak. Services restored." }, expectApproval: false },
-      { label: "Send postmortem", description: "Email incident postmortem to stakeholders", connection: "gmail-prod", action: "send_email", params: { type: "incident_report", recipient: "engineering@company.com", subject: "Postmortem: Production Key Leaked in Public Commit", body_preview: "Root cause: .env file committed. All keys rotated. Pre-commit hook added." }, expectApproval: false },
-    ],
-  }],
 };

@@ -282,7 +282,7 @@ echo -e "    - You approve/reject in real-time from the split-screen dashboard"
 echo -e "    - On approval, Auth0 Token Vault executes — agent never sees credentials"
 echo ""
 
-echo -e "  ${BOLD}Demo Agents (12):${NC}"
+echo -e "  ${BOLD}Demo Agents (8):${NC}"
 echo -e "    ${DIM}E-Commerce, Finance, DevOps, Security, HR, GDPR,${NC}"
 echo -e "    ${DIM}Open Source, Research, Communications, and more${NC}"
 echo ""

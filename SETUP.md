@@ -333,15 +333,18 @@ After the app is running and you've logged in + completed the Setup Wizard:
 
 ## Demo Agents
 
-12 AI agents across 5 domains, powered by local LLM (Qwen 2.5 7B via Ollama):
+8 AI agents across 5 domains, powered by local LLM (Qwen 2.5 7B via Ollama):
 
-| Domain | Agents |
-|--------|--------|
-| Commerce & Finance | Expense, Finance, Research |
-| DevOps & Software | Release Manager, Open Source, Security Incident, API Key Rotation |
-| Human Resources | Recruitment, Access Provisioning, Communications |
-| Customer Service | Account Takeover |
-| Legal & Compliance | GDPR Request |
+| Domain | Agent | Capabilities |
+|--------|-------|-------------|
+| Commerce & Finance | Expense & Finance | Refunds, payments, invoices, compensation |
+| DevOps | Release Manager | Deploy, rollback, hotfixes |
+| Security | Security & Incident Response | Lock repos, revoke tokens, freeze accounts, rotate keys |
+| HR & Access | Recruitment & Access | Offer letters, GitHub access, onboarding/offboarding |
+| Open Source | Open Source Maintenance | PR merges, releases, bounty payments |
+| Research | Research Operations | GPU provisioning, paper submission, datasets |
+| Compliance | GDPR Request | Data deletion, transfers, compliance emails |
+| Communications | Communications | Slack, email, Discord across all domains |
 
 Healthcare is available as a separate companion demo (`healthcare-agent/`).
 

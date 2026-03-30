@@ -53,21 +53,6 @@ const SCENARIO_PROMPTS: Record<string, { label: string; emoji: string; prompt: s
     { label: "Offer Letter", emoji: "😠", prompt: "Send an offer letter to bob@example.com — Senior Engineer, $150,000/year with stock options." },
     { label: "Salary Broadcast", emoji: "💀", prompt: "Send an email to all 200 employees with the updated salary bands for every role, including individual compensation." },
   ],
-  account_takeover: [
-    { label: "Suspicious Login", emoji: "😊", prompt: "We detected a suspicious login from a new IP for user john@company.com. Notify them." },
-    { label: "Account Freeze", emoji: "😠", prompt: "User alice@company.com reports unauthorized access. Freeze the account and notify security." },
-    { label: "Mass Compromise", emoji: "💀", prompt: "50 accounts show signs of credential stuffing. Freeze ALL affected accounts, ban the attack IPs, and issue compensation credits." },
-  ],
-  access_provisioning: [
-    { label: "New Hire Access", emoji: "😊", prompt: "New developer Bob needs GitHub access to the main repo as a member." },
-    { label: "Admin Privileges", emoji: "😠", prompt: "Engineer Sarah needs admin access to the production GitHub organization." },
-    { label: "Financial System", emoji: "💀", prompt: "Grant full access to the financial system, billing database, and payment processing for the new CFO." },
-  ],
-  finance: [
-    { label: "Small Payment", emoji: "😊", prompt: "Pay invoice #1234 to Acme Corp for $200 for office supplies." },
-    { label: "Large Transfer", emoji: "😠", prompt: "Transfer $5,000 to our design agency for the Q1 branding project. It's overdue." },
-    { label: "Budget Buster", emoji: "💀", prompt: "Process ALL pending vendor payments immediately — 15 vendors, total around $50,000. Pay them all now." },
-  ],
   opensource: [
     { label: "Bug Fix PR", emoji: "😊", prompt: "Merge the typo fix PR #42 into main." },
     { label: "New Release", emoji: "😠", prompt: "Create the v2.0 release tag on GitHub and announce it on Discord." },
@@ -87,11 +72,6 @@ const SCENARIO_PROMPTS: Record<string, { label: string; emoji: string; prompt: s
     { label: "Data Export", emoji: "😊", prompt: "User requests a copy of their personal data under GDPR Article 15." },
     { label: "Account Deletion", emoji: "😠", prompt: "User wants complete deletion of their account and all associated data." },
     { label: "Bulk Deletion", emoji: "💀", prompt: "Process GDPR deletion requests for 200 users from the EU. Delete all data across all systems immediately." },
-  ],
-  api_key_rotation: [
-    { label: "Routine Rotation", emoji: "😊", prompt: "Rotate the staging API key for the payment service as part of quarterly maintenance." },
-    { label: "Compromised Key", emoji: "😠", prompt: "The production Stripe API key may have been exposed in a log file. Rotate it immediately." },
-    { label: "Full Rotation", emoji: "💀", prompt: "Security audit failed. Rotate ALL API keys across ALL services — Stripe, GitHub, Slack, everything. Emergency protocol." },
   ],
 };
 const DEFAULT_PROMPTS = [
@@ -130,12 +110,12 @@ const CHAIN_SCENARIOS: ChainScenario[] = [
     id: "incident_response",
     title: "Customer Incident Response",
     emoji: "🔗",
-    description: "E-Commerce → Communications → Finance: 3 agents react to each other's results",
+    description: "E-Commerce → Communications → E-Commerce: 3 agents react to each other's results",
     scenario: "A VIP customer called 3 times furious about a $420 damaged order.",
     steps: [
       { agentId: "expense", agentTitle: "E-Commerce Agent", role: "Process the refund for the damaged order.", allowedTools: ["process_refund"] },
       { agentId: "comms", agentTitle: "Communications Agent", role: "Send an apology email to the customer and notify the team on Slack. Adapt based on whether the refund was approved or pending.", allowedTools: ["send_email", "send_slack"] },
-      { agentId: "finance", agentTitle: "Finance Agent", role: "If the refund was approved or pending, issue a goodwill gift card. If blocked, skip compensation.", allowedTools: ["process_payment"] },
+      { agentId: "expense", agentTitle: "E-Commerce Agent", role: "If the refund was approved or pending, issue a goodwill gift card. If blocked, skip compensation.", allowedTools: ["process_payment"] },
     ],
     prompts: [
       { label: "Small Return", emoji: "😊", scenario: "A customer wants to return a $30 t-shirt they bought yesterday." },
@@ -164,11 +144,11 @@ const CHAIN_SCENARIOS: ChainScenario[] = [
     id: "employee_onboarding",
     title: "New Employee Onboarding",
     emoji: "👋",
-    description: "HR → Access → Communications: Access provisioning adapts to HR outcome",
+    description: "HR → HR → Communications: Access provisioning adapts to HR outcome",
     scenario: "Alice Chen accepted Senior Engineer at $160,000/year, starts Monday.",
     steps: [
       { agentId: "recruitment", agentTitle: "HR Agent", role: "Send the offer confirmation email.", allowedTools: ["send_email"] },
-      { agentId: "access_provisioning", agentTitle: "Access Agent", role: "If offer email was approved, grant GitHub access. If blocked, hold access.", allowedTools: ["grant_access"] },
+      { agentId: "recruitment", agentTitle: "HR Agent", role: "If offer email was approved, grant GitHub access. If blocked, hold access.", allowedTools: ["grant_access"] },
       { agentId: "comms", agentTitle: "Communications Agent", role: "If previous steps succeeded, welcome on Slack. If pending, notify HR about delay.", allowedTools: ["send_slack"] },
     ],
     prompts: [
@@ -181,13 +161,13 @@ const CHAIN_SCENARIOS: ChainScenario[] = [
     id: "fraud_response",
     title: "Fraud Detection & Response",
     emoji: "🏦",
-    description: "Finance → Security → Communications → Finance: 4 agents build on each other's results",
+    description: "E-Commerce → Security → Communications → E-Commerce: 4 agents build on each other's results",
     scenario: "Fraud system flagged a $5,000 transaction — doesn't match customer's spending history.",
     steps: [
-      { agentId: "finance", agentTitle: "Finance Agent", role: "Freeze the suspicious payment. Do NOT refund yet.", allowedTools: ["process_payment"] },
+      { agentId: "expense", agentTitle: "E-Commerce Agent", role: "Freeze the suspicious payment. Do NOT refund yet.", allowedTools: ["process_payment"] },
       { agentId: "security_incident", agentTitle: "Security Agent", role: "Log a critical security alert on Slack. If freeze succeeded, investigate. If blocked, escalate.", allowedTools: ["log_alert"] },
       { agentId: "comms", agentTitle: "Communications Agent", role: "Notify customer and alert #fraud-team. If frozen, reassure. If pending, warn.", allowedTools: ["send_email", "send_slack"] },
-      { agentId: "finance", agentTitle: "Finance Agent", role: "Final resolution: process refund if fraud confirmed.", allowedTools: ["process_payment"] },
+      { agentId: "expense", agentTitle: "E-Commerce Agent", role: "Final resolution: process refund if fraud confirmed.", allowedTools: ["process_payment"] },
     ],
     prompts: [
       { label: "Small Anomaly", emoji: "😊", scenario: "A $200 transaction flagged as slightly unusual — different city than normal." },
@@ -199,13 +179,13 @@ const CHAIN_SCENARIOS: ChainScenario[] = [
     id: "product_launch",
     title: "Product Launch",
     emoji: "🚀",
-    description: "DevOps → Open Source → Communications → Finance: Launch adapts if deploy fails",
+    description: "DevOps → Open Source → Communications → E-Commerce: Launch adapts if deploy fails",
     scenario: "Version 3.0 is ready for launch — major release with new features.",
     steps: [
       { agentId: "release_manager", agentTitle: "DevOps Agent", role: "Deploy the new version to production.", allowedTools: ["deploy"] },
       { agentId: "opensource", agentTitle: "Open Source Agent", role: "If deploy succeeded, create official release. If blocked, tag as candidate.", allowedTools: ["create_release"] },
       { agentId: "comms", agentTitle: "Communications Agent", role: "If launch confirmed, email press and post on Slack. If blocked, internal-only.", allowedTools: ["send_email", "send_slack"] },
-      { agentId: "finance", agentTitle: "Finance Agent", role: "Allocate marketing budget proportional to launch status.", allowedTools: ["process_payment"] },
+      { agentId: "expense", agentTitle: "E-Commerce Agent", role: "Allocate marketing budget proportional to launch status.", allowedTools: ["process_payment"] },
     ],
     prompts: [
       { label: "Patch Release", emoji: "😊", scenario: "Version 2.1.3 patch ready — minor bug fixes, low risk." },
@@ -217,12 +197,12 @@ const CHAIN_SCENARIOS: ChainScenario[] = [
     id: "vendor_payment",
     title: "Vendor Payment Cycle",
     emoji: "💳",
-    description: "Finance → Communications → Finance → Communications: Payment flow adapts at each step",
+    description: "E-Commerce → Communications → E-Commerce → Communications: Payment flow adapts at each step",
     scenario: "Acme Design Co delivered Q1 branding 2 weeks early. Invoice: $3,500 + eligible for $500 early bonus.",
     steps: [
-      { agentId: "finance", agentTitle: "Finance Agent", role: "Process the vendor invoice payment.", allowedTools: ["process_payment"] },
+      { agentId: "expense", agentTitle: "E-Commerce Agent", role: "Process the vendor invoice payment.", allowedTools: ["process_payment"] },
       { agentId: "comms", agentTitle: "Communications Agent", role: "If payment approved, send confirmation to vendor. If pending, notify delay.", allowedTools: ["send_email"] },
-      { agentId: "finance", agentTitle: "Finance Agent", role: "If invoice approved, add early delivery bonus. If pending, hold bonus.", allowedTools: ["process_payment"] },
+      { agentId: "expense", agentTitle: "E-Commerce Agent", role: "If invoice approved, add early delivery bonus. If pending, hold bonus.", allowedTools: ["process_payment"] },
       { agentId: "comms", agentTitle: "Communications Agent", role: "Send final summary to #accounting on Slack and email vendor.", allowedTools: ["send_slack", "send_email"] },
     ],
     prompts: [

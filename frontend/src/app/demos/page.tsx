@@ -109,7 +109,7 @@ export default function DemosPage() {
           Demo Agents
         </h1>
         <p className="text-zinc-500 dark:text-zinc-400 mt-2 max-w-2xl text-sm leading-relaxed">
-          12 AI agents across 5 domains. Each has a conversational chat interface
+          8 AI agents across 5 domains. Each has a conversational chat interface
           that triggers real ApprovalKit approval flows via Auth0 Token Vault.
         </p>
       </div>
@@ -141,7 +141,7 @@ export default function DemosPage() {
                   ))}
                 </div>
                 <div className="flex items-center gap-4 text-xs text-zinc-500 dark:text-zinc-400">
-                  <span>12 specialized agents</span>
+                  <span>8 specialized agents</span>
                   <span>30 Token Vault services</span>
                   <span>Per-tool least privilege</span>
                   <span>Context-driven decisions</span>
@@ -165,7 +165,7 @@ export default function DemosPage() {
                 Quick Start: Setup All Demos
               </h2>
               <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                Creates connections, approvers, and rules for all 12 agents in one click.
+                Creates connections, approvers, and rules for all 8 agents in one click.
                 Run this first so every demo works out of the box.
               </p>
             </div>

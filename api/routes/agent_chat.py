@@ -314,18 +314,14 @@ STEP 1 — Identify the domain(s):
   COMMUNICATION: emails, Slack, announcements (usually the LAST step)
 
 STEP 2 — Select agents (one agent per domain, max 4):
-  expense: process_refund, send_email, process_compensation, notify_slack
-  finance: process_payment, send_invoice, notify_slack
+  expense: process_refund, send_email, process_compensation, notify_slack, process_payment
   comms: send_slack, send_email, post_discord
   release_manager: deploy, rollback, notify_slack
-  security_incident: log_alert, lock_repo, revoke_tokens
-  recruitment: send_email, add_to_github, notify_slack
-  access_provisioning: grant_access, revoke_access, notify_slack
+  security_incident: log_alert, lock_repo, revoke_tokens, freeze_account, ban_account, issue_credit, rotate_key, rotate_all_keys
+  recruitment: send_email, add_to_github, notify_slack, grant_access, revoke_access
   opensource: merge_pr, create_release, post_discord, pay_bounty
   research: provision_compute, submit_paper, purchase_dataset, notify_slack
   gdpr_request: process_deletion, process_transfer, send_compliance_email
-  api_key_rotation: rotate_key, rotate_all_keys, notify_slack
-  account_takeover: freeze_account, ban_account, issue_credit, send_notification
 
 STEP 3 — Assign each agent exactly 1-2 tools (least privilege).
 
@@ -346,7 +342,7 @@ User: "Security breach detected, lock repos and notify CTO"
 {"plan": [{"agent_id": "security_incident", "agent_title": "Security Agent", "role": "Lock repositories and revoke tokens", "allowed_tools": ["lock_repo", "revoke_tokens"]}, {"agent_id": "release_manager", "agent_title": "DevOps Agent", "role": "Rollback production to safe version", "allowed_tools": ["rollback"]}, {"agent_id": "comms", "agent_title": "Communications Agent", "role": "Email CTO and alert engineering on Slack", "allowed_tools": ["send_email", "send_slack"]}], "scenario": "Security incident response with lockdown and rollback"}
 
 User: "New developer Alice starts Monday, send offer and set up access"
-{"plan": [{"agent_id": "recruitment", "agent_title": "HR Agent", "role": "Send offer confirmation email", "allowed_tools": ["send_email"]}, {"agent_id": "access_provisioning", "agent_title": "Access Agent", "role": "Grant GitHub access", "allowed_tools": ["grant_access"]}, {"agent_id": "comms", "agent_title": "Communications Agent", "role": "Welcome message on Slack", "allowed_tools": ["send_slack"]}], "scenario": "New employee onboarding"}
+{"plan": [{"agent_id": "recruitment", "agent_title": "HR Agent", "role": "Send offer confirmation email and grant GitHub access", "allowed_tools": ["send_email", "grant_access"]}, {"agent_id": "comms", "agent_title": "Communications Agent", "role": "Welcome message on Slack", "allowed_tools": ["send_slack"]}], "scenario": "New employee onboarding"}
 
 User: "Deploy v3.0 and announce the launch"
 {"plan": [{"agent_id": "release_manager", "agent_title": "DevOps Agent", "role": "Deploy v3.0 to production", "allowed_tools": ["deploy"]}, {"agent_id": "opensource", "agent_title": "Open Source Agent", "role": "Create GitHub release", "allowed_tools": ["create_release"]}, {"agent_id": "comms", "agent_title": "Communications Agent", "role": "Send launch announcement", "allowed_tools": ["send_email", "send_slack"]}], "scenario": "Product launch with deployment and announcement"}
