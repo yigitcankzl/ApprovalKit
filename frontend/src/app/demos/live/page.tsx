@@ -679,7 +679,7 @@ export default function LiveThreatDemoPage() {
                     <div className="flex items-center gap-2 px-4 py-2.5">
                       <Link2 className="h-3.5 w-3.5 text-purple-500" />
                       {chain.prompts.map((p, i) => (
-                        <button key={i} onClick={() => runChainWithScenario(chain, p.scenario)} disabled={isTyping || chainRunning || !setupDone || !hasAIKey}
+                        <button key={i} onClick={() => setInputText(p.scenario)} disabled={isTyping || chainRunning}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-purple-200/60 dark:border-purple-800/40 hover:border-purple-400 dark:hover:border-purple-600 bg-purple-50/30 dark:bg-purple-950/10 text-purple-700 dark:text-purple-400 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                         >
                           <span>{p.emoji}</span><span>{p.label}</span>
