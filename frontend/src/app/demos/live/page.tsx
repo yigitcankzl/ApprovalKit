@@ -12,7 +12,7 @@ import {
   Play, Server, Shield, ShieldAlert, ShieldCheck, ShieldOff,
   Users, Zap, AlertTriangle, XCircle, Clock, Lock,
   ThumbsUp, ThumbsDown, Activity, Send, RotateCcw,
-  Wrench, Sparkles, Link2,
+  Wrench, Sparkles, Link2, PanelRightClose, PanelRightOpen,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -826,6 +826,13 @@ export default function LiveThreatDemoPage() {
               <Button type="submit" disabled={isTyping || chainRunning || !inputText.trim() || !setupDone || !hasAIKey} className="rounded-xl px-4 shadow-md hover:shadow-lg transition-shadow">
                 <Send className="h-4 w-4" />
               </Button>
+              <button
+                onClick={() => setShieldCollapsed(prev => !prev)}
+                className="rounded-xl px-3 py-2.5 border border-zinc-200/60 dark:border-zinc-700/40 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                title={shieldCollapsed ? "Show Shield Panel" : "Hide Shield Panel"}
+              >
+                {shieldCollapsed ? <PanelRightOpen className="h-4 w-4 text-zinc-500" /> : <PanelRightClose className="h-4 w-4 text-zinc-500" />}
+              </button>
             </form>
           </div>
         </div>
