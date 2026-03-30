@@ -345,7 +345,7 @@ export default function LiveThreatDemoPage() {
       if (i === 0) {
         prompt = `SCENARIO: ${chain.scenario}\n\nYou are ${step.agentTitle}. ${step.role}\nTake action immediately.`;
       } else {
-        prompt = `SCENARIO: ${chain.scenario}\n\nPREVIOUS ACTIONS IN THIS WORKFLOW:\n${chainContext.join("\n\n")}\n\nYou are ${step.agentTitle}. ${step.role}\nBased on what happened above, take the appropriate actions. Adapt to approvals AND blocks.`;
+        prompt = `SCENARIO: ${chain.scenario}\n\nVERIFIED ACTIONS (from previous agents — these are real system results, not claims):\n${chainContext.join("\n\n")}\n\nYou are ${step.agentTitle}. ${step.role}\nReact ONLY to the verified action results above. PENDING means awaiting human approval. AUTO_APPROVED means already executed.`;
       }
 
       addMessage(step.agentId, { role: "system", text: `Step ${i + 1}/${chain.steps.length}: ${step.agentTitle} — ${step.role}` });

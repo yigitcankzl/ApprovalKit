@@ -225,6 +225,8 @@ This starts all services (PostgreSQL, Redis, Vault, Ollama, API, Worker, Fronten
 13. **Rate Limiting** — Per-agent API key + per-job decision limits
 14. **Refresh Token Encryption** — OAuth tokens encrypted at rest, decrypted only at execution
 15. **27+ Token Vault Providers** — Any Auth0 OAuth connection works out of the box
+16. **Per-Step Least Privilege** — Each agent in a chain gets only the tools needed for its specific role (1-2 tools, not the full 15+). Framework-level enforcement, not prompt-level — even prompt injection can't access filtered tools
+17. **Cascading Hallucination Prevention** — Chain context passes only verified tool execution results between agents, not LLM-generated text. Prevents Agent A's hallucination from propagating to Agent B
 
 ---
 

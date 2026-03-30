@@ -305,28 +305,37 @@ class OrchestrateResponse(BaseModel):
 
 ORCHESTRATOR_PROMPT = """You are an AI workflow planner. Given a user's request, decide which specialized agents should handle it and in what order.
 
-Available agents and their tools:
-- expense (E-Commerce): process_refund, send_email, process_compensation, notify_slack
-- finance (Finance): process_payment, send_invoice, notify_slack
-- comms (Communications): send_slack, send_email, post_discord
-- release_manager (DevOps): deploy, rollback, notify_slack
-- security_incident (Security): log_alert, lock_repo, revoke_tokens
-- recruitment (HR): send_email, add_to_github, notify_slack
-- access_provisioning (Access): grant_access, revoke_access, notify_slack
-- opensource (Open Source): merge_pr, create_release, post_discord, pay_bounty
-- research (Research): provision_compute, submit_paper, purchase_dataset, notify_slack
-- gdpr_request (GDPR): process_deletion, process_transfer, send_compliance_email
-- api_key_rotation (Key Rotation): rotate_key, rotate_all_keys, notify_slack
+STEP 1 — Identify the domain(s):
+  FINANCE: payments, refunds, invoices, budgets, compensation
+  SECURITY: breaches, access control, key rotation, lockdowns
+  DEVOPS: deployments, releases, rollbacks, hotfixes
+  HR: hiring, onboarding, offboarding, access provisioning
+  COMPLIANCE: GDPR, data deletion, audits, transfers
+  COMMUNICATION: emails, Slack, announcements (usually the LAST step)
+
+STEP 2 — Select agents (one agent per domain, max 4):
+  expense: process_refund, send_email, process_compensation, notify_slack
+  finance: process_payment, send_invoice, notify_slack
+  comms: send_slack, send_email, post_discord
+  release_manager: deploy, rollback, notify_slack
+  security_incident: log_alert, lock_repo, revoke_tokens
+  recruitment: send_email, add_to_github, notify_slack
+  access_provisioning: grant_access, revoke_access, notify_slack
+  opensource: merge_pr, create_release, post_discord, pay_bounty
+  research: provision_compute, submit_paper, purchase_dataset, notify_slack
+  gdpr_request: process_deletion, process_transfer, send_compliance_email
+  api_key_rotation: rotate_key, rotate_all_keys, notify_slack
+  account_takeover: freeze_account, ban_account, issue_credit, send_notification
+
+STEP 3 — Assign each agent exactly 1-2 tools (least privilege).
 
 Rules:
-- Pick 2-4 agents maximum
-- Each agent should have a specific role (one sentence)
-- Each agent should only get the tools it needs for its role (1-2 tools max)
-- Order matters: first agent handles the primary action, subsequent agents react
-- RESPOND ONLY WITH VALID JSON, no markdown, no explanation
+- Each agent does ONE job — never overlap responsibilities
+- Communication (comms) is usually the LAST step to notify about results
+- Order: primary action first → investigation/follow-up → notification last
+- RESPOND ONLY WITH VALID JSON
 
-Response format:
-{"plan": [{"agent_id": "expense", "agent_title": "E-Commerce Agent", "role": "Process the refund", "allowed_tools": ["process_refund"]}, ...], "scenario": "one line summary of the situation"}"""
+{"plan": [{"agent_id": "...", "agent_title": "... Agent", "role": "one sentence", "allowed_tools": ["tool1"]}, ...], "scenario": "one line summary"}"""
 
 
 @router.post("/orchestrate")
@@ -345,31 +354,57 @@ async def orchestrate(
     from openai import OpenAI
     client = OpenAI(api_key=api_key or "ollama", base_url=pconfig["base_url"], timeout=30)
 
-    try:
-        resp = client.chat.completions.create(
-            model=pconfig["model"],
-            messages=[
-                {"role": "system", "content": ORCHESTRATOR_PROMPT},
-                {"role": "user", "content": req.message},
-            ],
-            temperature=0.3,
-        )
+    import re as _re
 
-        text = resp.choices[0].message.content or "{}"
-        # Strip markdown code blocks if present
+    def _parse_plan(text: str) -> dict:
+        """Extract JSON from LLM response — handles markdown, extra text, etc."""
         text = text.strip()
-        if text.startswith("```"):
-            text = text.split("\n", 1)[-1].rsplit("```", 1)[0]
+        # Strip markdown code blocks
+        if "```" in text:
+            match = _re.search(r"```(?:json)?\s*\n?(.*?)```", text, _re.DOTALL)
+            if match:
+                text = match.group(1).strip()
+        # Find first { ... } block
+        start = text.find("{")
+        if start == -1:
+            raise ValueError("No JSON object found in response")
+        depth = 0
+        for i in range(start, len(text)):
+            if text[i] == "{": depth += 1
+            elif text[i] == "}": depth -= 1
+            if depth == 0:
+                return json.loads(text[start:i+1])
+        return json.loads(text[start:])
 
-        data = json.loads(text)
-        plan = [OrchestrateStep(**s) for s in data.get("plan", [])]
-        scenario = data.get("scenario", req.message)
+    # Try up to 2 times (retry on parse failure)
+    last_error = None
+    for attempt in range(2):
+        try:
+            resp = client.chat.completions.create(
+                model=pconfig["model"],
+                messages=[
+                    {"role": "system", "content": ORCHESTRATOR_PROMPT},
+                    {"role": "user", "content": req.message},
+                ],
+                temperature=0.2 if attempt == 0 else 0.1,
+                response_format={"type": "json_object"},  # Structured output
+            )
 
-        return OrchestrateResponse(plan=plan, scenario=scenario)
+            text = resp.choices[0].message.content or "{}"
+            data = _parse_plan(text)
+            plan = [OrchestrateStep(**s) for s in data.get("plan", [])]
+            scenario = data.get("scenario", req.message)
 
-    except Exception as e:
-        logging.getLogger(__name__).error(f"Orchestrate error: {e}")
-        raise HTTPException(500, f"Planning failed: {str(e)[:200]}")
+            if not plan:
+                raise ValueError("Empty plan returned")
+
+            return OrchestrateResponse(plan=plan, scenario=scenario)
+
+        except Exception as e:
+            last_error = e
+            logging.getLogger(__name__).warning(f"Orchestrate attempt {attempt+1} failed: {e}")
+
+    raise HTTPException(500, f"Planning failed after 2 attempts: {str(last_error)[:200]}")
 
 
 @router.get("/{agent_id}/suggestions")
