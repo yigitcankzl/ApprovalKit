@@ -105,7 +105,7 @@ const DEFAULT_PROMPTS = [
 interface ChainStep {
   agentId: string;
   agentTitle: string;
-  prompt: string;
+  role: string;
 }
 
 interface ChainScenario {
@@ -113,6 +113,7 @@ interface ChainScenario {
   title: string;
   description: string;
   emoji: string;
+  scenario: string;
   steps: ChainStep[];
 }
 
@@ -121,69 +122,75 @@ const CHAIN_SCENARIOS: ChainScenario[] = [
     id: "incident_response",
     title: "Customer Incident Response",
     emoji: "🔗",
-    description: "E-Commerce → Communications → Finance: 3 agents handle a customer complaint end-to-end",
+    description: "E-Commerce → Communications → Finance: 3 agents react to each other's results",
+    scenario: "A VIP customer called 3 times furious about a $420 damaged order. The company needs to handle financial resolution, customer communication, and compensation — but each step depends on what the previous agent accomplished.",
     steps: [
-      { agentId: "expense", agentTitle: "E-Commerce Agent", prompt: "A VIP customer received a defective product worth $420. Process a full refund immediately." },
-      { agentId: "comms", agentTitle: "Communications Agent", prompt: "Send an apology email to customer@example.com about their defective product and the refund we just processed. Also notify the team on Slack #customer_service." },
-      { agentId: "finance", agentTitle: "Finance Agent", prompt: "Issue a $100 compensation gift card to the VIP customer as goodwill for the defective product incident." },
+      { agentId: "expense", agentTitle: "E-Commerce Agent", role: "Handle the financial resolution for the damaged order — process refunds or charges as appropriate." },
+      { agentId: "comms", agentTitle: "Communications Agent", role: "Handle all customer-facing and internal communication. Adapt your message based on whether the refund was approved, pending, or blocked." },
+      { agentId: "finance", agentTitle: "Finance Agent", role: "Handle compensation or remaining financial actions. Consider what was already approved or blocked before deciding on amounts." },
     ],
   },
   {
     id: "security_breach",
     title: "Security Breach Response",
     emoji: "🚨",
-    description: "Security → DevOps → Communications: Coordinated incident response across 3 teams",
+    description: "Security → DevOps → Communications: Each agent adapts based on previous outcomes",
+    scenario: "Unauthorized access detected on production systems — multiple failed login attempts from unknown IPs. The security team flagged this as a potential breach. Multiple teams need to coordinate an immediate response.",
     steps: [
-      { agentId: "security_incident", agentTitle: "Security Agent", prompt: "We detected unauthorized access attempts. Lock the main repository and revoke all production tokens immediately." },
-      { agentId: "release_manager", agentTitle: "DevOps Agent", prompt: "Rollback production to the last known safe version v1.9.2 due to a security incident." },
-      { agentId: "comms", agentTitle: "Communications Agent", prompt: "Send an urgent security incident notification to #engineering on Slack and email the CTO at cto@company.com with the incident details." },
+      { agentId: "security_incident", agentTitle: "Security Agent", role: "Secure the systems immediately — lock down access and revoke any compromised credentials." },
+      { agentId: "release_manager", agentTitle: "DevOps Agent", role: "Handle infrastructure response. If security lockdown succeeded, proceed with safe rollback. If it was blocked, deploy an emergency hotfix instead." },
+      { agentId: "comms", agentTitle: "Communications Agent", role: "Notify all relevant parties. If the incident is contained, send an all-clear. If actions are still pending, send a critical ongoing-incident alert." },
     ],
   },
   {
     id: "employee_onboarding",
     title: "New Employee Onboarding",
     emoji: "👋",
-    description: "HR → Access → Communications: Automated onboarding across HR, IT, and comms",
+    description: "HR → Access → Communications: Access provisioning adapts to HR outcome",
+    scenario: "Alice Chen has accepted the Senior Engineer position at $160,000/year and starts next Monday. The company needs to complete all onboarding steps across HR, IT, and team communication before her first day.",
     steps: [
-      { agentId: "recruitment", agentTitle: "HR Agent", prompt: "Send an offer letter to alice@example.com for the Senior Engineer position at $160,000/year." },
-      { agentId: "access_provisioning", agentTitle: "Access Agent", prompt: "Grant GitHub access to new developer Alice as a member of the engineering organization." },
-      { agentId: "comms", agentTitle: "Communications Agent", prompt: "Send a welcome message to #general on Slack announcing Alice is joining the engineering team. Also email the team at engineering@company.com." },
+      { agentId: "recruitment", agentTitle: "HR Agent", role: "Handle the formal HR actions — send the offer confirmation and employment documents to Alice." },
+      { agentId: "access_provisioning", agentTitle: "Access Agent", role: "Set up system access and permissions. If the offer letter was sent successfully, grant standard access. If it was blocked (high salary needing CFO approval), hold provisioning." },
+      { agentId: "comms", agentTitle: "Communications Agent", role: "Handle onboarding communications. If everything is confirmed, send a welcome to the team. If steps are pending, notify HR about the delay." },
     ],
   },
   {
     id: "fraud_response",
     title: "Fraud Detection & Response",
     emoji: "🏦",
-    description: "Finance → Security → Communications → Finance: 4 agents handle a suspicious transaction",
+    description: "Finance → Security → Communications → Finance: 4 agents build on each other's results",
+    scenario: "The fraud detection system flagged a $5,000 transaction that doesn't match the customer's spending history. The pattern suggests potential unauthorized access. Multiple teams need to investigate and resolve this.",
     steps: [
-      { agentId: "finance", agentTitle: "Finance Agent", prompt: "A suspicious $5,000 transaction was flagged on a customer account. Freeze the payment and hold the funds pending investigation." },
-      { agentId: "security_incident", agentTitle: "Security Agent", prompt: "A potential fraud case was detected — $5,000 suspicious transaction. Lock the affected repository access and log a critical security alert to the team on Slack." },
-      { agentId: "comms", agentTitle: "Communications Agent", prompt: "Send a security notification email to affected-customer@example.com informing them their account is secured and the suspicious transaction is under review. Also alert #fraud-team on Slack." },
-      { agentId: "finance", agentTitle: "Finance Agent", prompt: "Process a full $5,000 refund to the affected customer after the fraud investigation confirmed unauthorized access." },
+      { agentId: "finance", agentTitle: "Finance Agent", role: "Handle the immediate financial response — freeze or hold the suspicious transaction." },
+      { agentId: "security_incident", agentTitle: "Security Agent", role: "Investigate and secure affected systems. Adapt your response based on whether the financial freeze succeeded or was blocked." },
+      { agentId: "comms", agentTitle: "Communications Agent", role: "Notify the customer and internal teams. Tailor your message based on whether funds were frozen and systems secured, or if the situation is still unresolved." },
+      { agentId: "finance", agentTitle: "Finance Agent", role: "Handle the final financial resolution. If the investigation confirmed fraud, process a refund. If funds are still frozen, release them. Base your decision on everything that happened." },
     ],
   },
   {
     id: "product_launch",
     title: "Product Launch",
     emoji: "🚀",
-    description: "DevOps → Open Source → Communications → Finance: Full launch lifecycle across 4 teams",
+    description: "DevOps → Open Source → Communications → Finance: Launch adapts if deploy fails",
+    scenario: "Version 3.0 is ready — a major release with new features the team has been building for months. The launch requires coordinated deployment, public announcement, and marketing activation. But if any step fails, the rest must adapt.",
     steps: [
-      { agentId: "release_manager", agentTitle: "DevOps Agent", prompt: "Deploy version v3.0.0 to production — this is the big product launch release." },
-      { agentId: "opensource", agentTitle: "Open Source Agent", prompt: "Create the v3.0.0 release tag on GitHub with release notes about the new product features." },
-      { agentId: "comms", agentTitle: "Communications Agent", prompt: "Send a product launch announcement email to press@techcrunch.com and post the announcement on Slack #general and #marketing." },
-      { agentId: "finance", agentTitle: "Finance Agent", prompt: "Allocate $2,000 for the product launch marketing campaign — social media ads and promotional materials." },
+      { agentId: "release_manager", agentTitle: "DevOps Agent", role: "Handle the production deployment of v3.0." },
+      { agentId: "opensource", agentTitle: "Open Source Agent", role: "Handle public release artifacts. If deploy succeeded, create the official release. If it was blocked, tag it as a release candidate instead." },
+      { agentId: "comms", agentTitle: "Communications Agent", role: "Handle all launch communications. If the launch is confirmed, announce publicly. If blocked or pending, send internal-only updates — do NOT contact press." },
+      { agentId: "finance", agentTitle: "Finance Agent", role: "Handle launch-related spending. Allocate full marketing budget if launch is live, or reduced budget if launch is delayed." },
     ],
   },
   {
     id: "vendor_payment",
     title: "Vendor Payment Cycle",
     emoji: "💳",
-    description: "Finance → Communications → Finance → Communications: End-to-end vendor payment with notifications",
+    description: "Finance → Communications → Finance → Communications: Payment flow adapts at each step",
+    scenario: "Acme Design Co delivered the Q1 branding project 2 weeks ahead of schedule. They invoiced $3,500 and qualify for a $500 early delivery bonus. The full payment cycle needs to be processed with appropriate notifications.",
     steps: [
-      { agentId: "finance", agentTitle: "Finance Agent", prompt: "Process invoice payment of $3,500 to our design agency Acme Design Co for the Q1 branding project." },
-      { agentId: "comms", agentTitle: "Communications Agent", prompt: "Send a payment confirmation email to billing@acmedesign.com confirming the $3,500 payment for the Q1 branding project is being processed." },
-      { agentId: "finance", agentTitle: "Finance Agent", prompt: "Issue a $500 early payment bonus to Acme Design Co as they delivered the branding project 2 weeks early." },
-      { agentId: "comms", agentTitle: "Communications Agent", prompt: "Notify #accounting on Slack that vendor payments for Acme Design Co have been processed — $3,500 invoice + $500 early delivery bonus." },
+      { agentId: "finance", agentTitle: "Finance Agent", role: "Process the vendor's $3,500 invoice payment." },
+      { agentId: "comms", agentTitle: "Communications Agent", role: "Send appropriate payment notifications to the vendor. If payment was approved, send a confirmation. If blocked, notify them of the delay." },
+      { agentId: "finance", agentTitle: "Finance Agent", role: "Handle the early delivery bonus. If the original invoice was approved, add the $500 bonus. If the invoice is still pending, hold the bonus too." },
+      { agentId: "comms", agentTitle: "Communications Agent", role: "Send final status updates to the vendor and internal accounting team with the complete payment summary." },
     ],
   },
 ];
@@ -278,38 +285,57 @@ export default function LiveThreatDemoPage() {
   const resetSummary = () => { setEvents([]); setSummary({ totalActions: 0, autoApproved: 0, pendingApproval: 0, blocked: 0, preventedDamage: 0 }); };
   const handleSeedAll = async () => { setSeeding(true); try { await api.seedDemoData(undefined, user?.sub); setSetupDone(true); } catch {} setSeeding(false); };
 
-  // ── Agent Chain Runner ──────────────────────────────────────────────
+  // ── Context-Driven Agent Chain Runner ─────────────────────────────
   const runChain = async (chain: ChainScenario) => {
     if (chainRunning || isTyping) return;
     setActiveChain(chain);
     setChainStepIndex(0);
     setChainRunning(true);
     resetSummary();
-    // Clear all messages
     setMessages({});
 
-    const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    // Accumulate context from each step's results
+    const chainContext: string[] = [];
 
     for (let i = 0; i < chain.steps.length; i++) {
       const step = chain.steps[i];
       setChainStepIndex(i);
 
-      // Add system message showing which agent is running
+      // Build context-aware prompt
+      let prompt: string;
+      if (i === 0) {
+        prompt = `SCENARIO: ${chain.scenario}\n\nYou are ${step.agentTitle}. ${step.role}\nTake action immediately.`;
+      } else {
+        prompt = `SCENARIO: ${chain.scenario}\n\nPREVIOUS ACTIONS IN THIS WORKFLOW:\n${chainContext.join("\n\n")}\n\nYou are ${step.agentTitle}. ${step.role}\nBased on what happened above, take the appropriate actions. Adapt to approvals AND blocks.`;
+      }
+
       addMessage(step.agentId, { role: "system", text: `Step ${i + 1}/${chain.steps.length}: ${step.agentTitle}` });
-      addMessage(step.agentId, { role: "user", text: step.prompt });
+      addMessage(step.agentId, { role: "user", text: prompt });
       setIsTyping(true);
 
+      let stepResultSummary = `Step ${i + 1} — ${step.agentTitle}:`;
+
       try {
-        // Use non-streaming for chain (simpler, more reliable)
-        const res = await api.chatWithAgent(step.agentId, step.prompt, step.agentTitle, sessionIds[step.agentId] || "");
+        const res = await api.chatWithAgent(step.agentId, prompt, step.agentTitle, sessionIds[step.agentId] || "");
         if (res.session_id) setSessionIds(prev => ({ ...prev, [step.agentId]: res.session_id }));
         addMessage(step.agentId, { role: "agent", text: res.response || "Done." });
 
         const actions = res.actions || (res.action ? [res.action] : []);
+
+        // Build result summary for next agent's context
+        if (actions.length === 0) {
+          stepResultSummary += "\n  No actions taken.";
+        }
+
         for (let j = 0; j < actions.length; j++) {
           if (j > 0) await new Promise(r => setTimeout(r, 500));
           const a = actions[j];
           const status = a.status || "auto_approved";
+          const amount = a.params?.amount_usd ? ` ($${a.params.amount_usd})` : "";
+
+          // Add to context for next agent
+          stepResultSummary += `\n  - ${a.connection || "?"}/${a.action || "?"}${amount} → ${status.toUpperCase()}${a.rule_name ? ` (rule: ${a.rule_name})` : ""}`;
+
           addMessage(step.agentId, {
             role: "tool", text: `${a.connection || "?"}/${a.action || "?"}`,
             toolName: a.action, toolArgs: a.params,
@@ -332,11 +358,14 @@ export default function LiveThreatDemoPage() {
         }
       } catch (e: any) {
         addMessage(step.agentId, { role: "system", text: `Error: ${e.message}` });
+        stepResultSummary += `\n  ERROR: ${e.message}`;
       }
+
+      // Add this step's results to the growing context
+      chainContext.push(stepResultSummary);
 
       setIsTyping(false);
 
-      // Pause between agents
       if (i < chain.steps.length - 1) {
         await new Promise(r => setTimeout(r, 1500));
       }
