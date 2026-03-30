@@ -19,6 +19,7 @@ import {
   Rocket,
   AlertTriangle,
   CheckCircle2,
+  ArrowLeft,
   ArrowRight,
   ExternalLink,
   FileCode,
@@ -191,6 +192,13 @@ export default function SetupGuidePage() {
         {/*  INTRODUCTION                                                 */}
         {/* ============================================================ */}
         <Section id="introduction">
+          <a
+            href="/dashboard"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 shadow-sm transition-colors mb-6"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Dashboard
+          </a>
           <h1 className="text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-emerald-500 mb-2">
             Setup &amp; Integration Guide
           </h1>

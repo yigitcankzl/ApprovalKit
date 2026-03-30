@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { FormError } from "@/components/ui/form-error";
 import {
-  CheckCircle2, ArrowRight, Shield, GitBranch, Users, Plug,
+  CheckCircle2, ArrowRight, ArrowLeft, Shield, GitBranch, Users, Plug,
   Copy, Check, Loader2, LogOut, Bot, Rocket,
 } from "lucide-react";
 import { api, setUserSub } from "@/lib/api";
@@ -83,7 +83,16 @@ export default function SetupPage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center py-12 px-4">
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center py-12 px-4 relative">
+      {/* Back to Dashboard */}
+      <button
+        onClick={() => router.push("/dashboard")}
+        className="fixed top-5 left-5 z-50 inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 shadow-sm transition-colors"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Dashboard
+      </button>
+
       <div className="w-full max-w-lg">
         {/* Logo + title */}
         <div className="text-center mb-8">

@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Copy, Check, BookOpen, Shield, Key, Smartphone, Lock, Layers } from "lucide-react";
+import { Copy, Check, BookOpen, Shield, Key, Smartphone, Lock, Layers, ArrowLeft } from "lucide-react";
+import Link from "next/link";
 
 function CodeBlock({ code, language = "python" }: { code: string; language?: string }) {
   const [copied, setCopied] = useState(false);
@@ -108,6 +109,13 @@ export default function DocsPage() {
 
         {/* Header */}
         <div>
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 shadow-sm transition-colors mb-6"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Dashboard
+          </Link>
           <h1 className="text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-emerald-500 mb-2">
             Documentation
           </h1>
