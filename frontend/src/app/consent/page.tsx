@@ -340,7 +340,7 @@ export default function ConsentPage() {
                           OAuth Scopes
                         </h4>
                         <div className="space-y-1.5">
-                          {service.oauth_scopes.map((scope) => (
+                          {(Array.isArray(service.oauth_scopes) ? service.oauth_scopes : []).map((scope) => (
                             <div
                               key={scope}
                               className="text-xs font-mono px-2 py-1 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
