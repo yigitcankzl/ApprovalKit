@@ -347,7 +347,10 @@ export default function LiveThreatDemoPage() {
         prompt = `SCENARIO: ${chain.scenario}\n\nPREVIOUS ACTIONS IN THIS WORKFLOW:\n${chainContext.join("\n\n")}\n\nYou are ${step.agentTitle}. ${step.role}\nBased on what happened above, take the appropriate actions. Adapt to approvals AND blocks.`;
       }
 
-      addMessage(step.agentId, { role: "system", text: `Step ${i + 1}/${chain.steps.length}: ${step.agentTitle}` });
+      addMessage(step.agentId, { role: "system", text: `Step ${i + 1}/${chain.steps.length}: ${step.agentTitle} — ${step.role}` });
+      if (step.allowedTools && step.allowedTools.length > 0) {
+        addMessage(step.agentId, { role: "system", text: `Available tools: ${step.allowedTools.join(", ")}` });
+      }
       addMessage(step.agentId, { role: "user", text: prompt });
       setIsTyping(true);
 
@@ -778,7 +781,10 @@ export default function LiveThreatDemoPage() {
                 addMessage("orchestrator", { role: "user", text: inputText.trim() });
                 try {
                   const plan = await api.orchestrate(inputText.trim());
-                  addMessage("orchestrator", { role: "system", text: `Plan: ${plan.plan.map((s: any) => s.agent_title).join(" → ")}` });
+                  const planSteps = plan.plan.map((s: any, i: number) =>
+                    `${i + 1}. ${s.agent_title} — ${s.role} [tools: ${s.allowed_tools.join(", ")}]`
+                  ).join("\n");
+                  addMessage("orchestrator", { role: "agent", text: `🧠 Orchestrator Plan:\n\n${planSteps}\n\nScenario: ${plan.scenario}` });
                   const dynamicChain: ChainScenario = {
                     id: "dynamic", title: "Auto-Planned Chain", emoji: "🧠",
                     description: plan.scenario, scenario: plan.scenario,
