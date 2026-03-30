@@ -11,7 +11,7 @@ const STORAGE_KEY = "sidebar-collapsed";
 export function ConditionalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, isLoading } = useUser();
-  const isWelcome = pathname === "/" || pathname === "/docs" || pathname === "/setup" || pathname === "/login";
+  const isWelcome = pathname === "/" || pathname === "/docs" || pathname?.startsWith("/docs/") || pathname === "/setup" || pathname === "/login";
   const [collapsed, setCollapsed] = useState(false);
   const [subReady, setSubReady] = useState(false);
 

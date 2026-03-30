@@ -130,11 +130,6 @@ const NAV = [
   { id: "services-oauth", label: "  OAuth Providers" },
   { id: "services-m2m", label: "  M2M / API Keys" },
   { id: "services-webhooks", label: "  Webhooks" },
-  { id: "deployment", label: "Deployment" },
-  { id: "deploy-frontend", label: "  Frontend (Vercel)" },
-  { id: "deploy-backend", label: "  Backend (Railway)" },
-  { id: "deploy-database", label: "  Database & Redis" },
-  { id: "deploy-env", label: "  Environment Vars" },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -209,7 +204,7 @@ export default function SetupGuidePage() {
             {[
               { icon: <Settings className="h-5 w-5" />, title: "~30 min setup", desc: "Auth0, Docker, and first rule" },
               { icon: <FileCode className="h-5 w-5" />, title: "2 lines of code", desc: "Add SDK to any Python agent" },
-              { icon: <Cloud className="h-5 w-5" />, title: "Production-ready", desc: "Vercel + Railway deploy guide" },
+              { icon: <Cloud className="h-5 w-5" />, title: "Docker Compose", desc: "One-command local setup" },
             ].map((c) => (
               <Card key={c.title}>
                 <CardContent className="pt-5">
@@ -1403,195 +1398,7 @@ curl -X POST http://localhost:8000/api/v1/connections \\
 #   }`} />
         </Section>
 
-        {/* ============================================================ */}
-        {/*  DEPLOYMENT                                                   */}
-        {/* ============================================================ */}
-        <Section id="deployment">
-          <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-4 flex items-center gap-2">
-            <Rocket className="h-5 w-5 text-blue-500" /> Deployment
-          </h2>
-          <p className="text-zinc-600 dark:text-zinc-400 mb-4">
-            The recommended production stack is Vercel (frontend), Railway (backend), and managed
-            PostgreSQL + Redis. You can of course deploy to any platform that supports
-            Next.js and Python.
-          </p>
-        </Section>
-
-        {/* --- Deploy: Frontend --- */}
-        <Section id="deploy-frontend">
-          <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 mb-3 flex items-center gap-2">
-            <StepNumber n={1} /> Deploy Frontend to Vercel
-          </h3>
-          <CodeBlock language="bash" code={`# Option A: Connect via Vercel Dashboard
-# 1. Go to vercel.com/new
-# 2. Import your Git repository
-# 3. Set the root directory to "frontend"
-# 4. Framework Preset: Next.js
-# 5. Add environment variables (see below)
-# 6. Deploy
-
-# Option B: Deploy via CLI
-cd frontend
-npx vercel --prod
-
-# Set environment variables in Vercel dashboard:
-# AUTH0_SECRET          -> openssl rand -hex 32
-# AUTH0_BASE_URL        -> https://your-app.vercel.app
-# AUTH0_ISSUER_BASE_URL -> https://approvalkit-dev.us.auth0.com
-# AUTH0_CLIENT_ID       -> <from Auth0 web app>
-# AUTH0_CLIENT_SECRET   -> <from Auth0 web app>
-# AUTH0_AUDIENCE        -> https://api.approvalkit.dev
-# NEXT_PUBLIC_API_URL   -> https://your-backend.railway.app`} />
-          <Callout type="warning">
-            Remember to update the Auth0 <strong>Allowed Callback URLs</strong>, <strong>Logout URLs</strong>,
-            and <strong>Web Origins</strong> with your Vercel domain.
-          </Callout>
-        </Section>
-
-        {/* --- Deploy: Backend --- */}
-        <Section id="deploy-backend">
-          <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 mb-3 flex items-center gap-2">
-            <StepNumber n={2} /> Deploy Backend to Railway
-          </h3>
-          <CodeBlock language="bash" code={`# Option A: Connect via Railway Dashboard
-# 1. Go to railway.app/new
-# 2. Deploy from GitHub repo
-# 3. Set the root directory to "backend"
-# 4. Railway auto-detects the Dockerfile
-# 5. Add environment variables
-# 6. Deploy
-
-# Option B: Deploy via CLI
-cd backend
-railway up
-
-# Railway configuration
-# Service: backend
-#   Start command: uvicorn main:app --host 0.0.0.0 --port $PORT
-#   Health check: /api/v1/health
-
-# Service: worker
-#   Start command: python worker.py
-#   No public port needed`} />
-        </Section>
-
-        {/* --- Deploy: Database --- */}
-        <Section id="deploy-database">
-          <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 mb-3 flex items-center gap-2">
-            <StepNumber n={3} /> PostgreSQL and Redis Setup
-          </h3>
-          <p className="text-zinc-600 dark:text-zinc-400 mb-4">
-            Both Railway and Render offer managed PostgreSQL and Redis. You can also use Supabase,
-            Neon, or any PostgreSQL provider.
-          </p>
-          <CodeBlock language="bash" code={`# Railway: Add PostgreSQL
-# 1. In your Railway project, click "+ New Service"
-# 2. Select "PostgreSQL"
-# 3. Railway provides DATABASE_URL automatically
-# 4. Link it to your backend service via shared variables
-
-# Railway: Add Redis
-# 1. Click "+ New Service" > "Redis"
-# 2. Railway provides REDIS_URL automatically
-
-# Run migrations in production
-railway run alembic upgrade head
-
-# Alternative: Neon (serverless PostgreSQL)
-# DATABASE_URL=postgresql://user:pass@ep-xxx.us-east-2.aws.neon.tech/approvalkit?sslmode=require
-
-# Alternative: Upstash (serverless Redis)
-# REDIS_URL=rediss://default:xxx@us1-xxx.upstash.io:6379`} />
-          <Callout type="tip">
-            For production, ensure your PostgreSQL instance has <strong>SSL enabled</strong> (append
-            <code className="mx-1">?sslmode=require</code> to the connection string) and that backups
-            are configured.
-          </Callout>
-        </Section>
-
-        {/* --- Deploy: Environment Variables --- */}
-        <Section id="deploy-env">
-          <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 mb-3 flex items-center gap-2">
-            <StepNumber n={4} /> Production Environment Variables
-          </h3>
-          <p className="text-zinc-600 dark:text-zinc-400 mb-4">
-            Here is the complete list of environment variables needed for a production deployment.
-          </p>
-          <CodeBlock language="env" code={`# ========================================
-# Backend Environment Variables
-# ========================================
-
-# Auth0 Core
-AUTH0_DOMAIN=approvalkit-prod.us.auth0.com
-AUTH0_AUDIENCE=https://api.approvalkit.dev
-AUTH0_M2M_CLIENT_ID=<m2m client id>
-AUTH0_M2M_CLIENT_SECRET=<m2m client secret>
-
-# Auth0 FGA
-FGA_STORE_ID=<fga store id>
-FGA_MODEL_ID=<fga model id>
-FGA_CLIENT_ID=<fga client id>
-FGA_CLIENT_SECRET=<fga client secret>
-FGA_API_URL=https://api.us1.fga.dev
-
-# Database
-DATABASE_URL=postgresql://user:pass@host:5432/approvalkit?sslmode=require
-
-# Redis
-REDIS_URL=rediss://default:pass@host:6379
-
-# Security (generate unique values for production!)
-HMAC_SECRET=<openssl rand -hex 32>
-CREDENTIALS_KEY=<python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())">
-
-# Server
-LOG_LEVEL=info
-CORS_ORIGINS=https://your-app.vercel.app
-ENVIRONMENT=production
-
-# ========================================
-# Frontend Environment Variables (Vercel)
-# ========================================
-
-AUTH0_SECRET=<openssl rand -hex 32>
-AUTH0_BASE_URL=https://your-app.vercel.app
-AUTH0_ISSUER_BASE_URL=https://approvalkit-prod.us.auth0.com
-AUTH0_CLIENT_ID=<web app client id>
-AUTH0_CLIENT_SECRET=<web app client secret>
-AUTH0_AUDIENCE=https://api.approvalkit.dev
-NEXT_PUBLIC_API_URL=https://your-backend.railway.app`} />
-
-          <div className="mt-6 p-4 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-lg">
-            <p className="text-sm font-bold text-zinc-800 dark:text-zinc-200 mb-3">Production Checklist</p>
-            <div className="space-y-2">
-              {[
-                "Auth0 tenant set to Production environment tag",
-                "HMAC_SECRET and CREDENTIALS_KEY are unique (not copied from dev)",
-                "Database has SSL enabled and automated backups",
-                "Auth0 callback URLs updated with production domain",
-                "CORS_ORIGINS restricted to your frontend domain only",
-                "LOG_LEVEL set to info or warning (not debug)",
-                "Guardian push notifications tested with real approver",
-                "Token Vault connections re-authorized for production",
-                "FGA authorization model reviewed and published",
-                "Rate limiting and circuit breaker thresholds tuned",
-              ].map((item, i) => (
-                <label key={i} className="flex items-start gap-2 text-sm text-zinc-600 dark:text-zinc-400 cursor-pointer">
-                  <input type="checkbox" className="mt-1 rounded border-zinc-300 dark:border-zinc-600" />
-                  <span>{item}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <Callout type="warning">
-            <strong>Never reuse secrets between environments.</strong> Generate fresh values for
-            <code className="mx-1">HMAC_SECRET</code>, <code className="mx-1">CREDENTIALS_KEY</code>,
-            and <code className="mx-1">AUTH0_SECRET</code> in production. Reusing dev secrets is a
-            common security mistake.
-          </Callout>
-        </Section>
-
+        {/* Deployment removed — see SETUP.md for local setup instructions */}
         {/* ---- Footer ---- */}
         <div className="mt-16 pt-8 border-t border-zinc-200 dark:border-zinc-800">
           <div className="flex items-center justify-between">

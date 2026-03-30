@@ -114,13 +114,13 @@ export default function DocsPage() {
           <p className="text-zinc-500 dark:text-zinc-400 text-sm">
             Human approval middleware for AI agents — plug in with one line of code.
           </p>
-          <div className="mt-3">
+          <div className="mt-4">
             <a
               href="/docs/setup-guide"
-              className="inline-flex items-center gap-2 text-sm font-medium text-blue-500 hover:text-blue-400 transition-colors"
+              className="inline-flex items-center gap-3 px-5 py-3 rounded-xl text-sm font-semibold bg-gradient-to-r from-blue-600 to-emerald-500 hover:from-blue-700 hover:to-emerald-600 text-white shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all duration-200"
             >
               <BookOpen className="h-4 w-4" />
-              Full Setup &amp; Integration Guide — step-by-step from zero to production
+              Full Setup &amp; Integration Guide
             </a>
           </div>
         </div>
