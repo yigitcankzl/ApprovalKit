@@ -52,11 +52,14 @@ mcp = FastMCP("ApprovalKit")
 
 
 def _sign(body: str) -> tuple[str, str]:
-    """HMAC-SHA256 request signing."""
+    """HMAC-SHA256 request signing.
+
+    Uses workspace HMAC secret only (not composite key).
+    The composite key (hmac_secret:api_key) is for registered agents.
+    MCP server authenticates as workspace, not as a registered agent.
+    """
     ts = str(int(time.time()))
     sign_key = HMAC_SECRET
-    if API_KEY:
-        sign_key = f"{HMAC_SECRET}:{API_KEY}"
     sig = hmac.new(sign_key.encode(), f"{ts}.{body}".encode(), hashlib.sha256).hexdigest()
     return ts, sig
 
