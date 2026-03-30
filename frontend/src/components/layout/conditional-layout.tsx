@@ -35,7 +35,10 @@ export function ConditionalLayout({ children }: { children: React.ReactNode }) {
     });
 
   if (isWelcome) {
-    return <main className="min-h-screen">{children}</main>;
+    if (pathname === "/" || pathname === "/login") {
+      return <main className="min-h-screen">{children}</main>;
+    }
+    return <main className="min-h-screen p-8"><div className="max-w-6xl mx-auto">{children}</div></main>;
   }
 
   // Wait for Auth0 session to resolve before rendering pages (prevents race condition)
