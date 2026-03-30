@@ -222,7 +222,7 @@ export default function DemosPage() {
                   <Card
                     key={agent.id}
                     className={`group border-l-4 ${CATEGORY_BORDER[category]} hover:shadow-lg hover:shadow-zinc-200/50 dark:hover:shadow-zinc-900/50 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer`}
-                    onClick={() => router.push(`/demos/live?agent=${agent.id}`)}
+                    onClick={() => router.push(`/demos/live?chain=orchestrator`)}
                   >
                     <CardContent className="p-5">
                       <div className="flex items-start gap-4">
