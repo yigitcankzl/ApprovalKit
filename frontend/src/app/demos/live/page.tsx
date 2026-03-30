@@ -301,7 +301,9 @@ export default function LiveThreatDemoPage() {
   const urlChain = chainIdFromUrl ? CHAIN_SCENARIOS.find(c => c.id === chainIdFromUrl) : null;
 
   const currentMessages = activeChain
-    ? activeChain.steps.flatMap(step => messages[step.agentId] || []).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
+    ? [...activeChain.steps.map(s => s.agentId), "orchestrator", "risk_assessor", "validator", "summary"]
+        .flatMap(id => messages[id] || [])
+        .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
     : selectedAgent ? (messages[selectedAgent.id] || []) : [];
   const addMessage = useCallback((agentId: string, msg: Omit<ChatMessage, "id" | "timestamp">) => { const m: ChatMessage = { ...msg, id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, timestamp: new Date() }; setMessages(prev => ({ ...prev, [agentId]: [...(prev[agentId] || []), m] })); return m.id; }, []);
   const updateMessage = useCallback((agentId: string, msgId: string, updates: Partial<ChatMessage>) => { setMessages(prev => ({ ...prev, [agentId]: (prev[agentId] || []).map(m => m.id === msgId ? { ...m, ...updates } : m) })); }, []);
@@ -332,6 +334,15 @@ export default function LiveThreatDemoPage() {
     setChainRunning(true);
     resetSummary();
     setMessages({});
+
+    // ── SUB-AGENT 1: Risk Assessment (before execution) ──
+    try {
+      const planDesc = chain.steps.map((s, i) => `${i+1}. ${s.agentTitle} — ${s.role} [tools: ${(s.allowedTools || []).join(", ")}]`).join("\n");
+      addMessage("risk_assessor", { role: "system", text: "🛡️ Risk Assessor analyzing plan..." });
+      const risk = await api.runSubAgent("risk_assessor", `SCENARIO: ${chain.scenario}\n\nPLAN:\n${planDesc}`);
+      addMessage("risk_assessor", { role: "agent", text: `🛡️ Risk Assessment:\n${risk.analysis}` });
+      await new Promise(r => setTimeout(r, 1000));
+    } catch {}
 
     // Accumulate context from each step's results
     const chainContext: string[] = [];
@@ -406,12 +417,25 @@ export default function LiveThreatDemoPage() {
       // Add this step's results to the growing context
       chainContext.push(stepResultSummary);
 
+      // ── SUB-AGENT 2: Validator (after each step) ──
+      try {
+        const validation = await api.runSubAgent("validator", `STEP: ${step.agentTitle}\n\n${stepResultSummary}`);
+        addMessage("validator", { role: "agent", text: `✅ Validator: ${validation.analysis}` });
+      } catch {}
+
       setIsTyping(false);
 
       if (i < chain.steps.length - 1) {
-        await new Promise(r => setTimeout(r, 1500));
+        await new Promise(r => setTimeout(r, 1000));
       }
     }
+
+    // ── SUB-AGENT 3: Summary (after chain completes) ──
+    try {
+      addMessage("summary", { role: "system", text: "📋 Summary Agent compiling results..." });
+      const summaryResult = await api.runSubAgent("summary", `SCENARIO: ${chain.scenario}\n\nALL ACTIONS:\n${chainContext.join("\n\n")}`);
+      addMessage("summary", { role: "agent", text: `📋 Executive Summary:\n${summaryResult.analysis}` });
+    } catch {}
 
     setChainRunning(false);
   };

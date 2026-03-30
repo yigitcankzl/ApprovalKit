@@ -425,6 +425,91 @@ async def orchestrate(
     raise HTTPException(500, f"Planning failed after 2 attempts: {str(last_error)[:200]}")
 
 
+class SubAgentRequest(BaseModel):
+    role: str  # "risk_assessor" | "validator" | "summary"
+    context: str
+
+
+SUB_AGENT_PROMPTS = {
+    "risk_assessor": """You are a Risk Assessment Agent. Analyze the planned workflow and assess risks.
+
+For each step, evaluate:
+- Financial risk (amounts involved, budget impact)
+- Security risk (external communications, access changes, credential operations)
+- Compliance risk (GDPR, HIPAA, regulatory)
+- Blast radius (how many people/systems affected)
+
+Respond in this EXACT format:
+RISK LEVEL: LOW/MEDIUM/HIGH/CRITICAL
+TOTAL ESTIMATED SPEND: $X
+FLAGS:
+- [flag 1]
+- [flag 2]
+RECOMMENDATION: [one sentence]
+
+Be concise. Max 6 lines.""",
+
+    "validator": """You are a Validation Agent. Check the tool execution results for errors and anomalies.
+
+Validate:
+- Did the amount match the request? (e.g., asked for $420, charged $420?)
+- Is the connection correct? (e.g., stripe for payments, gmail for emails?)
+- Are there duplicate actions? (same tool called twice with same params?)
+- Any obvious errors in the results?
+
+Respond in this EXACT format:
+STATUS: PASS/WARN/FAIL
+ISSUES:
+- [issue or "None found"]
+VALIDATED: X/Y actions passed
+
+Be concise. Max 5 lines.""",
+
+    "summary": """You are a Summary Agent. Create a clear executive summary of the completed workflow.
+
+Include:
+- What was requested
+- What actions were taken (with statuses)
+- What's pending human approval
+- What was auto-approved
+- Total financial impact
+- Recommendation for next steps
+
+Respond concisely in 4-6 lines. Use bullet points.""",
+}
+
+
+@router.post("/sub-agent")
+async def run_sub_agent(
+    req: SubAgentRequest,
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    """Run a specialized sub-agent (risk assessor, validator, or summary)."""
+    from api.services.agent_chat import _PROVIDER_CONFIG
+    provider, api_key = _resolve_ai_credentials(workspace)
+    pconfig = _PROVIDER_CONFIG.get(provider, _PROVIDER_CONFIG.get("gemini", {}))
+
+    if req.role not in SUB_AGENT_PROMPTS:
+        raise HTTPException(400, f"Unknown sub-agent role: {req.role}")
+
+    from openai import OpenAI
+    client = OpenAI(api_key=api_key or "ollama", base_url=pconfig["base_url"], timeout=20)
+
+    try:
+        resp = client.chat.completions.create(
+            model=pconfig["model"],
+            messages=[
+                {"role": "system", "content": SUB_AGENT_PROMPTS[req.role]},
+                {"role": "user", "content": req.context},
+            ],
+            temperature=0.2,
+            max_tokens=300,
+        )
+        return {"role": req.role, "analysis": resp.choices[0].message.content or "No analysis."}
+    except Exception as e:
+        return {"role": req.role, "analysis": f"Analysis unavailable: {str(e)[:100]}"}
+
+
 @router.get("/{agent_id}/suggestions")
 async def get_agent_suggestions(agent_id: str):
     return {"suggestions": get_suggestions(agent_id)}

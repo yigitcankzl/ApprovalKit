@@ -137,6 +137,8 @@ export const api = {
   // Agent Chat
   orchestrate: (message: string) =>
     fetchAPI("/api/v1/demo/agents/orchestrate", { method: "POST", body: JSON.stringify({ message }) }),
+  runSubAgent: (role: string, context: string) =>
+    fetchAPI("/api/v1/demo/agents/sub-agent", { method: "POST", body: JSON.stringify({ role, context }) }),
   chatWithAgent: (agentId: string, message: string, agentTitle: string = "", sessionId: string = "", allowedTools?: string[]) =>
     fetchAPI(`/api/v1/demo/agents/${agentId}/chat`, {
       method: "POST",
