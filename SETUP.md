@@ -206,16 +206,17 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 
 ## Demo Agents
 
-14 AI agents across 6 domains, powered by local LLM (Qwen 2.5 7B via Ollama):
+12 AI agents across 5 domains, powered by local LLM (Qwen 2.5 7B via Ollama):
 
 | Domain | Agents |
 |--------|--------|
-| Commerce & Finance | Expense, Finance |
-| DevOps & Software | Release Manager, Open Source |
-| Human Resources | Recruitment, Access Provisioning |
+| Commerce & Finance | Expense, Finance, Research |
+| DevOps & Software | Release Manager, Open Source, Security Incident, API Key Rotation |
+| Human Resources | Recruitment, Access Provisioning, Communications |
 | Customer Service | Account Takeover |
-| Healthcare | Patient Data, Prescription Refill |
-| Legal & Compliance | GDPR, API Key Rotation, Security Incident |
+| Legal & Compliance | GDPR Request |
+
+Healthcare is available as a separate companion demo (`healthcare-agent/`).
 
 Each agent has 3 pre-built scenarios (Safe / Risky / Rogue) that demonstrate different ApprovalKit capabilities: auto-approve, step-up authentication, scope creep detection, and more.
 
@@ -253,7 +254,7 @@ If you don't have a GPU or want faster responses:
 
 ## Healthcare Agent (Companion Demo)
 
-A separate HIPAA-compliant healthcare demo with its own frontend:
+A separate HIPAA-compliant healthcare demo with its own frontend, connected to the main ApprovalKit instance:
 
 ```bash
 cd healthcare-agent
@@ -262,7 +263,7 @@ docker compose up -d
 # API: http://localhost:3002
 ```
 
-14 healthcare scenarios: routine prescriptions, controlled substances (sequential approval), HIPAA data sharing, emergency access (2-minute timeout), billing step-up, and more.
+Healthcare rules and approvers (Doctor, Pharmacist, Chief Doctor, etc.) are managed in the main ApprovalKit dashboard. The healthcare agent sends approval requests through ApprovalKit's API, and you can approve/reject from the main dashboard.
 
 ---
 

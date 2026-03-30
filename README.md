@@ -206,7 +206,7 @@ This starts all services (PostgreSQL, Redis, Vault, Ollama, API, Worker, Fronten
 | Approvers | CRUD + Guardian auto-linking + delegation + workspace isolation |
 | Audit Log | Filterable event log with PII masking, binding messages, Token Vault receipts |
 | Connect Agent | Per-agent API key generation, SDK code snippets, live testing |
-| Agents | 14 demo agents (backend-served) + My Agents tab with scenarios |
+| Agents | 12 demo agents (backend-served) + My Agents tab with scenarios |
 | Setup | Full-page onboarding wizard (Auth0 creds + connections), no sidebar |
 | Settings | Edit existing workspace credentials (sidebar layout) |
 | Docs | Full SDK reference, API endpoints, approval models |
