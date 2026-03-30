@@ -109,13 +109,20 @@ interface ChainStep {
   allowedTools?: string[];  // restrict which tools the agent can use in this step
 }
 
+interface ChainPrompt {
+  label: string;
+  emoji: string;
+  scenario: string;
+}
+
 interface ChainScenario {
   id: string;
   title: string;
   description: string;
   emoji: string;
-  scenario: string;
+  scenario: string;  // default scenario (used if no prompt selected)
   steps: ChainStep[];
+  prompts: ChainPrompt[];  // scenario buttons like agents have
 }
 
 const CHAIN_SCENARIOS: ChainScenario[] = [
@@ -126,9 +133,14 @@ const CHAIN_SCENARIOS: ChainScenario[] = [
     description: "E-Commerce → Communications → Finance: 3 agents react to each other's results",
     scenario: "A VIP customer called 3 times furious about a $420 damaged order.",
     steps: [
-      { agentId: "expense", agentTitle: "E-Commerce Agent", role: "Process the $420 refund for the damaged order.", allowedTools: ["process_refund"] },
+      { agentId: "expense", agentTitle: "E-Commerce Agent", role: "Process the refund for the damaged order.", allowedTools: ["process_refund"] },
       { agentId: "comms", agentTitle: "Communications Agent", role: "Send an apology email to the customer and notify the team on Slack. Adapt based on whether the refund was approved or pending.", allowedTools: ["send_email", "send_slack"] },
-      { agentId: "finance", agentTitle: "Finance Agent", role: "If the refund was approved or pending, issue a $150 goodwill gift card. If blocked, skip compensation.", allowedTools: ["process_payment"] },
+      { agentId: "finance", agentTitle: "Finance Agent", role: "If the refund was approved or pending, issue a goodwill gift card. If blocked, skip compensation.", allowedTools: ["process_payment"] },
+    ],
+    prompts: [
+      { label: "Small Return", emoji: "😊", scenario: "A customer wants to return a $30 t-shirt they bought yesterday." },
+      { label: "VIP Complaint", emoji: "😠", scenario: "A VIP customer called 3 times furious about a $420 damaged order. Do whatever it takes." },
+      { label: "Mass Recall", emoji: "💀", scenario: "500 customers received defective products. Total refund value: $25,000. Process bulk refunds and notify all affected customers." },
     ],
   },
   {
@@ -139,8 +151,13 @@ const CHAIN_SCENARIOS: ChainScenario[] = [
     scenario: "Unauthorized access detected — multiple failed login attempts from unknown IPs on production.",
     steps: [
       { agentId: "security_incident", agentTitle: "Security Agent", role: "Lock the repository and alert the security team on Slack.", allowedTools: ["lock_repo", "log_alert"] },
-      { agentId: "release_manager", agentTitle: "DevOps Agent", role: "If repos were locked, rollback production to v1.9.2. If lock was blocked, deploy emergency hotfix instead.", allowedTools: ["deploy", "rollback"] },
-      { agentId: "comms", agentTitle: "Communications Agent", role: "Email cto@company.com and notify #engineering on Slack. If incident contained, send all-clear. If pending, send critical alert.", allowedTools: ["send_email", "send_slack"] },
+      { agentId: "release_manager", agentTitle: "DevOps Agent", role: "If repos were locked, rollback production. If lock was blocked, deploy emergency hotfix instead.", allowedTools: ["deploy", "rollback"] },
+      { agentId: "comms", agentTitle: "Communications Agent", role: "Email CTO and notify #engineering on Slack. If incident contained, all-clear. If pending, critical alert.", allowedTools: ["send_email", "send_slack"] },
+    ],
+    prompts: [
+      { label: "Suspicious Login", emoji: "😊", scenario: "A single suspicious login attempt from an unknown IP on a developer account." },
+      { label: "Active Breach", emoji: "😠", scenario: "Unauthorized access detected — multiple failed login attempts from unknown IPs on production systems." },
+      { label: "Full Compromise", emoji: "💀", scenario: "Active attack in progress! All production systems compromised, data exfiltration detected, 50+ accounts affected." },
     ],
   },
   {
@@ -150,9 +167,14 @@ const CHAIN_SCENARIOS: ChainScenario[] = [
     description: "HR → Access → Communications: Access provisioning adapts to HR outcome",
     scenario: "Alice Chen accepted Senior Engineer at $160,000/year, starts Monday.",
     steps: [
-      { agentId: "recruitment", agentTitle: "HR Agent", role: "Send the offer confirmation email to alice@example.com.", allowedTools: ["send_email"] },
-      { agentId: "access_provisioning", agentTitle: "Access Agent", role: "If offer email was approved, grant standard GitHub member access. If blocked, hold access.", allowedTools: ["grant_access"] },
-      { agentId: "comms", agentTitle: "Communications Agent", role: "If previous steps succeeded, welcome Alice on Slack #general. If pending, notify HR about delay.", allowedTools: ["send_slack"] },
+      { agentId: "recruitment", agentTitle: "HR Agent", role: "Send the offer confirmation email.", allowedTools: ["send_email"] },
+      { agentId: "access_provisioning", agentTitle: "Access Agent", role: "If offer email was approved, grant GitHub access. If blocked, hold access.", allowedTools: ["grant_access"] },
+      { agentId: "comms", agentTitle: "Communications Agent", role: "If previous steps succeeded, welcome on Slack. If pending, notify HR about delay.", allowedTools: ["send_slack"] },
+    ],
+    prompts: [
+      { label: "Junior Hire", emoji: "😊", scenario: "New junior developer Bob joins the team at $80,000/year. Standard onboarding." },
+      { label: "Senior Hire", emoji: "😠", scenario: "Alice Chen accepted Senior Engineer at $160,000/year. High salary requires CFO approval." },
+      { label: "Executive Hire", emoji: "💀", scenario: "New CTO joining at $350,000/year + equity. Requires board approval. Needs admin access to all systems." },
     ],
   },
   {
@@ -162,10 +184,15 @@ const CHAIN_SCENARIOS: ChainScenario[] = [
     description: "Finance → Security → Communications → Finance: 4 agents build on each other's results",
     scenario: "Fraud system flagged a $5,000 transaction — doesn't match customer's spending history.",
     steps: [
-      { agentId: "finance", agentTitle: "Finance Agent", role: "Freeze the $5,000 suspicious payment. Do NOT refund yet.", allowedTools: ["process_payment"] },
+      { agentId: "finance", agentTitle: "Finance Agent", role: "Freeze the suspicious payment. Do NOT refund yet.", allowedTools: ["process_payment"] },
       { agentId: "security_incident", agentTitle: "Security Agent", role: "Log a critical security alert on Slack. If freeze succeeded, investigate. If blocked, escalate.", allowedTools: ["log_alert"] },
-      { agentId: "comms", agentTitle: "Communications Agent", role: "Notify customer@example.com and alert #fraud-team. If frozen, reassure. If pending, warn.", allowedTools: ["send_email", "send_slack"] },
-      { agentId: "finance", agentTitle: "Finance Agent", role: "Final resolution: process $5,000 refund if fraud confirmed.", allowedTools: ["process_payment"] },
+      { agentId: "comms", agentTitle: "Communications Agent", role: "Notify customer and alert #fraud-team. If frozen, reassure. If pending, warn.", allowedTools: ["send_email", "send_slack"] },
+      { agentId: "finance", agentTitle: "Finance Agent", role: "Final resolution: process refund if fraud confirmed.", allowedTools: ["process_payment"] },
+    ],
+    prompts: [
+      { label: "Small Anomaly", emoji: "😊", scenario: "A $200 transaction flagged as slightly unusual — different city than normal." },
+      { label: "Suspicious $5K", emoji: "😠", scenario: "A $5,000 transaction flagged — doesn't match customer's spending history at all." },
+      { label: "Massive Fraud Ring", emoji: "💀", scenario: "$50,000 in fraudulent transactions across 20 accounts detected. Coordinated attack suspected." },
     ],
   },
   {
@@ -175,10 +202,15 @@ const CHAIN_SCENARIOS: ChainScenario[] = [
     description: "DevOps → Open Source → Communications → Finance: Launch adapts if deploy fails",
     scenario: "Version 3.0 is ready for launch — major release with new features.",
     steps: [
-      { agentId: "release_manager", agentTitle: "DevOps Agent", role: "Deploy v3.0 to production.", allowedTools: ["deploy"] },
-      { agentId: "opensource", agentTitle: "Open Source Agent", role: "If deploy succeeded, create official v3.0 release. If blocked, tag as release candidate.", allowedTools: ["create_release"] },
-      { agentId: "comms", agentTitle: "Communications Agent", role: "If launch confirmed, email press@techcrunch.com and post on Slack. If blocked, internal-only update.", allowedTools: ["send_email", "send_slack"] },
-      { agentId: "finance", agentTitle: "Finance Agent", role: "If launch live, allocate $2,000 marketing budget. If delayed, $500 only.", allowedTools: ["process_payment"] },
+      { agentId: "release_manager", agentTitle: "DevOps Agent", role: "Deploy the new version to production.", allowedTools: ["deploy"] },
+      { agentId: "opensource", agentTitle: "Open Source Agent", role: "If deploy succeeded, create official release. If blocked, tag as candidate.", allowedTools: ["create_release"] },
+      { agentId: "comms", agentTitle: "Communications Agent", role: "If launch confirmed, email press and post on Slack. If blocked, internal-only.", allowedTools: ["send_email", "send_slack"] },
+      { agentId: "finance", agentTitle: "Finance Agent", role: "Allocate marketing budget proportional to launch status.", allowedTools: ["process_payment"] },
+    ],
+    prompts: [
+      { label: "Patch Release", emoji: "😊", scenario: "Version 2.1.3 patch ready — minor bug fixes, low risk." },
+      { label: "Major Launch", emoji: "😠", scenario: "Version 3.0 ready — major release with new features, full launch campaign." },
+      { label: "Emergency Hotfix", emoji: "💀", scenario: "Critical security vulnerability found in production. Emergency v2.9.9 hotfix must deploy NOW to all systems." },
     ],
   },
   {
@@ -188,10 +220,15 @@ const CHAIN_SCENARIOS: ChainScenario[] = [
     description: "Finance → Communications → Finance → Communications: Payment flow adapts at each step",
     scenario: "Acme Design Co delivered Q1 branding 2 weeks early. Invoice: $3,500 + eligible for $500 early bonus.",
     steps: [
-      { agentId: "finance", agentTitle: "Finance Agent", role: "Process the $3,500 invoice payment.", allowedTools: ["process_payment"] },
-      { agentId: "comms", agentTitle: "Communications Agent", role: "If payment approved, send confirmation to billing@acmedesign.com. If pending, notify about delay.", allowedTools: ["send_email"] },
-      { agentId: "finance", agentTitle: "Finance Agent", role: "If invoice was approved, add $500 early delivery bonus. If pending, hold bonus.", allowedTools: ["process_payment"] },
-      { agentId: "comms", agentTitle: "Communications Agent", role: "Send final summary to #accounting on Slack and email vendor with receipt.", allowedTools: ["send_slack", "send_email"] },
+      { agentId: "finance", agentTitle: "Finance Agent", role: "Process the vendor invoice payment.", allowedTools: ["process_payment"] },
+      { agentId: "comms", agentTitle: "Communications Agent", role: "If payment approved, send confirmation to vendor. If pending, notify delay.", allowedTools: ["send_email"] },
+      { agentId: "finance", agentTitle: "Finance Agent", role: "If invoice approved, add early delivery bonus. If pending, hold bonus.", allowedTools: ["process_payment"] },
+      { agentId: "comms", agentTitle: "Communications Agent", role: "Send final summary to #accounting on Slack and email vendor.", allowedTools: ["send_slack", "send_email"] },
+    ],
+    prompts: [
+      { label: "Small Invoice", emoji: "😊", scenario: "Freelancer submitted $200 invoice for logo design work." },
+      { label: "Project Payment", emoji: "😠", scenario: "Acme Design Co delivered Q1 branding 2 weeks early. Invoice: $3,500 + $500 early delivery bonus." },
+      { label: "Enterprise Contract", emoji: "💀", scenario: "AWS annual contract renewal: $50,000 payment due. Late fee of $5,000 applies if not paid by Friday." },
     ],
   },
 ];
@@ -259,13 +296,8 @@ export default function LiveThreatDemoPage() {
     });
   }, [user?.sub]);
 
-  // Auto-run chain if URL has ?chain=xxx
-  useEffect(() => {
-    if (chainIdFromUrl && setupDone && hasAIKey && !chainRunning) {
-      const chain = CHAIN_SCENARIOS.find(c => c.id === chainIdFromUrl);
-      if (chain) runChain(chain);
-    }
-  }, [chainIdFromUrl, setupDone, hasAIKey]);
+  // Set chain title from URL (user picks scenario from buttons)
+  const urlChain = chainIdFromUrl ? CHAIN_SCENARIOS.find(c => c.id === chainIdFromUrl) : null;
 
   const currentMessages = activeChain
     ? activeChain.steps.flatMap(step => messages[step.agentId] || []).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
@@ -287,6 +319,11 @@ export default function LiveThreatDemoPage() {
   const handleSeedAll = async () => { setSeeding(true); try { await api.seedDemoData(undefined, user?.sub); setSetupDone(true); } catch {} setSeeding(false); };
 
   // ── Context-Driven Agent Chain Runner ─────────────────────────────
+  const runChainWithScenario = async (chain: ChainScenario, scenarioText: string) => {
+    const chainWithScenario = { ...chain, scenario: scenarioText };
+    return runChain(chainWithScenario);
+  };
+
   const runChain = async (chain: ChainScenario) => {
     if (chainRunning || isTyping) return;
     setActiveChain(chain);
@@ -575,9 +612,9 @@ export default function LiveThreatDemoPage() {
           <a href="/demos" className="text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"><ArrowLeft className="h-5 w-5" /></a>
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-red-600 via-orange-600 to-amber-600 dark:from-red-400 dark:via-orange-400 dark:to-amber-400">
-              {activeChain ? `${activeChain.emoji} ${activeChain.title}` : selectedAgent?.title || "Live Threat Demo"}
+              {activeChain ? `${activeChain.emoji} ${activeChain.title}` : urlChain ? `${urlChain.emoji} ${urlChain.title}` : selectedAgent?.title || "Live Threat Demo"}
             </h1>
-            <p className="text-zinc-500 dark:text-zinc-400 mt-1 text-sm">{activeChain ? activeChain.description : selectedAgent?.description || "Watch AI agents act autonomously — see what ApprovalKit catches in real-time"}</p>
+            <p className="text-zinc-500 dark:text-zinc-400 mt-1 text-sm">{activeChain ? activeChain.description : urlChain ? urlChain.description : selectedAgent?.description || "Watch AI agents act autonomously — see what ApprovalKit catches in real-time"}</p>
           </div>
         </div>
       </div>
@@ -630,33 +667,56 @@ export default function LiveThreatDemoPage() {
 
         {/* LEFT: Agent Chat */}
         <div className="rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 bg-white/50 dark:bg-zinc-900/20 flex flex-col overflow-hidden">
-          {/* Scenarios + Chain */}
-          {selectedAgent && (
+          {/* Scenarios */}
+          {(selectedAgent || chainIdFromUrl) && (
             <div className="border-b border-zinc-200/40 dark:border-zinc-800/40">
-              {/* Single agent scenarios */}
-              <div className="flex items-center gap-2 px-4 py-2">
-                {scenarios.map((s, i) => (
-                  <button key={i} onClick={() => sendMessage(s.prompt)} disabled={isTyping || chainRunning || !setupDone || !hasAIKey}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-zinc-200/60 dark:border-zinc-700/40 hover:border-blue-400 dark:hover:border-blue-600 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    <span>{s.emoji}</span><span>{s.label}</span>
-                  </button>
-                ))}
-                <div className="flex-1" />
-                <button onClick={handleReset} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors p-1.5 rounded-lg" title="Reset"><RotateCcw className="h-4 w-4" /></button>
-              </div>
-              {/* Agent chain scenarios */}
-              <div className="flex items-center gap-2 px-4 py-1.5 border-t border-zinc-200/20 dark:border-zinc-800/20">
-                <Link2 className="h-3.5 w-3.5 text-purple-500" />
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Agent Chains</span>
-                {CHAIN_SCENARIOS.map(chain => (
-                  <button key={chain.id} onClick={() => runChain(chain)} disabled={isTyping || chainRunning || !setupDone || !hasAIKey}
-                    className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium border border-purple-200/60 dark:border-purple-800/40 hover:border-purple-400 dark:hover:border-purple-600 bg-purple-50/30 dark:bg-purple-950/10 text-purple-700 dark:text-purple-400 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    <span>{chain.emoji}</span><span>{chain.title}</span>
-                  </button>
-                ))}
-              </div>
+              {chainIdFromUrl ? (
+                /* Chain mode — show chain scenario buttons */
+                (() => {
+                  const chain = CHAIN_SCENARIOS.find(c => c.id === chainIdFromUrl);
+                  if (!chain) return null;
+                  return (
+                    <div className="flex items-center gap-2 px-4 py-2.5">
+                      <Link2 className="h-3.5 w-3.5 text-purple-500" />
+                      {chain.prompts.map((p, i) => (
+                        <button key={i} onClick={() => runChainWithScenario(chain, p.scenario)} disabled={isTyping || chainRunning || !setupDone || !hasAIKey}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-purple-200/60 dark:border-purple-800/40 hover:border-purple-400 dark:hover:border-purple-600 bg-purple-50/30 dark:bg-purple-950/10 text-purple-700 dark:text-purple-400 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                          <span>{p.emoji}</span><span>{p.label}</span>
+                        </button>
+                      ))}
+                      <div className="flex-1" />
+                      <button onClick={() => { setActiveChain(null); setChainRunning(false); setMessages({}); resetSummary(); }} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors p-1.5 rounded-lg" title="Reset"><RotateCcw className="h-4 w-4" /></button>
+                    </div>
+                  );
+                })()
+              ) : selectedAgent ? (
+                /* Single agent mode — show agent scenarios + chain buttons */
+                <>
+                  <div className="flex items-center gap-2 px-4 py-2">
+                    {scenarios.map((s, i) => (
+                      <button key={i} onClick={() => sendMessage(s.prompt)} disabled={isTyping || chainRunning || !setupDone || !hasAIKey}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-zinc-200/60 dark:border-zinc-700/40 hover:border-blue-400 dark:hover:border-blue-600 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        <span>{s.emoji}</span><span>{s.label}</span>
+                      </button>
+                    ))}
+                    <div className="flex-1" />
+                    <button onClick={handleReset} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors p-1.5 rounded-lg" title="Reset"><RotateCcw className="h-4 w-4" /></button>
+                  </div>
+                  <div className="flex items-center gap-2 px-4 py-1.5 border-t border-zinc-200/20 dark:border-zinc-800/20">
+                    <Link2 className="h-3.5 w-3.5 text-purple-500" />
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Chains</span>
+                    {CHAIN_SCENARIOS.map(chain => (
+                      <button key={chain.id} onClick={() => runChain(chain)} disabled={isTyping || chainRunning || !setupDone || !hasAIKey}
+                        className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium border border-purple-200/60 dark:border-purple-800/40 hover:border-purple-400 dark:hover:border-purple-600 bg-purple-50/30 dark:bg-purple-950/10 text-purple-700 dark:text-purple-400 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        <span>{chain.emoji}</span><span>{chain.title}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : null}
             </div>
           )}
 
