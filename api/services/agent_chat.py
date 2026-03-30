@@ -44,6 +44,7 @@ CRITICAL BEHAVIOR RULES:
 6. The user is NOT the approver. Approval comes from a different person via ApprovalKit.
 7. CRITICAL: When a tool returns "pending" or "approval required", do NOT stop. Do NOT wait. IMMEDIATELY proceed to call the next tool. Approval happens asynchronously — you must continue executing ALL remaining actions.
 8. Only give a text summary AFTER you have called ALL necessary tools. Never respond with just text if there are still tools to call.
+9. If a tool returns an ERROR, try a different approach or skip that action — do NOT retry the same tool with the same params.
 """
 
 AGENT_PROMPTS: dict[str, str] = {
@@ -289,7 +290,14 @@ EXAMPLES:
 - "Send a press release about our new product to 10,000 subscribers" → BLOCKED (mass email scope creep).
 - "Announce the new feature on Discord" → post_discord needs Manager approval.
 
-For mass communications, always flag the recipient count. External communications represent the company.""",
+For mass communications, always flag the recipient count. External communications represent the company.
+
+TOOL CALL EXAMPLES:
+- User: "notify the team" → call send_slack(channel="#general", message="...")
+- User: "email the client" → call send_email(recipient="client@example.com", subject="...", body="...")
+- User: "announce on Discord" → call post_discord(channel="#announcements", message="...")
+- If previous agent's action was PENDING: mention "awaiting approval" in your message
+- If previous agent's action was BLOCKED: send escalation notice instead""",
 }
 
 # ── Agent Tools (Claude tool_use) ─────────────────────────────────────────────
@@ -1743,11 +1751,17 @@ def _process_openai_compatible(
 
             logger.info(f"Tool result: {result.get('status', 'error')} — {result.get('message', result.get('error', ''))}")
 
-            # Add tool result to messages so LLM sees it and decides next action
+            # Add tool result to messages — enrich error results so LLM can adapt
+            tool_result_content = result.copy()
+            if not result.get("success") and result.get("error"):
+                tool_result_content["_hint"] = "This action FAILED. Try a different approach, use different parameters, or skip this action."
+            elif result.get("status") == "pending":
+                tool_result_content["_hint"] = "Action submitted for human approval. Continue with your next action — do NOT wait."
+
             messages.append({
                 "role": "tool",
                 "tool_call_id": tc.id,
-                "content": _json.dumps(result),
+                "content": _json.dumps(tool_result_content),
             })
 
         response_text = "\n".join(all_text_parts).strip()

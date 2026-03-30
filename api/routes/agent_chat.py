@@ -335,7 +335,23 @@ Rules:
 - Order: primary action first → investigation/follow-up → notification last
 - RESPOND ONLY WITH VALID JSON
 
-{"plan": [{"agent_id": "...", "agent_title": "... Agent", "role": "one sentence", "allowed_tools": ["tool1"]}, ...], "scenario": "one line summary"}"""
+{"plan": [{"agent_id": "...", "agent_title": "... Agent", "role": "one sentence", "allowed_tools": ["tool1"]}, ...], "scenario": "one line summary"}
+
+EXAMPLES:
+
+User: "Customer got a defective product worth $420, needs refund and apology"
+{"plan": [{"agent_id": "expense", "agent_title": "E-Commerce Agent", "role": "Process the $420 refund", "allowed_tools": ["process_refund"]}, {"agent_id": "comms", "agent_title": "Communications Agent", "role": "Send apology email and notify team", "allowed_tools": ["send_email", "send_slack"]}], "scenario": "Handle defective product refund and customer communication"}
+
+User: "Security breach detected, lock repos and notify CTO"
+{"plan": [{"agent_id": "security_incident", "agent_title": "Security Agent", "role": "Lock repositories and revoke tokens", "allowed_tools": ["lock_repo", "revoke_tokens"]}, {"agent_id": "release_manager", "agent_title": "DevOps Agent", "role": "Rollback production to safe version", "allowed_tools": ["rollback"]}, {"agent_id": "comms", "agent_title": "Communications Agent", "role": "Email CTO and alert engineering on Slack", "allowed_tools": ["send_email", "send_slack"]}], "scenario": "Security incident response with lockdown and rollback"}
+
+User: "New developer Alice starts Monday, send offer and set up access"
+{"plan": [{"agent_id": "recruitment", "agent_title": "HR Agent", "role": "Send offer confirmation email", "allowed_tools": ["send_email"]}, {"agent_id": "access_provisioning", "agent_title": "Access Agent", "role": "Grant GitHub access", "allowed_tools": ["grant_access"]}, {"agent_id": "comms", "agent_title": "Communications Agent", "role": "Welcome message on Slack", "allowed_tools": ["send_slack"]}], "scenario": "New employee onboarding"}
+
+User: "Deploy v3.0 and announce the launch"
+{"plan": [{"agent_id": "release_manager", "agent_title": "DevOps Agent", "role": "Deploy v3.0 to production", "allowed_tools": ["deploy"]}, {"agent_id": "opensource", "agent_title": "Open Source Agent", "role": "Create GitHub release", "allowed_tools": ["create_release"]}, {"agent_id": "comms", "agent_title": "Communications Agent", "role": "Send launch announcement", "allowed_tools": ["send_email", "send_slack"]}], "scenario": "Product launch with deployment and announcement"}
+
+Now respond to the user's request:"""
 
 
 @router.post("/orchestrate")
