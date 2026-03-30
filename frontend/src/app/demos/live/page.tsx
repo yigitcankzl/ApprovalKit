@@ -161,6 +161,7 @@ export default function LiveThreatDemoPage() {
   const { user } = useUser();
   const searchParams = useSearchParams();
   const agentIdFromUrl = searchParams.get("agent");
+  const chainIdFromUrl = searchParams.get("chain");
   const [selectedAgent, setSelectedAgent] = useState<DemoAgent | null>(null);
   const [loading, setLoading] = useState(true);
   const [messages, setMessages] = useState<Record<string, ChatMessage[]>>({});
@@ -213,6 +214,14 @@ export default function LiveThreatDemoPage() {
       setHasAIKey(true);
     });
   }, [user?.sub]);
+
+  // Auto-run chain if URL has ?chain=xxx
+  useEffect(() => {
+    if (chainIdFromUrl && setupDone && hasAIKey && !chainRunning) {
+      const chain = CHAIN_SCENARIOS.find(c => c.id === chainIdFromUrl);
+      if (chain) runChain(chain);
+    }
+  }, [chainIdFromUrl, setupDone, hasAIKey]);
 
   const currentMessages = activeChain
     ? activeChain.steps.flatMap(step => messages[step.agentId] || []).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
@@ -500,9 +509,9 @@ export default function LiveThreatDemoPage() {
           <a href="/demos" className="text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"><ArrowLeft className="h-5 w-5" /></a>
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-red-600 via-orange-600 to-amber-600 dark:from-red-400 dark:via-orange-400 dark:to-amber-400">
-              {selectedAgent?.title || "Live Threat Demo"}
+              {activeChain ? `${activeChain.emoji} ${activeChain.title}` : selectedAgent?.title || "Live Threat Demo"}
             </h1>
-            <p className="text-zinc-500 dark:text-zinc-400 mt-1 text-sm">{selectedAgent?.description || "Watch AI agents act autonomously — see what ApprovalKit catches in real-time"}</p>
+            <p className="text-zinc-500 dark:text-zinc-400 mt-1 text-sm">{activeChain ? activeChain.description : selectedAgent?.description || "Watch AI agents act autonomously — see what ApprovalKit catches in real-time"}</p>
           </div>
         </div>
       </div>

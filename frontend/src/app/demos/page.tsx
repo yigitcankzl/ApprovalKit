@@ -109,10 +109,59 @@ export default function DemosPage() {
           Demo Agents
         </h1>
         <p className="text-zinc-500 dark:text-zinc-400 mt-2 max-w-2xl text-sm leading-relaxed">
-          15 industry-specific AI agents across 6 domains. Each agent has a conversational chat interface
-          that triggers real ApprovalKit approval flows. Click any agent to start chatting.
+          12 AI agents across 5 domains. Each has a conversational chat interface
+          that triggers real ApprovalKit approval flows via Auth0 Token Vault.
         </p>
+      </div>
 
+      {/* Agent Chains — featured section */}
+      <div className="mb-12">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="p-2 rounded-xl bg-purple-500 text-white">
+            <GitBranch className="h-4 w-4" />
+          </div>
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-purple-500 dark:text-purple-400">Featured</p>
+            <h2 className="text-lg font-bold text-zinc-800 dark:text-zinc-200 -mt-0.5">Agent Chains</h2>
+          </div>
+          <Badge variant="default" className="text-xs ml-1">Multi-Agent</Badge>
+        </div>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
+          Watch multiple agents collaborate on a single scenario — each agent handles its domain, approvals cascade across the chain.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {[
+            { id: "incident_response", emoji: "🔗", title: "Customer Incident Response", agents: "E-Commerce → Comms → Finance", desc: "3 agents handle a defective product complaint: refund, apology email, compensation" },
+            { id: "security_breach", emoji: "🚨", title: "Security Breach Response", agents: "Security → DevOps → Comms", desc: "Coordinated incident response: lock repos, rollback production, notify team" },
+            { id: "employee_onboarding", emoji: "👋", title: "Employee Onboarding", agents: "HR → Access → Comms", desc: "Automated onboarding: offer letter, GitHub access, team welcome" },
+          ].map(chain => (
+            <Card key={chain.id}
+              className="group border-l-4 border-l-purple-500 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 cursor-pointer"
+              onClick={() => router.push(`/demos/live?chain=${chain.id}`)}
+            >
+              <CardContent className="p-5">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xl">{chain.emoji}</span>
+                  <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-200">{chain.title}</h3>
+                </div>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">{chain.desc}</p>
+                <div className="mt-3 flex items-center gap-1.5">
+                  {chain.agents.split(" → ").map((a, i) => (
+                    <span key={i} className="flex items-center gap-1">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 font-medium">{a}</span>
+                      {i < chain.agents.split(" → ").length - 1 && <ArrowRight className="h-3 w-3 text-zinc-300 dark:text-zinc-600" />}
+                    </span>
+                  ))}
+                </div>
+                <div className="mt-3 flex justify-end">
+                  <span className="text-xs font-semibold text-purple-600 dark:text-purple-400 group-hover:text-purple-700 dark:group-hover:text-purple-300 flex items-center gap-1.5 transition-all group-hover:gap-2">
+                    Run Chain <ArrowRight className="h-3.5 w-3.5" />
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
 
       {/* Setup All Demos — prominent card */}
@@ -127,7 +176,7 @@ export default function DemosPage() {
                 Quick Start: Setup All Demos
               </h2>
               <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                Creates connections, approvers, and rules for all 15 agents in one click.
+                Creates connections, approvers, and rules for all 12 agents in one click.
                 Run this first so every demo works out of the box.
               </p>
             </div>
