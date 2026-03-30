@@ -7,7 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
 import type { Rule } from "@/types";
-import { Plus, GitBranch, ArrowRight, FlaskConical, Send, Loader2, CheckCircle2, XCircle, ChevronRight, Eye, Pencil, Trash2, Shield, KeyRound, Activity, Zap, Clock, Link2, Gauge, BookTemplate, ChevronDown } from "lucide-react";
+import {
+  Plus, GitBranch, FlaskConical, Send, Loader2, CheckCircle2, XCircle,
+  ChevronRight, Eye, Pencil, Trash2, Shield, KeyRound, Activity, Zap,
+  Clock, Gauge, BookTemplate, ChevronDown, Lock, Unlock, RefreshCw,
+  ChevronUp, CheckCircle, AlertTriangle,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 
 const modelLabels: Record<string, string> = {
@@ -18,14 +23,6 @@ const modelLabels: Record<string, string> = {
   sequential: "Sequential",
 };
 
-const modelColors: Record<string, "default" | "success" | "warning" | "danger" | "info"> = {
-  any_one: "info",
-  specific: "warning",
-  all_of_n: "danger",
-  k_of_n: "success",
-  sequential: "default",
-};
-
 const modelBgColors: Record<string, string> = {
   any_one: "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800",
   specific: "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800",
@@ -34,12 +31,59 @@ const modelBgColors: Record<string, string> = {
   sequential: "bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700",
 };
 
+const MODEL_LABELS: Record<string, string> = {
+  any_one: "Any One Approver",
+  specific: "Specific Approver",
+  all_of_n: "All Approvers",
+  k_of_n: "K-of-N Quorum",
+  sequential: "Sequential Chain",
+  fga_dynamic: "FGA Dynamic",
+};
+
+const SERVICE_ICONS: Record<string, string> = {
+  stripe: "💳", github: "🐙", slack: "💬", google: "📧", microsoft: "📨",
+  salesforce: "☁️", notion: "📝", jira: "🎯", discord: "🎮", linear: "📐",
+  hubspot: "🔶", shopify: "🛍️", paypal: "💰", dropbox: "📦", amadeus: "✈️",
+};
+
+const STATE_COLORS: Record<string, string> = {
+  approved: "text-emerald-600 dark:text-emerald-400",
+  rejected: "text-red-600 dark:text-red-400",
+  blocked: "text-red-600 dark:text-red-400",
+  timeout: "text-amber-600 dark:text-amber-400",
+  pending: "text-blue-600 dark:text-blue-400",
+  ciba_sent: "text-blue-600 dark:text-blue-400",
+  waiting_approval: "text-blue-600 dark:text-blue-400",
+  pre_approved: "text-emerald-600 dark:text-emerald-400",
+};
+
 interface Approver { id: string; name: string; email: string; }
 
+interface ConsentService {
+  connection_id: string;
+  name: string;
+  service: string;
+  slug: string;
+  connected_user: string | null;
+  connected_auth0_user_id: string | null;
+  oauth_scopes: string[];
+  actions: string[];
+  rules: { id: string; name: string; model: string; action: string; approver_count: number; step_up_model: string | null; }[];
+  recent_access: { job_id: string; agent_user_id: string; action: string; state: string; created_at: string; }[];
+  can_revoke: boolean;
+}
+
+interface ConsentData {
+  services: ConsentService[];
+  total_agents: number;
+  total_rules: number;
+}
+
 export default function RulesPage() {
+  const [tab, setTab] = useState<"rules" | "consent">("rules");
   const [rules, setRules] = useState<Rule[]>([]);
   const [approvers, setApprovers] = useState<Approver[]>([]);
-  const [consent, setConsent] = useState<any>(null);
+  const [consent, setConsent] = useState<ConsentData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [templates, setTemplates] = useState<any[]>([]);
@@ -59,35 +103,98 @@ export default function RulesPage() {
 
   const approverMap = Object.fromEntries(approvers.map((a) => [a.id, a]));
   const connectedCount = consent?.services?.filter((s: any) => s.connected_auth0_user_id)?.length || 0;
-
   const userRulesCount = rules.filter(r => !isDemoRule(r)).length;
   const demoRulesCount = rules.filter(r => isDemoRule(r)).length;
 
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-12">
+      <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-emerald-500">
-            Rules
+            Rules & Consent
           </h1>
           <p className="text-zinc-500 dark:text-zinc-400 mt-2 text-sm">
-            Define approval workflows for each service action
+            Approval workflows, service permissions, and access visibility
           </p>
         </div>
-        <Link href="/rules/new">
-          <Button className="shadow-md hover:shadow-lg transition-shadow duration-200">
-            <Plus className="h-4 w-4 mr-2" />
-            New Rule
-          </Button>
-        </Link>
+        {tab === "rules" && (
+          <Link href="/rules/new">
+            <Button className="shadow-md hover:shadow-lg transition-shadow duration-200">
+              <Plus className="h-4 w-4 mr-2" />
+              New Rule
+            </Button>
+          </Link>
+        )}
       </div>
 
+      {/* Tabs */}
+      <div className="flex items-center gap-1 mb-8 border-b border-zinc-200 dark:border-zinc-800">
+        <button
+          onClick={() => setTab("rules")}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            tab === "rules"
+              ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400"
+              : "border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
+          }`}
+        >
+          <GitBranch className="h-4 w-4 inline mr-1.5" />
+          Approval Rules
+          {rules.length > 0 && <span className="ml-1.5 text-xs bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded-full">{rules.length}</span>}
+        </button>
+        <button
+          onClick={() => setTab("consent")}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            tab === "consent"
+              ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400"
+              : "border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
+          }`}
+        >
+          <Shield className="h-4 w-4 inline mr-1.5" />
+          Consent & Permissions
+          {consent && <span className="ml-1.5 text-xs bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded-full">{consent.services.length}</span>}
+        </button>
+      </div>
+
+      {tab === "rules" ? (
+        <RulesTab
+          rules={rules}
+          approverMap={approverMap}
+          consent={consent}
+          connectedCount={connectedCount}
+          userRulesCount={userRulesCount}
+          demoRulesCount={demoRulesCount}
+          templates={templates}
+          showTemplates={showTemplates}
+          setShowTemplates={setShowTemplates}
+          loading={loading}
+          error={error}
+          onRefresh={() => { api.getRules().then(setRules); }}
+        />
+      ) : (
+        <ConsentTab
+          consent={consent}
+          loading={loading}
+          error={error}
+          onRefresh={() => { api.getConsent().then((c: ConsentData) => setConsent(c)).catch(() => {}); }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ─── Rules Tab ─── */
+function RulesTab({
+  rules, approverMap, consent, connectedCount, userRulesCount, demoRulesCount,
+  templates, showTemplates, setShowTemplates, loading, error, onRefresh,
+}: any) {
+  return (
+    <>
       {/* Rule Templates */}
       {templates.length > 0 && (
         <div className="mb-8">
           <button
-            onClick={() => setShowTemplates(v => !v)}
+            onClick={() => setShowTemplates((v: boolean) => !v)}
             className="flex items-center gap-2 w-full rounded-xl px-5 py-4 bg-gradient-to-r from-violet-50 to-blue-50 dark:from-violet-950/20 dark:to-blue-950/20 border border-violet-200 dark:border-violet-800 hover:from-violet-100 hover:to-blue-100 dark:hover:from-violet-950/30 dark:hover:to-blue-950/30 transition-all"
           >
             <BookTemplate className="h-5 w-5 text-violet-600 dark:text-violet-400" />
@@ -198,12 +305,293 @@ export default function RulesPage() {
           </CardContent>
         </Card>
       ) : (
-        <RulesList rules={rules} approverMap={approverMap} onRefresh={() => { api.getRules().then(setRules); }} />
+        <RulesList rules={rules} approverMap={approverMap} onRefresh={onRefresh} />
       )}
+    </>
+  );
+}
+
+/* ─── Consent Tab ─── */
+function ConsentTab({ consent, loading, error, onRefresh }: { consent: ConsentData | null; loading: boolean; error: string | null; onRefresh: () => void }) {
+  const [expandedServices, setExpandedServices] = useState<Set<string>>(new Set());
+  const [revoking, setRevoking] = useState<string | null>(null);
+
+  const toggleExpand = (id: string) => {
+    setExpandedServices((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleRevoke = async (connectionId: string) => {
+    if (!confirm("Are you sure you want to revoke this connection? The agent will no longer be able to perform actions through this service.")) return;
+    setRevoking(connectionId);
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/connections/${connectionId}/revoke`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      onRefresh();
+    } catch {
+      // silently fail
+    } finally {
+      setRevoking(null);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-900 dark:border-zinc-100" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <AlertTriangle className="h-8 w-8 text-red-500 mx-auto mb-3" />
+        <p className="text-red-500">{error}</p>
+      </div>
+    );
+  }
+
+  if (!consent) return null;
+
+  const connectedCount = consent.services.filter((s) => s.connected_auth0_user_id).length;
+  const totalScopes = consent.services.reduce((acc, s) => acc + (Array.isArray(s.oauth_scopes) ? s.oauth_scopes.length : 0), 0);
+
+  return (
+    <div className="space-y-6">
+      {/* Overview Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950/30">
+                <Lock className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{consent.services.length}</p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">Connected Services</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/30">
+                <CheckCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{connectedCount}</p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">Token Vault Linked</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-purple-50 dark:bg-purple-950/30">
+                <Eye className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{totalScopes}</p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">OAuth Scopes Granted</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/30">
+                <Shield className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{consent.total_rules}</p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">Active Approval Rules</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Agent Count Banner */}
+      {consent.total_agents > 0 && (
+        <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20 px-4 py-3 flex items-center gap-3">
+          <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400 shrink-0" />
+          <p className="text-sm text-blue-800 dark:text-blue-300">
+            <strong>{consent.total_agents} distinct agent{consent.total_agents > 1 ? "s" : ""}</strong> have interacted with your workspace.
+            All actions are gated by approval rules — agents never hold your credentials.
+          </p>
+        </div>
+      )}
+
+      {/* Service Cards */}
+      {consent.services.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Unlock className="h-12 w-12 text-zinc-300 dark:text-zinc-600 mx-auto mb-4" />
+            <p className="text-zinc-500 dark:text-zinc-400 text-lg font-medium">No connected services</p>
+            <p className="text-zinc-400 dark:text-zinc-500 text-sm mt-1">
+              Connect services in the Connections page to see consent details here.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {consent.services.map((service) => {
+            const isExpanded = expandedServices.has(service.connection_id);
+            const icon = SERVICE_ICONS[service.service.toLowerCase()] || "🔗";
+            const isVaultLinked = !!service.connected_auth0_user_id;
+
+            return (
+              <Card key={service.connection_id} className="overflow-hidden">
+                <div
+                  className="flex items-center justify-between px-6 py-4 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
+                  onClick={() => toggleExpand(service.connection_id)}
+                >
+                  <div className="flex items-center gap-4">
+                    <span className="text-2xl">{icon}</span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">{service.name}</h3>
+                        <Badge variant={isVaultLinked ? "success" : "warning"}>
+                          {isVaultLinked ? "Token Vault" : "Not Linked"}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                        {service.service} &middot; {service.actions.length} action{service.actions.length !== 1 ? "s" : ""} &middot;{" "}
+                        {service.rules.length} rule{service.rules.length !== 1 ? "s" : ""}
+                        {service.connected_user && ` · Connected as ${service.connected_user}`}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {service.can_revoke && (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={(e) => { e.stopPropagation(); handleRevoke(service.connection_id); }}
+                        disabled={revoking === service.connection_id}
+                      >
+                        {revoking === service.connection_id ? <RefreshCw className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
+                        <span className="ml-1.5">Revoke</span>
+                      </Button>
+                    )}
+                    {isExpanded ? <ChevronUp className="h-5 w-5 text-zinc-400" /> : <ChevronDown className="h-5 w-5 text-zinc-400" />}
+                  </div>
+                </div>
+
+                {isExpanded && (
+                  <div className="border-t border-zinc-100 dark:border-zinc-800">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-0 divide-y md:divide-y-0 md:divide-x divide-zinc-100 dark:divide-zinc-800">
+                      {/* OAuth Scopes */}
+                      <div className="p-5">
+                        <h4 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                          <Lock className="h-3.5 w-3.5" />
+                          OAuth Scopes
+                        </h4>
+                        <div className="space-y-1.5">
+                          {(Array.isArray(service.oauth_scopes) ? service.oauth_scopes : []).map((scope) => (
+                            <div key={scope} className="text-xs font-mono px-2 py-1 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
+                              {scope}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Approval Rules */}
+                      <div className="p-5">
+                        <h4 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                          <Shield className="h-3.5 w-3.5" />
+                          Approval Rules
+                        </h4>
+                        {service.rules.length === 0 ? (
+                          <p className="text-xs text-zinc-400 italic">No rules configured</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {service.rules.map((rule) => (
+                              <div key={rule.id} className="text-xs p-2 rounded border border-zinc-100 dark:border-zinc-800">
+                                <div className="flex items-center justify-between">
+                                  <span className="font-medium text-zinc-900 dark:text-zinc-100">{rule.name}</span>
+                                  <Badge variant="default">{MODEL_LABELS[rule.model] || rule.model}</Badge>
+                                </div>
+                                <div className="mt-1 text-zinc-500 dark:text-zinc-400">
+                                  Action: <span className="font-mono">{rule.action}</span>
+                                  {" · "}{rule.approver_count} approver{rule.approver_count !== 1 ? "s" : ""}
+                                  {rule.step_up_model && (
+                                    <span className="text-amber-600 dark:text-amber-400">
+                                      {" · "}Step-up → {MODEL_LABELS[rule.step_up_model] || rule.step_up_model}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Recent Access */}
+                      <div className="p-5">
+                        <h4 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                          <Clock className="h-3.5 w-3.5" />
+                          Recent Access
+                        </h4>
+                        {service.recent_access.length === 0 ? (
+                          <p className="text-xs text-zinc-400 italic">No recent activity</p>
+                        ) : (
+                          <div className="space-y-1.5">
+                            {service.recent_access.slice(0, 5).map((access) => (
+                              <div key={access.job_id} className="text-xs flex items-center justify-between">
+                                <span className="font-mono text-zinc-700 dark:text-zinc-300">{access.action}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className={STATE_COLORS[access.state] || "text-zinc-500"}>{access.state}</span>
+                                  <span className="text-zinc-400">{new Date(access.created_at).toLocaleDateString()}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Security Footer */}
+      <div className="rounded-lg bg-zinc-100 dark:bg-zinc-800/50 px-5 py-4">
+        <div className="flex items-start gap-3">
+          <Shield className="h-5 w-5 text-zinc-500 mt-0.5 shrink-0" />
+          <div className="text-xs text-zinc-500 dark:text-zinc-400 space-y-1">
+            <p>
+              <strong className="text-zinc-700 dark:text-zinc-300">Zero credential exposure:</strong>{" "}
+              All agent actions are executed through Auth0 Token Vault. Agents never see or hold your API keys, OAuth tokens, or credentials.
+            </p>
+            <p>
+              <strong className="text-zinc-700 dark:text-zinc-300">Human-in-the-loop:</strong>{" "}
+              Every action matching an approval rule requires explicit human consent via CIBA push notification before execution.
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
 
+/* ─── Helpers ─── */
 function isDemoRule(rule: Rule): boolean {
   return /^\[.+\]/.test(rule.name);
 }
@@ -264,7 +652,6 @@ function RuleCard({ rule, approverMap, onDelete }: { rule: Rule; approverMap: Re
     else if (c.operator === "gt") sampleParams[c.field] = (c.value as number) + 1;
     else if (!sampleParams[c.field]) sampleParams[c.field] = c.value;
   }
-  // Add common fields based on action type
   if (rule.action.includes("charge") || rule.action.includes("refund") || rule.action.includes("payout")) {
     if (!sampleParams.customer) sampleParams.customer = "demo@example.com";
     if (!sampleParams.description) sampleParams.description = "Test transaction";
@@ -317,7 +704,6 @@ function RuleCard({ rule, approverMap, onDelete }: { rule: Rule; approverMap: Re
 
   return (
     <div className="border border-zinc-200 dark:border-zinc-700 rounded-xl overflow-hidden hover:-translate-y-0.5 hover:shadow-lg transition-all duration-200 bg-white dark:bg-zinc-900">
-      {/* Header */}
       <button className="w-full text-left p-5 hover:bg-zinc-50/80 dark:hover:bg-zinc-800/60 transition-colors" onClick={() => setExpanded(v => !v)}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -365,10 +751,8 @@ function RuleCard({ rule, approverMap, onDelete }: { rule: Rule; approverMap: Re
         </div>
       </button>
 
-      {/* Expanded panel */}
       {expanded && (
         <div className="px-5 pb-5 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/30 space-y-4">
-          {/* Trust Chain */}
           {rule.approver_ids.length > 0 && (
             <div className="mt-4">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 mb-2">
@@ -376,7 +760,7 @@ function RuleCard({ rule, approverMap, onDelete }: { rule: Rule; approverMap: Re
               </p>
               <div className="flex items-center gap-2 flex-wrap">
                 <code className="text-xs bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 px-2 py-0.5 rounded font-mono">{rule.connection}:{rule.action}</code>
-                {rule.approver_ids.map((id, idx) => {
+                {rule.approver_ids.map((id: string, idx: number) => {
                   const a = approverMap[id];
                   return (
                     <div key={id} className="flex items-center gap-1">
@@ -391,13 +775,11 @@ function RuleCard({ rule, approverMap, onDelete }: { rule: Rule; approverMap: Re
             </div>
           )}
 
-          {/* Request Params */}
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 mb-2">Request Params</p>
             <pre className="bg-zinc-900 dark:bg-zinc-950 text-zinc-100 text-xs rounded-lg p-3 overflow-x-auto">{JSON.stringify({ connection: rule.connection, action: rule.action, params: sampleParams }, null, 2)}</pre>
           </div>
 
-          {/* Actions */}
           <div className="flex items-center gap-2 pt-1">
             <Button size="sm" variant="outline" onClick={handleCheck} disabled={checking}>
               {checking ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Checking...</> : <><FlaskConical className="h-3.5 w-3.5 mr-1.5" />Check Rule</>}
@@ -418,7 +800,6 @@ function RuleCard({ rule, approverMap, onDelete }: { rule: Rule; approverMap: Re
             </div>
           </div>
 
-          {/* Check Rule result */}
           {checkResult && (
             <div className={`px-3 py-2.5 rounded-lg text-xs ${checkResult.matched ? "bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-300" :
                 checkResult.error ? "bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-300" :
@@ -434,7 +815,6 @@ function RuleCard({ rule, approverMap, onDelete }: { rule: Rule; approverMap: Re
             </div>
           )}
 
-          {/* Run Live status */}
           {liveStatus && (
             <div className={`px-3 py-2.5 rounded-lg text-xs flex items-center gap-2 ${liveStatus === "approved" ? "bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 text-green-800 dark:text-green-300" :
                 liveStatus === "rejected" || liveStatus === "timeout" ? "bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-300" :
