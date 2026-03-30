@@ -10,8 +10,9 @@ import { ConditionBuilder } from "@/components/rule-builder/condition-builder";
 import { LivePreview } from "@/components/rule-builder/live-preview";
 import { api } from "@/lib/api";
 import type { ApprovalModel, Approver, Condition, TimeoutAction } from "@/types";
-import { Save } from "lucide-react";
+import { Save, Zap, Gauge, Clock } from "lucide-react";
 import { FormError } from "@/components/ui/form-error";
+import { useSearchParams } from "next/navigation";
 
 const services = [
   { value: "stripe-prod", label: "Stripe (Production)" },
@@ -35,14 +36,42 @@ const actions: Record<string, string[]> = {
 
 export default function NewRulePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [approvers, setApprovers] = useState<Approver[]>([]);
   const [selectedApproverIds, setSelectedApproverIds] = useState<string[]>([]);
 
   useEffect(() => {
-    api.getApprovers().then(setApprovers).catch(() => {});
+    api.getApprovers().then(setApprovers).catch(() => { });
   }, []);
+
+  // Load template from URL param
+  useEffect(() => {
+    const tplId = searchParams.get("template");
+    if (!tplId) return;
+    fetch(`/api/v1/rules/templates/${tplId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(tpl => {
+        if (!tpl) return;
+        setName(tpl.name);
+        setConnection(tpl.connection || "");
+        setAction(tpl.action || "");
+        setConditions(tpl.conditions || []);
+        setModel(tpl.model || "any_one");
+        setTimeoutSeconds(tpl.timeout_seconds || 300);
+        setOnTimeout(tpl.on_timeout || "block");
+        setContextTemplate(tpl.context_template || "");
+        setMaxRequestsPerHour(tpl.max_requests_per_hour?.toString() || "");
+        setApprovalExpiry(tpl.approval_expiry_seconds?.toString() || "");
+        if (tpl.blackout_start) setBlackoutStart(tpl.blackout_start);
+        if (tpl.blackout_end) setBlackoutEnd(tpl.blackout_end);
+        if (tpl.step_up_model) { setStepUpEnabled(true); setStepUpModel(tpl.step_up_model); }
+        if (tpl.step_up_conditions) setStepUpConditions(tpl.step_up_conditions);
+        if (tpl.trigger_rules) setTriggerRules(JSON.stringify(tpl.trigger_rules, null, 2));
+      })
+      .catch(() => { });
+  }, [searchParams]);
 
   const toggleApprover = (id: string) => {
     setSelectedApproverIds((prev) =>
@@ -69,6 +98,9 @@ export default function NewRulePage() {
   const [stepUpEnabled, setStepUpEnabled] = useState(false);
   const [stepUpModel, setStepUpModel] = useState<ApprovalModel>("all_of_n");
   const [stepUpConditions, setStepUpConditions] = useState<Condition[]>([]);
+  const [maxRequestsPerHour, setMaxRequestsPerHour] = useState<string>("");
+  const [approvalExpiry, setApprovalExpiry] = useState<string>("");
+  const [triggerRules, setTriggerRules] = useState<string>("");
 
   const availableActions = actions[connection] || [];
 
@@ -103,6 +135,9 @@ export default function NewRulePage() {
         priority,
         step_up_model: stepUpEnabled ? stepUpModel : null,
         step_up_conditions: stepUpEnabled ? stepUpConditions : [],
+        max_requests_per_hour: maxRequestsPerHour ? parseInt(maxRequestsPerHour) : null,
+        approval_expiry_seconds: approvalExpiry ? parseInt(approvalExpiry) : null,
+        trigger_rules: triggerRules ? JSON.parse(triggerRules) : null,
       };
       await api.createRule(data);
       router.push("/rules");
@@ -313,6 +348,48 @@ export default function NewRulePage() {
                 <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Context Template (binding message)</label>
                 <Input value={contextTemplate} onChange={(e) => setContextTemplate(e.target.value)} placeholder="Charge of ${{amount}} for {{customer}}" className="mt-1" />
                 <p className="text-xs text-zinc-400 mt-1">Use {"{{variable}}"} for dynamic values from params</p>
+              </div>
+
+              {/* ─── New: Rate Limiting ─── */}
+              <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4 mt-2">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 mb-3 flex items-center gap-1">
+                  <Gauge className="h-3.5 w-3.5" /> Agent Rate Limiting
+                </p>
+                <div>
+                  <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Max requests per hour</label>
+                  <Input type="number" min={1} max={10000} value={maxRequestsPerHour} onChange={(e) => setMaxRequestsPerHour(e.target.value)} placeholder="Unlimited" className="mt-1 w-40" />
+                  <p className="text-xs text-zinc-400 mt-1">Per-agent hourly limit for this connection. Leave empty for unlimited.</p>
+                </div>
+              </div>
+
+              {/* ─── New: Approval Expiry ─── */}
+              <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 mb-3 flex items-center gap-1">
+                  <Clock className="h-3.5 w-3.5" /> Approval Expiry
+                </p>
+                <div>
+                  <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Expiry time (seconds)</label>
+                  <Input type="number" min={60} max={86400} value={approvalExpiry} onChange={(e) => setApprovalExpiry(e.target.value)} placeholder="No expiry" className="mt-1 w-40" />
+                  <p className="text-xs text-zinc-400 mt-1">Approved decisions expire if not executed within this window.</p>
+                </div>
+              </div>
+
+              {/* ─── New: Rule Chaining ─── */}
+              <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 mb-3 flex items-center gap-1">
+                  <Zap className="h-3.5 w-3.5" /> Rule Chaining
+                </p>
+                <div>
+                  <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Trigger actions on approval (JSON)</label>
+                  <textarea
+                    value={triggerRules}
+                    onChange={(e) => setTriggerRules(e.target.value)}
+                    placeholder='[{"connection": "slack", "action": "send_message", "params": {"text": "Approved!"}}]'
+                    className="mt-1 w-full rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm font-mono text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[80px]"
+                    rows={3}
+                  />
+                  <p className="text-xs text-zinc-400 mt-1">After this rule is approved, automatically trigger these actions via Token Vault.</p>
+                </div>
               </div>
             </CardContent>
           </Card>

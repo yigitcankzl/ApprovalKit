@@ -168,43 +168,6 @@ EXAMPLES:
 - User says "Mike left the company today" → Revoke ALL access immediately. This is an offboarding — cover every system.
 - User says "The intern's contract ended" → Revoke access with offboarding reason.""",
 
-    "patient_data": _CORE_BEHAVIOR + """
-You are the AI Patient Data Sharing Agent for a hospital. Doctors and staff come to you when they need to share patient records. You handle HIPAA-compliant data sharing autonomously.
-
-Your capabilities: Share patient records (own doctor/external clinic/insurance/research), send notifications.
-
-Approval rules:
-- Own doctor: Auto-approved
-- External clinic: Doctor approval
-- Insurance: Patient consent + Doctor (both)
-- Research: Ethics Board + Chief Doctor (both)
-
-EXAMPLES:
-- User says "Dr. Smith needs the latest labs for patient P-1234" → Share with own doctor (auto-approved). Confirm the scope.
-- User says "Patient P-1234 is being referred to City General for cardiology" → Share records with external clinic (doctor approval needed).
-- User says "BlueCross is requesting records for patient P-1234's claim" → Share with insurance (patient consent + doctor approval needed). Explain the dual consent requirement.
-- User says "Stanford wants anonymized cardiac data for their study" → Share for research (Ethics Board + Chief Doctor must both approve).
-
-ALWAYS state: patient ID, what data is being shared, with whom, and why. HIPAA compliance is non-negotiable.""",
-
-    "prescription_refill": _CORE_BEHAVIOR + """
-You are the AI Prescription Refill Agent for a clinic pharmacy. Pharmacy staff and nurses come to you with refill requests, dosage changes, and new prescriptions. You process them autonomously.
-
-Your capabilities: Process refills (routine/controlled/dosage change/new), notify pharmacy.
-
-Approval rules:
-- Routine refills (non-controlled): Auto-approved
-- Controlled substances (Schedule II-V): Doctor approval
-- Dosage changes: Doctor + Pharmacist (both)
-- New prescriptions: Doctor approval
-
-EXAMPLES:
-- User says "Patient P-5678 needs their blood pressure medication refilled" → Process routine Lisinopril 10mg refill (auto-approved).
-- User says "Patient P-9012 is requesting their ADHD medication" → Process Adderall refill as controlled substance (doctor must approve). Flag the controlled status clearly.
-- User says "Dr. Lee wants to increase P-3456's Metformin from 500mg to 1000mg" → Process as dosage change (doctor + pharmacist must both approve).
-- User says "New patient needs antibiotics for a sinus infection" → Process new Amoxicillin 500mg prescription (doctor must approve).
-
-ALWAYS verify: patient ID, medication name, dosage. Flag controlled substances prominently.""",
 
     "gdpr_request": _CORE_BEHAVIOR + """
 You are the AI GDPR Compliance Agent. The privacy team comes to you with data subject requests — deletions, access requests, cross-border transfers. You execute them while ensuring regulatory compliance.
@@ -604,67 +567,6 @@ AGENT_TOOLS: dict[str, list[dict]] = {
         },
     ],
 
-    "patient_data": [
-        {
-            "name": "share_records",
-            "description": "Share patient medical records with an authorized recipient.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "patient_id": {"type": "string", "description": "Patient identifier"},
-                    "recipient_type": {"type": "string", "enum": ["own_doctor", "external_clinic", "insurance", "research"]},
-                    "recipient_name": {"type": "string"},
-                    "purpose": {"type": "string"},
-                    "data_scope": {"type": "string", "enum": ["full_record", "summary", "specific_test", "anonymized"]},
-                },
-                "required": ["patient_id", "recipient_type", "recipient_name", "purpose"],
-            },
-        },
-        {
-            "name": "send_notification",
-            "description": "Send a data sharing notification email.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "recipient": {"type": "string"},
-                    "subject": {"type": "string"},
-                    "type": {"type": "string", "enum": ["consent_request", "data_shared", "access_granted"]},
-                },
-                "required": ["recipient", "subject", "type"],
-            },
-        },
-    ],
-
-    "prescription_refill": [
-        {
-            "name": "process_refill",
-            "description": "Process a prescription refill request.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "patient_id": {"type": "string"},
-                    "medication": {"type": "string", "description": "Medication name"},
-                    "dosage": {"type": "string", "description": "Dosage (e.g. 10mg, 500mg)"},
-                    "is_controlled": {"type": "boolean", "description": "Whether this is a controlled substance"},
-                    "is_dosage_change": {"type": "boolean", "description": "Whether this involves a dosage change"},
-                    "is_new_prescription": {"type": "boolean", "description": "Whether this is a new prescription"},
-                },
-                "required": ["patient_id", "medication", "dosage"],
-            },
-        },
-        {
-            "name": "notify_pharmacy",
-            "description": "Send a notification to the pharmacy.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "pharmacy_name": {"type": "string"},
-                    "message": {"type": "string"},
-                },
-                "required": ["pharmacy_name", "message"],
-            },
-        },
-    ],
 
     "gdpr_request": [
         {

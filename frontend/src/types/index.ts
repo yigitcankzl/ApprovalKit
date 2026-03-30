@@ -31,6 +31,11 @@ export interface Rule {
   is_active: boolean;
   step_up_model: ApprovalModel | null;
   step_up_conditions: Condition[];
+  approval_checklist: { id: string; label: string }[] | null;
+  max_requests_per_hour: number | null;
+  approval_expiry_seconds: number | null;
+  trigger_rules: { connection: string; action: string; params: Record<string, string> }[] | null;
+  on_approve_actions: { connection: string; action: string; params: Record<string, string> }[] | null;
   created_at: string;
   updated_at: string;
 }

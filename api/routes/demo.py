@@ -76,17 +76,6 @@ APPROVERS = [
     # Customer Service
     {"name": "CS Manager",       "email": "cs_manager@demo.approvalkit.io",
      "auth0_user_id": "demo|cs_manager",       "role": "cs_manager"},
-    # Healthcare
-    {"name": "Doctor",           "email": "doctor@demo.approvalkit.io",
-     "auth0_user_id": "demo|doctor",           "role": "doctor"},
-    {"name": "Chief Doctor",     "email": "chief_doctor@demo.approvalkit.io",
-     "auth0_user_id": "demo|chief_doctor",     "role": "chief_doctor"},
-    {"name": "Pharmacist",       "email": "pharmacist@demo.approvalkit.io",
-     "auth0_user_id": "demo|pharmacist",       "role": "pharmacist"},
-    {"name": "Ethics Board",     "email": "ethics@demo.approvalkit.io",
-     "auth0_user_id": "demo|ethics_board",     "role": "ethics_board"},
-    {"name": "Patient Rep",      "email": "patient_rep@demo.approvalkit.io",
-     "auth0_user_id": "demo|patient_rep",      "role": "patient_rep"},
     # Legal / Privacy
     {"name": "Privacy Officer",  "email": "privacy@demo.approvalkit.io",
      "auth0_user_id": "demo|privacy",          "role": "privacy_officer"},
@@ -111,8 +100,6 @@ _AGENT_DEPS = {
     "account_takeover": {"conns": ["salesforce-prod", "stripe-prod", "gmail-prod", "slack-prod"], "roles": ["security_lead", "legal", "cs_manager"]},
     "recruitment": {"conns": ["gmail-prod", "github-prod", "slack-prod"], "roles": ["hr_manager", "cfo", "ceo", "it_manager", "cto"]},
     "access_provisioning": {"conns": ["github-prod", "slack-prod"], "roles": ["it_manager", "cto", "cfo", "hr_manager"]},
-    "patient_data": {"conns": ["google-drive-prod", "gmail-prod", "slack-prod"], "roles": ["doctor", "patient_rep", "ethics_board", "chief_doctor"]},
-    "prescription_refill": {"conns": ["gmail-prod", "slack-prod"], "roles": ["doctor", "pharmacist"]},
     "gdpr_request": {"conns": ["github-prod", "gmail-prod", "slack-prod"], "roles": ["privacy_officer", "cto", "legal"]},
     "api_key_rotation": {"conns": ["github-prod", "slack-prod", "gmail-prod"], "roles": ["security_lead", "cto"]},
     "finance": {"conns": ["stripe-prod", "gmail-prod", "slack-prod"], "roles": ["manager", "cfo"]},
@@ -128,8 +115,6 @@ _AGENT_RULE_PREFIXES = {
     "account_takeover": ["[ATO]"],
     "recruitment": ["[HR]"],
     "access_provisioning": ["[Access]"],
-    "patient_data": ["[Patient]"],
-    "prescription_refill": ["[Rx]"],
     "gdpr_request": ["[GDPR]"],
     "api_key_rotation": ["[KeyRotation]"],
     "finance": ["[Finance]"],
@@ -340,68 +325,6 @@ def _build_rules(ar: dict[str, uuid.UUID]) -> list[dict]:
             "conditions": [c("reason", "eq", "offboarding")],
             "approver_roles": ["hr_manager"],
             "priority": 15,
-        },
-
-        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        # PATIENT DATA SHARING AGENT
-        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        {
-            "name": "[Patient] Share with external clinic",
-            "connection": "google-drive-prod", "action": "share",
-            "model": ApprovalModel.SPECIFIC, "timeout_seconds": 600,
-            "context_template": "Share patient {patient_id} records with {recipient_name}",
-            "conditions": [c("recipient_type", "eq", "external_clinic")],
-            "approver_roles": ["doctor"],
-            "priority": 20,
-        },
-        {
-            "name": "[Patient] Share with insurance",
-            "connection": "google-drive-prod", "action": "share",
-            "model": ApprovalModel.ALL_OF_N, "timeout_seconds": 900,
-            "context_template": "Share patient {patient_id} records with insurance: {recipient_name}",
-            "conditions": [c("recipient_type", "eq", "insurance")],
-            "approver_roles": ["patient_rep", "doctor"],
-            "priority": 35,
-        },
-        {
-            "name": "[Patient] Share for research",
-            "connection": "google-drive-prod", "action": "share",
-            "model": ApprovalModel.ALL_OF_N, "timeout_seconds": 900,
-            "context_template": "Share patient data for research: {purpose}",
-            "conditions": [c("recipient_type", "eq", "research")],
-            "approver_roles": ["ethics_board", "chief_doctor"],
-            "priority": 40,
-        },
-
-        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        # PRESCRIPTION REFILL AGENT
-        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        {
-            "name": "[Rx] Controlled substance refill",
-            "connection": "gmail-prod", "action": "send_email",
-            "model": ApprovalModel.SPECIFIC, "timeout_seconds": 600,
-            "context_template": "Refill {medication} {dosage} for patient {patient_id}",
-            "conditions": [c("type", "eq", "controlled_refill")],
-            "approver_roles": ["doctor"],
-            "priority": 25,
-        },
-        {
-            "name": "[Rx] Dosage change",
-            "connection": "gmail-prod", "action": "send_email",
-            "model": ApprovalModel.ALL_OF_N, "timeout_seconds": 600,
-            "context_template": "Dosage change: {medication} → {dosage} for {patient_id}",
-            "conditions": [c("type", "eq", "dosage_change")],
-            "approver_roles": ["doctor", "pharmacist"],
-            "priority": 30,
-        },
-        {
-            "name": "[Rx] New prescription",
-            "connection": "gmail-prod", "action": "send_email",
-            "model": ApprovalModel.SPECIFIC, "timeout_seconds": 600,
-            "context_template": "New Rx: {medication} {dosage} for {patient_id}",
-            "conditions": [c("type", "eq", "new_prescription")],
-            "approver_roles": ["doctor"],
-            "priority": 20,
         },
 
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -942,120 +865,7 @@ def _build_agent_catalog() -> list[dict]:
         },
 
         # ──────────────────────────────────────────────────────────────────────
-        # 7. PATIENT DATA SHARING AGENT
-        # ──────────────────────────────────────────────────────────────────────
-        {
-            "id": "patient_data",
-            "title": "Patient Data Sharing Agent",
-            "icon": "Heart",
-            "category": "healthcare",
-            "categoryLabel": "Healthcare & Clinical",
-            "description": "HIPAA-compliant patient data sharing agent that ensures medical records are only shared with proper authorization. When a patient's own treating doctor requests records, sharing auto-approves — no friction for routine care. External clinic referrals require the treating doctor's explicit approval via Guardian push. Insurance company requests trigger the highest individual bar: both the patient's consent (via Patient Representative) and the treating doctor must approve, ensuring patients maintain control over their data. Research data sharing requires Ethics Board review plus Chief Doctor approval — anonymized data only. Every share is logged in a full audit trail with patient ID, recipient, purpose, and data scope. The agent never accesses records directly — Google Drive sharing executes through Token Vault.",
-            "scenarios": [
-                {
-                    "title": "Share with own doctor (auto)",
-                    "description": "Share records with patient's own doctor. Auto-approved.",
-                    "connection": "google-drive-prod", "action": "share",
-                    "params": {"patient_id": "P-1234", "recipient_type": "own_doctor", "recipient_name": "Dr. Smith", "purpose": "Regular checkup follow-up", "data_scope": "full_record"},
-                    "flow": flow(("agent", "Data Agent", "Share"), ("platform", "Rule Engine", "No match"), ("action", "Shared", "Dr. Smith")),
-                    "badge": "success", "badgeLabel": "AUTO",
-                },
-                {
-                    "title": "External clinic referral (doctor approval)",
-                    "description": "Share with different clinic. Treating doctor must approve.",
-                    "connection": "google-drive-prod", "action": "share",
-                    "params": {"patient_id": "P-1234", "recipient_type": "external_clinic", "recipient_name": "City General Hospital", "purpose": "Cardiology referral", "data_scope": "specific_test"},
-                    "flow": flow(("agent", "Data Agent", "Share"), ("platform", "Rule Engine", "specific"), ("approver", "Doctor", "CIBA push"), ("action", "Shared", "External clinic")),
-                    "badge": "info", "badgeLabel": "DOCTOR",
-                },
-                {
-                    "title": "Insurance request (patient + doctor)",
-                    "description": "Insurance data request. Requires patient consent + doctor approval.",
-                    "connection": "google-drive-prod", "action": "share",
-                    "params": {"patient_id": "P-1234", "recipient_type": "insurance", "recipient_name": "BlueCross Insurance", "purpose": "Claim verification", "data_scope": "summary"},
-                    "flow": flow(("agent", "Data Agent", "Share"), ("platform", "Rule Engine", "all_of_n"), ("approver", "Patient Rep", "Consent"), ("approver", "Doctor", "CIBA push"), ("action", "Shared", "Insurance")),
-                    "badge": "warning", "badgeLabel": "CONSENT",
-                },
-                {
-                    "title": "Research study (Ethics + Chief Doctor)",
-                    "description": "Share anonymized data for research. Ethics Board + Chief Doctor both approve.",
-                    "connection": "google-drive-prod", "action": "share",
-                    "params": {"patient_id": "P-1234", "recipient_type": "research", "recipient_name": "Stanford Medical Research", "purpose": "Longitudinal cardiac study", "data_scope": "anonymized"},
-                    "flow": flow(("agent", "Data Agent", "Share"), ("platform", "Rule Engine", "all_of_n"), ("approver", "Ethics Board", "Review"), ("approver", "Chief Doctor", "CIBA push"), ("action", "Shared", "Anonymized")),
-                    "badge": "danger", "badgeLabel": "ETHICS",
-                },
-            ],
-            "setupInfo": [
-                {"type": "connection", "name": "google-drive-prod", "detail": "Google Drive for record sharing"},
-                {"type": "connection", "name": "gmail-prod", "detail": "Gmail for data sharing notifications"},
-                {"type": "connection", "name": "slack-prod", "detail": "Slack for internal alerts"},
-                {"type": "approver", "name": "Doctor", "detail": "Approves external sharing"},
-                {"type": "approver", "name": "Patient Rep", "detail": "Patient consent"},
-                {"type": "approver", "name": "Ethics Board", "detail": "Approves research sharing"},
-                {"type": "approver", "name": "Chief Doctor", "detail": "Co-approves research"},
-                {"type": "rule", "name": "[Patient] Share with external", "detail": "External → doctor"},
-                {"type": "rule", "name": "[Patient] Share with insurance", "detail": "Insurance → patient + doctor"},
-                {"type": "rule", "name": "[Patient] Share for research", "detail": "Research → ethics + chief doctor"},
-            ],
-        },
-
-        # ──────────────────────────────────────────────────────────────────────
-        # 8. PRESCRIPTION REFILL AGENT
-        # ──────────────────────────────────────────────────────────────────────
-        {
-            "id": "prescription_refill",
-            "title": "Prescription Refill Agent",
-            "icon": "Pill",
-            "category": "healthcare",
-            "categoryLabel": "Healthcare & Clinical",
-            "description": "Pharmacy automation agent that processes prescription refills with built-in safety controls. Routine medications (blood pressure, cholesterol) refill automatically — no delay for standard maintenance drugs. Controlled substances (Schedule II-V: Adderall, Xanax, opioids) require the prescribing doctor's explicit approval via Guardian push before dispensing, preventing unauthorized refills of addictive medications. Dosage changes trigger the strictest review: both the doctor and pharmacist must approve sequentially, ensuring clinical validation and drug interaction checks. New prescriptions also require doctor approval. Every refill action is logged with patient ID, medication, dosage, and approval chain for DEA compliance. The agent flags potential issues but never dispenses without proper authorization.",
-            "scenarios": [
-                {
-                    "title": "Routine refill — Lisinopril (auto)",
-                    "description": "Standard medication refill. Auto-approved.",
-                    "connection": "gmail-prod", "action": "send_email",
-                    "params": {"type": "routine_refill", "patient_id": "P-5678", "medication": "Lisinopril", "dosage": "10mg", "recipient": "pharmacy@clinic.com", "subject": "Rx Refill: Lisinopril 10mg"},
-                    "flow": flow(("agent", "Rx Agent", "Refill"), ("platform", "Rule Engine", "No match"), ("action", "Processed", "Pharmacy")),
-                    "badge": "success", "badgeLabel": "AUTO",
-                },
-                {
-                    "title": "Controlled substance — Adderall (doctor)",
-                    "description": "Schedule II drug. Doctor must approve the refill.",
-                    "connection": "gmail-prod", "action": "send_email",
-                    "params": {"type": "controlled_refill", "patient_id": "P-9012", "medication": "Adderall", "dosage": "20mg", "recipient": "pharmacy@clinic.com", "subject": "Rx Refill: Adderall 20mg"},
-                    "flow": flow(("agent", "Rx Agent", "Refill"), ("platform", "Rule Engine", "specific"), ("approver", "Doctor", "CIBA push"), ("action", "Approved", "Pharmacy")),
-                    "badge": "warning", "badgeLabel": "CONTROLLED",
-                },
-                {
-                    "title": "Dosage change — Metformin (doctor + pharmacist)",
-                    "description": "Dosage modification. Doctor approves first, then pharmacist verifies.",
-                    "connection": "gmail-prod", "action": "send_email",
-                    "params": {"type": "dosage_change", "patient_id": "P-3456", "medication": "Metformin", "dosage": "1000mg", "recipient": "pharmacy@clinic.com", "subject": "Rx Dosage Change: Metformin 500mg → 1000mg"},
-                    "flow": flow(("agent", "Rx Agent", "Dosage change"), ("platform", "Rule Engine", "all_of_n"), ("approver", "Doctor", "CIBA push"), ("approver", "Pharmacist", "CIBA push"), ("action", "Updated", "Pharmacy")),
-                    "badge": "danger", "badgeLabel": "SEQUENTIAL",
-                },
-                {
-                    "title": "New prescription — Amoxicillin (doctor)",
-                    "description": "New prescription requires doctor approval before dispensing.",
-                    "connection": "gmail-prod", "action": "send_email",
-                    "params": {"type": "new_prescription", "patient_id": "P-7890", "medication": "Amoxicillin", "dosage": "500mg", "recipient": "pharmacy@clinic.com", "subject": "New Rx: Amoxicillin 500mg"},
-                    "flow": flow(("agent", "Rx Agent", "New Rx"), ("platform", "Rule Engine", "specific"), ("approver", "Doctor", "CIBA push"), ("action", "Prescribed", "Pharmacy")),
-                    "badge": "info", "badgeLabel": "DOCTOR",
-                },
-            ],
-            "setupInfo": [
-                {"type": "connection", "name": "gmail-prod", "detail": "Gmail for pharmacy notifications"},
-                {"type": "connection", "name": "slack-prod", "detail": "Slack for pharmacy notifications"},
-                {"type": "approver", "name": "Doctor", "detail": "Approves controlled substances + new Rx"},
-                {"type": "approver", "name": "Pharmacist", "detail": "Verifies dosage changes"},
-                {"type": "rule", "name": "[Rx] Controlled substance", "detail": "Controlled → doctor"},
-                {"type": "rule", "name": "[Rx] Dosage change", "detail": "Dosage → doctor + pharmacist"},
-                {"type": "rule", "name": "[Rx] New prescription", "detail": "New Rx → doctor"},
-            ],
-        },
-
-        # ──────────────────────────────────────────────────────────────────────
-        # 9. GDPR REQUEST AGENT
+        # 7. GDPR REQUEST AGENT
         # ──────────────────────────────────────────────────────────────────────
         {
             "id": "gdpr_request",

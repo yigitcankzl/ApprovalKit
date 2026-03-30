@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
 import type { Rule } from "@/types";
-import { Plus, GitBranch, ArrowRight, FlaskConical, Send, Loader2, CheckCircle2, XCircle, ChevronRight, Eye, Pencil, Trash2, Shield, KeyRound, Activity } from "lucide-react";
+import { Plus, GitBranch, ArrowRight, FlaskConical, Send, Loader2, CheckCircle2, XCircle, ChevronRight, Eye, Pencil, Trash2, Shield, KeyRound, Activity, Zap, Clock, Link2, Gauge, BookTemplate, ChevronDown } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 const modelLabels: Record<string, string> = {
@@ -37,19 +37,22 @@ const modelBgColors: Record<string, string> = {
 interface Approver { id: string; name: string; email: string; }
 
 export default function RulesPage() {
-  const [rules, setRules]       = useState<Rule[]>([]);
+  const [rules, setRules] = useState<Rule[]>([]);
   const [approvers, setApprovers] = useState<Approver[]>([]);
-  const [consent, setConsent]   = useState<any>(null);
-  const [loading, setLoading]   = useState(true);
-  const [error, setError]       = useState<string | null>(null);
+  const [consent, setConsent] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [showTemplates, setShowTemplates] = useState(false);
 
   useEffect(() => {
     Promise.all([
       api.getRules(),
       api.getApprovers().catch(() => []),
       api.getConsent().catch(() => null),
+      fetch("/api/v1/rules/templates").then(r => r.ok ? r.json() : { templates: [] }).catch(() => ({ templates: [] })),
     ])
-      .then(([r, a, c]) => { setRules(r); setApprovers(a); setConsent(c); })
+      .then(([r, a, c, t]) => { setRules(r); setApprovers(a); setConsent(c); setTemplates(t.templates || []); })
       .catch((err) => setError(err.message || "Failed to load rules"))
       .finally(() => setLoading(false));
   }, []);
@@ -79,6 +82,52 @@ export default function RulesPage() {
           </Button>
         </Link>
       </div>
+
+      {/* Rule Templates */}
+      {templates.length > 0 && (
+        <div className="mb-8">
+          <button
+            onClick={() => setShowTemplates(v => !v)}
+            className="flex items-center gap-2 w-full rounded-xl px-5 py-4 bg-gradient-to-r from-violet-50 to-blue-50 dark:from-violet-950/20 dark:to-blue-950/20 border border-violet-200 dark:border-violet-800 hover:from-violet-100 hover:to-blue-100 dark:hover:from-violet-950/30 dark:hover:to-blue-950/30 transition-all"
+          >
+            <BookTemplate className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+            <span className="text-sm font-semibold text-violet-700 dark:text-violet-300">Rule Templates</span>
+            <span className="text-xs text-violet-500 dark:text-violet-400 ml-1">— {templates.length} pre-built configurations</span>
+            <div className="flex-1" />
+            <ChevronDown className={`h-4 w-4 text-violet-400 transition-transform duration-200 ${showTemplates ? "rotate-180" : ""}`} />
+          </button>
+          {showTemplates && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+              {templates.map((tpl: any) => (
+                <Link
+                  key={tpl.id}
+                  href={`/rules/new?template=${tpl.id}`}
+                  className="group rounded-xl border border-zinc-200 dark:border-zinc-700 p-4 hover:border-violet-300 dark:hover:border-violet-700 hover:shadow-md transition-all bg-white dark:bg-zinc-900"
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${tpl.category === 'finance' ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300' :
+                        tpl.category === 'devops' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300' :
+                          tpl.category === 'communication' ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300' :
+                            'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300'
+                      }`}>{tpl.category}</span>
+                  </div>
+                  <h4 className="font-semibold text-zinc-900 dark:text-zinc-100 text-sm group-hover:text-violet-700 dark:group-hover:text-violet-400 transition-colors">{tpl.name}</h4>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 line-clamp-2">{tpl.description}</p>
+                  <div className="flex items-center gap-2 mt-3 flex-wrap">
+                    <code className="text-[10px] bg-zinc-100 dark:bg-zinc-800 text-zinc-500 px-1.5 py-0.5 rounded font-mono">{tpl.connection}:{tpl.action}</code>
+                    {tpl.max_requests_per_hour && <span className="text-[10px] text-zinc-400"><Gauge className="h-3 w-3 inline" /> {tpl.max_requests_per_hour}/hr</span>}
+                    {tpl.approval_expiry_seconds && <span className="text-[10px] text-zinc-400"><Clock className="h-3 w-3 inline" /> {Math.round(tpl.approval_expiry_seconds / 60)}m expiry</span>}
+                    {tpl.trigger_rules?.length > 0 && <span className="text-[10px] text-zinc-400"><Zap className="h-3 w-3 inline" /> chain</span>}
+                  </div>
+                  <div className="mt-3 text-[10px] font-medium text-violet-600 dark:text-violet-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                    Use this template →
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Stat Summary Cards */}
       {consent && (
@@ -250,7 +299,7 @@ function RuleCard({ rule, approverMap, onDelete }: { rule: Rule; approverMap: Re
           try {
             const s = await api.getJobStatus(res.job_id);
             if (["approved", "rejected", "timeout", "blocked"].includes(s.status)) { setLiveStatus(s.status); return; }
-          } catch {}
+          } catch { }
           if (++attempts < 60) setTimeout(poll, 2000);
         };
         poll();
@@ -261,7 +310,7 @@ function RuleCard({ rule, approverMap, onDelete }: { rule: Rule; approverMap: Re
 
   const handleDelete = async () => {
     if (!confirm(`Delete rule "${rule.name}"?`)) return;
-    try { await api.deleteRule(rule.id); onDelete(); } catch {}
+    try { await api.deleteRule(rule.id); onDelete(); } catch { }
   };
 
   const modelBg = modelBgColors[rule.model] || modelBgColors["sequential"];
@@ -296,6 +345,21 @@ function RuleCard({ rule, approverMap, onDelete }: { rule: Rule; approverMap: Re
             )}
             {rule.on_timeout === "escalate" && (
               <span className="text-xs font-medium px-2.5 py-1 rounded-full border border-amber-200 dark:border-amber-800 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">Escalation</span>
+            )}
+            {rule.max_requests_per_hour && (
+              <span className="text-xs font-medium px-2 py-1 rounded-full border border-violet-200 dark:border-violet-800 bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300" title={`Max ${rule.max_requests_per_hour} requests/hour`}>
+                <Gauge className="h-3 w-3 inline mr-0.5" />{rule.max_requests_per_hour}/hr
+              </span>
+            )}
+            {rule.approval_expiry_seconds && (
+              <span className="text-xs font-medium px-2 py-1 rounded-full border border-cyan-200 dark:border-cyan-800 bg-cyan-100 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-300" title={`Approval expires after ${Math.round(rule.approval_expiry_seconds / 60)} minutes`}>
+                <Clock className="h-3 w-3 inline mr-0.5" />{Math.round(rule.approval_expiry_seconds / 60)}m
+              </span>
+            )}
+            {(rule.trigger_rules?.length || 0) > 0 && (
+              <span className="text-xs font-medium px-2 py-1 rounded-full border border-orange-200 dark:border-orange-800 bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300" title="Rule chaining enabled">
+                <Zap className="h-3 w-3 inline mr-0.5" />Chain
+              </span>
             )}
           </div>
         </div>
@@ -356,11 +420,10 @@ function RuleCard({ rule, approverMap, onDelete }: { rule: Rule; approverMap: Re
 
           {/* Check Rule result */}
           {checkResult && (
-            <div className={`px-3 py-2.5 rounded-lg text-xs ${
-              checkResult.matched ? "bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-300" :
-              checkResult.error ? "bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-300" :
-              "bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 text-green-800 dark:text-green-300"
-            }`}>
+            <div className={`px-3 py-2.5 rounded-lg text-xs ${checkResult.matched ? "bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-300" :
+                checkResult.error ? "bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-300" :
+                  "bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 text-green-800 dark:text-green-300"
+              }`}>
               {checkResult.matched ? (
                 <span><CheckCircle2 className="h-3 w-3 inline mr-1" />Matched: {checkResult.rule_name} ({checkResult.model}){checkResult.step_up_triggered ? ` → Step-up: ${checkResult.effective_model}` : ""}</span>
               ) : checkResult.error ? (
@@ -373,11 +436,10 @@ function RuleCard({ rule, approverMap, onDelete }: { rule: Rule; approverMap: Re
 
           {/* Run Live status */}
           {liveStatus && (
-            <div className={`px-3 py-2.5 rounded-lg text-xs flex items-center gap-2 ${
-              liveStatus === "approved" ? "bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 text-green-800 dark:text-green-300" :
-              liveStatus === "rejected" || liveStatus === "timeout" ? "bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-300" :
-              "bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-300"
-            }`}>
+            <div className={`px-3 py-2.5 rounded-lg text-xs flex items-center gap-2 ${liveStatus === "approved" ? "bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 text-green-800 dark:text-green-300" :
+                liveStatus === "rejected" || liveStatus === "timeout" ? "bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-300" :
+                  "bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-300"
+              }`}>
               {liveStatus === "submitting" && <><Loader2 className="h-3 w-3 animate-spin" />Submitting...</>}
               {liveStatus === "ciba_sent" && <><Loader2 className="h-3 w-3 animate-spin" />Guardian push sent -- waiting for approval...</>}
               {liveStatus === "approved" && <><CheckCircle2 className="h-3 w-3" />Approved via Guardian</>}
