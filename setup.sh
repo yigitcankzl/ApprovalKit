@@ -244,7 +244,7 @@ if [ -n "$USER_SUB" ]; then
     curl -sf -X POST "http://localhost:8000/api/v1/workspace/ai-key" \
         -H "Content-Type: application/json" \
         -H "X-User-Sub: $USER_SUB" \
-        -d '{"api_key":"ollama","provider":"ollama"}' &>/dev/null && \
+        -d '{"api_key":"ollama:ollama","provider":"ollama"}' &>/dev/null && \
         log "Ollama configured as AI provider" || \
         warn "AI provider config skipped — configure in app"
 else
@@ -282,8 +282,8 @@ echo -e "    - You approve/reject in real-time from the split-screen dashboard"
 echo -e "    - On approval, Auth0 Token Vault executes — agent never sees credentials"
 echo ""
 
-echo -e "  ${BOLD}Demo Agents (14):${NC}"
-echo -e "    ${DIM}E-Commerce, DevOps, HR, Security, Finance, Healthcare,${NC}"
+echo -e "  ${BOLD}Demo Agents (12):${NC}"
+echo -e "    ${DIM}E-Commerce, Finance, DevOps, Security, HR, GDPR,${NC}"
 echo -e "    ${DIM}Open Source, Research, Communications, and more${NC}"
 echo ""
 
