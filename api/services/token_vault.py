@@ -849,43 +849,58 @@ async def _execute_amadeus(action: str, params: dict, creds: dict) -> dict:
             raise ValueError(f"Unsupported Amadeus action: {action}")
 
 
+def _safe_json(r: httpx.Response) -> dict:
+    """Safely parse JSON response, return empty dict on failure."""
+    try:
+        return r.json()
+    except Exception:
+        return {"error": r.text[:200] if r.text else "No response body"}
+
+
 async def _execute_dropbox(action: str, params: dict, creds: dict) -> dict:
-    """Dropbox API handler. Actions: upload, share, list_folder."""
+    """Dropbox API handler. Actions: share, list_folder."""
     token = creds.get("access_token") or creds.get("token")
-    headers = {"Authorization": f"Bearer {token}"}
+    if not token: raise ValueError("No Dropbox access token available")
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     async with httpx.AsyncClient(timeout=15) as c:
         if action == "share":
             r = await c.post("https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings",
-                headers={**headers, "Content-Type": "application/json"},
-                json={"path": params.get("path", "/"), "settings": {"requested_visibility": "public"}})
-            return {"success": r.status_code == 200, "action": "share", "url": r.json().get("url", "")}
+                headers=headers, json={"path": params.get("path", "/"), "settings": {"requested_visibility": "public"}})
+            data = _safe_json(r)
+            if r.status_code not in (200, 201): raise RuntimeError(f"Dropbox share failed ({r.status_code}): {data.get('error_summary', r.text[:200])}")
+            return {"success": True, "action": "share", "url": data.get("url", "")}
         elif action == "list_folder":
             r = await c.post("https://api.dropboxapi.com/2/files/list_folder",
-                headers={**headers, "Content-Type": "application/json"},
-                json={"path": params.get("path", ""), "limit": 20})
-            entries = [e.get("name") for e in r.json().get("entries", [])]
-            return {"success": r.status_code == 200, "action": "list_folder", "entries": entries}
+                headers=headers, json={"path": params.get("path", ""), "limit": 20})
+            data = _safe_json(r)
+            if r.status_code != 200: raise RuntimeError(f"Dropbox list failed ({r.status_code}): {data.get('error_summary', r.text[:200])}")
+            return {"success": True, "action": "list_folder", "entries": [e.get("name") for e in data.get("entries", [])]}
         raise ValueError(f"Unsupported Dropbox action: {action}")
 
 
 async def _execute_box(action: str, params: dict, creds: dict) -> dict:
-    """Box API handler. Actions: share, list_folder, upload."""
+    """Box API handler. Actions: share, list_folder."""
     token = creds.get("access_token") or creds.get("token")
+    if not token: raise ValueError("No Box access token available")
     headers = {"Authorization": f"Bearer {token}"}
     async with httpx.AsyncClient(base_url="https://api.box.com/2.0", timeout=15, headers=headers) as c:
         if action == "share":
-            r = await c.put(f"/files/{params['file_id']}", json={"shared_link": {"access": "open"}})
-            return {"success": r.status_code == 200, "action": "share", "id": params.get("file_id")}
+            file_id = params.get("file_id", "0")
+            r = await c.put(f"/files/{file_id}", json={"shared_link": {"access": "open"}})
+            if r.status_code not in (200, 201): raise RuntimeError(f"Box share failed ({r.status_code}): {r.text[:200]}")
+            return {"success": True, "action": "share", "id": file_id}
         elif action == "list_folder":
             r = await c.get(f"/folders/{params.get('folder_id', '0')}/items")
-            items = [{"name": i["name"], "type": i["type"]} for i in r.json().get("entries", [])]
-            return {"success": r.status_code == 200, "action": "list_folder", "items": items}
+            data = _safe_json(r)
+            if r.status_code != 200: raise RuntimeError(f"Box list failed ({r.status_code}): {r.text[:200]}")
+            return {"success": True, "action": "list_folder", "items": [{"name": i.get("name"), "type": i.get("type")} for i in data.get("entries", [])]}
         raise ValueError(f"Unsupported Box action: {action}")
 
 
 async def _execute_bitbucket(action: str, params: dict, creds: dict) -> dict:
-    """Bitbucket API handler. Actions: create_pr, merge_pr, list_repos."""
+    """Bitbucket API handler. Actions: create_pr, merge_pr."""
     token = creds.get("access_token") or creds.get("token")
+    if not token: raise ValueError("No Bitbucket access token available")
     headers = {"Authorization": f"Bearer {token}"}
     workspace = params.get("workspace", creds.get("workspace", ""))
     repo = params.get("repo", creds.get("repo", ""))
@@ -893,145 +908,181 @@ async def _execute_bitbucket(action: str, params: dict, creds: dict) -> dict:
         if action == "create_pr":
             r = await c.post(f"/repositories/{workspace}/{repo}/pullrequests",
                 json={"title": params.get("title", ""), "source": {"branch": {"name": params.get("source_branch", "main")}}})
-            return {"success": r.status_code in (200, 201), "action": "create_pr", "id": r.json().get("id")}
+            if r.status_code not in (200, 201): raise RuntimeError(f"Bitbucket create_pr failed ({r.status_code}): {r.text[:200]}")
+            return {"success": True, "action": "create_pr", "id": _safe_json(r).get("id")}
         elif action == "merge_pr":
-            r = await c.post(f"/repositories/{workspace}/{repo}/pullrequests/{params['pr_id']}/merge")
-            return {"success": r.status_code == 200, "action": "merge_pr", "id": params.get("pr_id")}
+            pr_id = params.get("pr_id", "0")
+            r = await c.post(f"/repositories/{workspace}/{repo}/pullrequests/{pr_id}/merge")
+            if r.status_code != 200: raise RuntimeError(f"Bitbucket merge failed ({r.status_code}): {r.text[:200]}")
+            return {"success": True, "action": "merge_pr", "id": pr_id}
         raise ValueError(f"Unsupported Bitbucket action: {action}")
 
 
 async def _execute_figma(action: str, params: dict, creds: dict) -> dict:
-    """Figma API handler. Actions: get_file, export, list_projects."""
+    """Figma API handler. Actions: get_file, export."""
     token = creds.get("access_token") or creds.get("token")
+    if not token: raise ValueError("No Figma access token available")
     headers = {"X-Figma-Token": token}
     async with httpx.AsyncClient(base_url="https://api.figma.com/v1", timeout=15, headers=headers) as c:
         if action == "get_file":
-            r = await c.get(f"/files/{params['file_key']}")
-            return {"success": r.status_code == 200, "action": "get_file", "name": r.json().get("name", "")}
+            file_key = params.get("file_key", "")
+            r = await c.get(f"/files/{file_key}")
+            if r.status_code != 200: raise RuntimeError(f"Figma get_file failed ({r.status_code}): {r.text[:200]}")
+            return {"success": True, "action": "get_file", "name": _safe_json(r).get("name", "")}
         elif action == "export":
-            r = await c.get(f"/images/{params['file_key']}", params={"ids": params.get("node_ids", ""), "format": params.get("format", "png")})
-            return {"success": r.status_code == 200, "action": "export", "images": r.json().get("images", {})}
+            file_key = params.get("file_key", "")
+            r = await c.get(f"/images/{file_key}", params={"ids": params.get("node_ids", ""), "format": params.get("format", "png")})
+            if r.status_code != 200: raise RuntimeError(f"Figma export failed ({r.status_code}): {r.text[:200]}")
+            return {"success": True, "action": "export", "images": _safe_json(r).get("images", {})}
         raise ValueError(f"Unsupported Figma action: {action}")
 
 
 async def _execute_spotify(action: str, params: dict, creds: dict) -> dict:
     """Spotify API handler. Actions: get_profile, create_playlist, search."""
     token = creds.get("access_token") or creds.get("token")
+    if not token: raise ValueError("No Spotify access token available")
     headers = {"Authorization": f"Bearer {token}"}
     async with httpx.AsyncClient(base_url="https://api.spotify.com/v1", timeout=15, headers=headers) as c:
         if action == "get_profile":
             r = await c.get("/me")
-            return {"success": r.status_code == 200, "action": "get_profile", "name": r.json().get("display_name")}
+            if r.status_code != 200: raise RuntimeError(f"Spotify profile failed ({r.status_code}): {r.text[:200]}")
+            return {"success": True, "action": "get_profile", "name": _safe_json(r).get("display_name")}
         elif action == "create_playlist":
             user_r = await c.get("/me")
-            user_id = user_r.json().get("id")
+            user_id = _safe_json(user_r).get("id", "")
             r = await c.post(f"/users/{user_id}/playlists", json={"name": params.get("name", "New Playlist"), "public": params.get("public", False)})
-            return {"success": r.status_code == 201, "action": "create_playlist", "id": r.json().get("id")}
+            if r.status_code not in (200, 201): raise RuntimeError(f"Spotify playlist failed ({r.status_code}): {r.text[:200]}")
+            return {"success": True, "action": "create_playlist", "id": _safe_json(r).get("id")}
         elif action == "search":
             r = await c.get("/search", params={"q": params.get("query", ""), "type": params.get("type", "track"), "limit": 5})
-            return {"success": r.status_code == 200, "action": "search", "results": len(r.json().get("tracks", {}).get("items", []))}
+            if r.status_code != 200: raise RuntimeError(f"Spotify search failed ({r.status_code}): {r.text[:200]}")
+            return {"success": True, "action": "search", "results": len(_safe_json(r).get("tracks", {}).get("items", []))}
         raise ValueError(f"Unsupported Spotify action: {action}")
 
 
 async def _execute_twitch(action: str, params: dict, creds: dict) -> dict:
-    """Twitch API handler. Actions: get_user, get_streams, send_chat."""
+    """Twitch API handler. Actions: get_user, get_streams."""
     token = creds.get("access_token") or creds.get("token")
+    if not token: raise ValueError("No Twitch access token available")
     client_id = creds.get("client_id", "")
+    if not client_id: raise ValueError("Twitch requires client_id in credentials")
     headers = {"Authorization": f"Bearer {token}", "Client-Id": client_id}
     async with httpx.AsyncClient(base_url="https://api.twitch.tv/helix", timeout=15, headers=headers) as c:
         if action == "get_user":
             r = await c.get("/users")
-            data = r.json().get("data", [{}])[0]
-            return {"success": r.status_code == 200, "action": "get_user", "name": data.get("display_name")}
+            if r.status_code != 200: raise RuntimeError(f"Twitch get_user failed ({r.status_code}): {r.text[:200]}")
+            data = _safe_json(r).get("data", [{}])
+            return {"success": True, "action": "get_user", "name": data[0].get("display_name") if data else None}
         elif action == "get_streams":
             r = await c.get("/streams", params={"user_login": params.get("user_login", "")})
-            return {"success": r.status_code == 200, "action": "get_streams", "live": len(r.json().get("data", [])) > 0}
+            if r.status_code != 200: raise RuntimeError(f"Twitch streams failed ({r.status_code}): {r.text[:200]}")
+            return {"success": True, "action": "get_streams", "live": len(_safe_json(r).get("data", [])) > 0}
         raise ValueError(f"Unsupported Twitch action: {action}")
 
 
 async def _execute_fitbit(action: str, params: dict, creds: dict) -> dict:
     """Fitbit API handler. Actions: get_profile, get_activity, get_sleep."""
     token = creds.get("access_token") or creds.get("token")
+    if not token: raise ValueError("No Fitbit access token available")
     headers = {"Authorization": f"Bearer {token}"}
     async with httpx.AsyncClient(base_url="https://api.fitbit.com/1/user/-", timeout=15, headers=headers) as c:
         if action == "get_profile":
             r = await c.get("/profile.json")
-            return {"success": r.status_code == 200, "action": "get_profile", "user": r.json().get("user", {}).get("displayName")}
+            if r.status_code != 200: raise RuntimeError(f"Fitbit profile failed ({r.status_code}): {r.text[:200]}")
+            return {"success": True, "action": "get_profile", "user": _safe_json(r).get("user", {}).get("displayName")}
         elif action == "get_activity":
             date = params.get("date", "today")
             r = await c.get(f"/activities/date/{date}.json")
-            return {"success": r.status_code == 200, "action": "get_activity", "summary": r.json().get("summary", {})}
+            if r.status_code != 200: raise RuntimeError(f"Fitbit activity failed ({r.status_code}): {r.text[:200]}")
+            return {"success": True, "action": "get_activity", "summary": _safe_json(r).get("summary", {})}
         elif action == "get_sleep":
             date = params.get("date", "today")
             r = await c.get(f"/sleep/date/{date}.json")
-            return {"success": r.status_code == 200, "action": "get_sleep", "summary": r.json().get("summary", {})}
+            if r.status_code != 200: raise RuntimeError(f"Fitbit sleep failed ({r.status_code}): {r.text[:200]}")
+            return {"success": True, "action": "get_sleep", "summary": _safe_json(r).get("summary", {})}
         raise ValueError(f"Unsupported Fitbit action: {action}")
 
 
 async def _execute_freshbooks(action: str, params: dict, creds: dict) -> dict:
     """Freshbooks API handler. Actions: create_invoice, list_clients."""
     token = creds.get("access_token") or creds.get("token")
+    if not token: raise ValueError("No Freshbooks access token available")
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     account_id = params.get("account_id", creds.get("account_id", ""))
     async with httpx.AsyncClient(base_url=f"https://api.freshbooks.com/accounting/account/{account_id}", timeout=15, headers=headers) as c:
         if action == "create_invoice":
-            r = await c.post("/invoices/invoices", json={"invoice": {"customerid": params.get("client_id"), "create_date": params.get("date", "2026-01-01")}})
-            return {"success": r.status_code in (200, 201), "action": "create_invoice", "id": r.json().get("response", {}).get("result", {}).get("invoice", {}).get("id")}
+            r = await c.post("/invoices/invoices", json={"invoice": {"customerid": params.get("client_id", ""), "create_date": params.get("date", "2026-01-01")}})
+            if r.status_code not in (200, 201): raise RuntimeError(f"Freshbooks invoice failed ({r.status_code}): {r.text[:200]}")
+            return {"success": True, "action": "create_invoice", "id": _safe_json(r).get("response", {}).get("result", {}).get("invoice", {}).get("id")}
         elif action == "list_clients":
             r = await c.get("/users/clients")
-            return {"success": r.status_code == 200, "action": "list_clients", "count": len(r.json().get("response", {}).get("result", {}).get("clients", []))}
+            if r.status_code != 200: raise RuntimeError(f"Freshbooks clients failed ({r.status_code}): {r.text[:200]}")
+            return {"success": True, "action": "list_clients", "count": len(_safe_json(r).get("response", {}).get("result", {}).get("clients", []))}
         raise ValueError(f"Unsupported Freshbooks action: {action}")
 
 
 async def _execute_digitalocean(action: str, params: dict, creds: dict) -> dict:
     """DigitalOcean API handler. Actions: list_droplets, create_droplet, delete_droplet."""
     token = creds.get("access_token") or creds.get("token")
+    if not token: raise ValueError("No DigitalOcean access token available")
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     async with httpx.AsyncClient(base_url="https://api.digitalocean.com/v2", timeout=15, headers=headers) as c:
         if action == "list_droplets":
             r = await c.get("/droplets")
-            droplets = [{"id": d["id"], "name": d["name"], "status": d["status"]} for d in r.json().get("droplets", [])]
-            return {"success": r.status_code == 200, "action": "list_droplets", "droplets": droplets}
+            if r.status_code != 200: raise RuntimeError(f"DO list failed ({r.status_code}): {r.text[:200]}")
+            return {"success": True, "action": "list_droplets", "droplets": [{"id": d.get("id"), "name": d.get("name"), "status": d.get("status")} for d in _safe_json(r).get("droplets", [])]}
         elif action == "create_droplet":
-            r = await c.post("/droplets", json={"name": params.get("name"), "region": params.get("region", "nyc1"), "size": params.get("size", "s-1vcpu-1gb"), "image": params.get("image", "ubuntu-24-04-x64")})
-            return {"success": r.status_code == 202, "action": "create_droplet", "id": r.json().get("droplet", {}).get("id")}
+            r = await c.post("/droplets", json={"name": params.get("name", "approvalkit-vm"), "region": params.get("region", "nyc1"), "size": params.get("size", "s-1vcpu-1gb"), "image": params.get("image", "ubuntu-24-04-x64")})
+            if r.status_code not in (200, 201, 202): raise RuntimeError(f"DO create failed ({r.status_code}): {r.text[:200]}")
+            return {"success": True, "action": "create_droplet", "id": _safe_json(r).get("droplet", {}).get("id")}
         elif action == "delete_droplet":
-            r = await c.delete(f"/droplets/{params['droplet_id']}")
-            return {"success": r.status_code == 204, "action": "delete_droplet", "id": params.get("droplet_id")}
+            droplet_id = params.get("droplet_id", "0")
+            r = await c.delete(f"/droplets/{droplet_id}")
+            if r.status_code != 204: raise RuntimeError(f"DO delete failed ({r.status_code}): {r.text[:200]}")
+            return {"success": True, "action": "delete_droplet", "id": droplet_id}
         raise ValueError(f"Unsupported DigitalOcean action: {action}")
 
 
 async def _execute_basecamp(action: str, params: dict, creds: dict) -> dict:
     """Basecamp API handler. Actions: create_todo, post_message."""
     token = creds.get("access_token") or creds.get("token")
+    if not token: raise ValueError("No Basecamp access token available")
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     account_id = params.get("account_id", creds.get("account_id", ""))
     async with httpx.AsyncClient(base_url=f"https://3.basecampapi.com/{account_id}", timeout=15, headers=headers) as c:
         if action == "create_todo":
-            r = await c.post(f"/buckets/{params['project_id']}/todolists/{params['todolist_id']}/todos.json",
+            project_id = params.get("project_id", "0")
+            todolist_id = params.get("todolist_id", "0")
+            r = await c.post(f"/buckets/{project_id}/todolists/{todolist_id}/todos.json",
                 json={"content": params.get("content", ""), "assignee_ids": params.get("assignee_ids", [])})
-            return {"success": r.status_code == 201, "action": "create_todo", "id": r.json().get("id")}
+            if r.status_code != 201: raise RuntimeError(f"Basecamp todo failed ({r.status_code}): {r.text[:200]}")
+            return {"success": True, "action": "create_todo", "id": _safe_json(r).get("id")}
         elif action == "post_message":
-            r = await c.post(f"/buckets/{params['project_id']}/message_boards/{params['board_id']}/messages.json",
+            project_id = params.get("project_id", "0")
+            board_id = params.get("board_id", "0")
+            r = await c.post(f"/buckets/{project_id}/message_boards/{board_id}/messages.json",
                 json={"subject": params.get("subject", ""), "content": params.get("content", "")})
-            return {"success": r.status_code == 201, "action": "post_message", "id": r.json().get("id")}
+            if r.status_code != 201: raise RuntimeError(f"Basecamp message failed ({r.status_code}): {r.text[:200]}")
+            return {"success": True, "action": "post_message", "id": _safe_json(r).get("id")}
         raise ValueError(f"Unsupported Basecamp action: {action}")
 
 
 async def _execute_huggingface(action: str, params: dict, creds: dict) -> dict:
     """Hugging Face API handler. Actions: inference, list_models."""
     token = creds.get("access_token") or creds.get("token")
+    if not token: raise ValueError("No Hugging Face access token available")
     headers = {"Authorization": f"Bearer {token}"}
     async with httpx.AsyncClient(timeout=30, headers=headers) as c:
         if action == "inference":
             model = params.get("model", "gpt2")
             r = await c.post(f"https://api-inference.huggingface.co/models/{model}",
                 json={"inputs": params.get("inputs", "")})
-            return {"success": r.status_code == 200, "action": "inference", "model": model}
+            if r.status_code != 200: raise RuntimeError(f"HF inference failed ({r.status_code}): {r.text[:200]}")
+            return {"success": True, "action": "inference", "model": model}
         elif action == "list_models":
             r = await c.get("https://huggingface.co/api/models", params={"search": params.get("search", ""), "limit": 5})
-            models = [m.get("modelId") for m in r.json()[:5]]
-            return {"success": r.status_code == 200, "action": "list_models", "models": models}
+            if r.status_code != 200: raise RuntimeError(f"HF models failed ({r.status_code}): {r.text[:200]}")
+            return {"success": True, "action": "list_models", "models": [m.get("modelId") for m in _safe_json(r) if isinstance(m, dict)][:5]}
         raise ValueError(f"Unsupported Hugging Face action: {action}")
 
 

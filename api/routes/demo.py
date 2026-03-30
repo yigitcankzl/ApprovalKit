@@ -5,7 +5,7 @@ POST   /api/v1/demo/seed          — create connections, approvers, rules for d
 GET    /api/v1/demo/agents        — return the 10 demo agent catalog
 DELETE /api/v1/demo/seed          — remove all demo-created resources
 
-10 curated demo agents across 6 categories, each with rich scenarios
+12 curated demo agents across 5 categories, each with rich scenarios
 and approval flows powered by ApprovalKit.
 """
 
