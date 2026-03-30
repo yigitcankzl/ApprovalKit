@@ -615,9 +615,9 @@ export default function LiveThreatDemoPage() {
           <a href="/demos" className="text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"><ArrowLeft className="h-5 w-5" /></a>
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-red-600 via-orange-600 to-amber-600 dark:from-red-400 dark:via-orange-400 dark:to-amber-400">
-              {activeChain ? `${activeChain.emoji} ${activeChain.title}` : urlChain ? `${urlChain.emoji} ${urlChain.title}` : selectedAgent?.title || "Live Threat Demo"}
+              {activeChain ? `${activeChain.emoji} ${activeChain.title}` : chainIdFromUrl === "orchestrator" ? "🧠 AI Orchestrator" : urlChain ? `${urlChain.emoji} ${urlChain.title}` : selectedAgent?.title || "Live Threat Demo"}
             </h1>
-            <p className="text-zinc-500 dark:text-zinc-400 mt-1 text-sm">{activeChain ? activeChain.description : urlChain ? urlChain.description : selectedAgent?.description || "Watch AI agents act autonomously — see what ApprovalKit catches in real-time"}</p>
+            <p className="text-zinc-500 dark:text-zinc-400 mt-1 text-sm">{activeChain ? activeChain.description : chainIdFromUrl === "orchestrator" ? "Describe any situation — AI selects agents, assigns tools, and runs the workflow" : urlChain ? urlChain.description : selectedAgent?.description || "Watch AI agents act autonomously"}</p>
           </div>
         </div>
       </div>
@@ -673,8 +673,28 @@ export default function LiveThreatDemoPage() {
           {/* Scenarios */}
           {(selectedAgent || chainIdFromUrl) && (
             <div className="border-b border-zinc-200/40 dark:border-zinc-800/40">
-              {chainIdFromUrl ? (
-                /* Chain mode — show chain scenario buttons */
+              {chainIdFromUrl === "orchestrator" ? (
+                /* Orchestrator mode — preset scenario suggestions */
+                <div className="flex flex-wrap items-center gap-2 px-4 py-2.5">
+                  {[
+                    { emoji: "😠", label: "VIP Complaint", text: "A VIP customer called 3 times furious about a $420 damaged order. Handle refund, apology, and compensation." },
+                    { emoji: "🚨", label: "Security Breach", text: "Unauthorized access detected on production. Lock systems, rollback, and notify the CTO." },
+                    { emoji: "👋", label: "New Hire", text: "Alice Chen accepted Senior Engineer at $160K. Send offer, set up GitHub access, welcome the team." },
+                    { emoji: "🏦", label: "Fraud Alert", text: "A $5,000 transaction flagged as suspicious. Freeze funds, investigate, notify customer." },
+                    { emoji: "🚀", label: "Launch v3.0", text: "Version 3.0 ready. Deploy to production, create GitHub release, announce publicly, allocate marketing budget." },
+                    { emoji: "💳", label: "Pay Vendor", text: "Acme Design delivered early. Process $3,500 invoice, send confirmation, add $500 bonus." },
+                  ].map((s, i) => (
+                    <button key={i} onClick={() => setInputText(s.text)} disabled={isTyping || chainRunning}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-purple-200/60 dark:border-purple-800/40 hover:border-purple-400 dark:hover:border-purple-600 bg-purple-50/30 dark:bg-purple-950/10 text-purple-700 dark:text-purple-400 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      <span>{s.emoji}</span><span>{s.label}</span>
+                    </button>
+                  ))}
+                  <div className="flex-1" />
+                  <button onClick={() => { setActiveChain(null); setChainRunning(false); setMessages({}); resetSummary(); }} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors p-1.5 rounded-lg" title="Reset"><RotateCcw className="h-4 w-4" /></button>
+                </div>
+              ) : chainIdFromUrl ? (
+                /* Specific chain mode */
                 (() => {
                   const chain = CHAIN_SCENARIOS.find(c => c.id === chainIdFromUrl);
                   if (!chain) return null;
@@ -694,31 +714,18 @@ export default function LiveThreatDemoPage() {
                   );
                 })()
               ) : selectedAgent ? (
-                /* Single agent mode — show agent scenarios + chain buttons */
-                <>
-                  <div className="flex items-center gap-2 px-4 py-2">
-                    {scenarios.map((s, i) => (
-                      <button key={i} onClick={() => sendMessage(s.prompt)} disabled={isTyping || chainRunning || !setupDone || !hasAIKey}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-zinc-200/60 dark:border-zinc-700/40 hover:border-blue-400 dark:hover:border-blue-600 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                      >
-                        <span>{s.emoji}</span><span>{s.label}</span>
-                      </button>
-                    ))}
-                    <div className="flex-1" />
-                    <button onClick={handleReset} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors p-1.5 rounded-lg" title="Reset"><RotateCcw className="h-4 w-4" /></button>
-                  </div>
-                  <div className="flex items-center gap-2 px-4 py-1.5 border-t border-zinc-200/20 dark:border-zinc-800/20">
-                    <Link2 className="h-3.5 w-3.5 text-purple-500" />
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Chains</span>
-                    {CHAIN_SCENARIOS.map(chain => (
-                      <button key={chain.id} onClick={() => runChain(chain)} disabled={isTyping || chainRunning || !setupDone || !hasAIKey}
-                        className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium border border-purple-200/60 dark:border-purple-800/40 hover:border-purple-400 dark:hover:border-purple-600 bg-purple-50/30 dark:bg-purple-950/10 text-purple-700 dark:text-purple-400 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                      >
-                        <span>{chain.emoji}</span><span>{chain.title}</span>
-                      </button>
-                    ))}
-                  </div>
-                </>
+                /* Single agent mode */
+                <div className="flex items-center gap-2 px-4 py-2">
+                  {scenarios.map((s, i) => (
+                    <button key={i} onClick={() => sendMessage(s.prompt)} disabled={isTyping || chainRunning || !setupDone || !hasAIKey}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-zinc-200/60 dark:border-zinc-700/40 hover:border-blue-400 dark:hover:border-blue-600 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      <span>{s.emoji}</span><span>{s.label}</span>
+                    </button>
+                  ))}
+                  <div className="flex-1" />
+                  <button onClick={handleReset} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors p-1.5 rounded-lg" title="Reset"><RotateCcw className="h-4 w-4" /></button>
+                </div>
               ) : null}
             </div>
           )}

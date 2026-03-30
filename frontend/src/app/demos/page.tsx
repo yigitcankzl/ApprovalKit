@@ -114,57 +114,43 @@ export default function DemosPage() {
         </p>
       </div>
 
-      {/* Agent Chains — featured section */}
+      {/* AI Orchestrator — Hero */}
       <div className="mb-12">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="p-2 rounded-xl bg-purple-500 text-white">
-            <GitBranch className="h-4 w-4" />
-          </div>
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-purple-500 dark:text-purple-400">Featured</p>
-            <h2 className="text-lg font-bold text-zinc-800 dark:text-zinc-200 -mt-0.5">Agent Chains</h2>
-          </div>
-          <Badge variant="default" className="text-xs ml-1">Multi-Agent</Badge>
-        </div>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
-          Watch multiple agents collaborate on a single scenario — each agent handles its domain, approvals cascade across the chain.
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[
-            { id: "incident_response", emoji: "🔗", title: "Customer Incident Response", agents: "E-Commerce → Comms → Finance", desc: "3 agents handle a defective product complaint: refund, apology email, compensation" },
-            { id: "security_breach", emoji: "🚨", title: "Security Breach Response", agents: "Security → DevOps → Comms", desc: "Coordinated incident response: lock repos, rollback production, notify team" },
-            { id: "employee_onboarding", emoji: "👋", title: "Employee Onboarding", agents: "HR → Access → Comms", desc: "Automated onboarding: offer letter, GitHub access, team welcome" },
-            { id: "fraud_response", emoji: "🏦", title: "Fraud Detection & Response", agents: "Finance → Security → Comms → Finance", desc: "4 agents handle suspicious $5K transaction: freeze, investigate, notify, refund" },
-            { id: "product_launch", emoji: "🚀", title: "Product Launch", agents: "DevOps → Open Source → Comms → Finance", desc: "Full launch lifecycle: deploy, GitHub release, press announcement, ad budget" },
-            { id: "vendor_payment", emoji: "💳", title: "Vendor Payment Cycle", agents: "Finance → Comms → Finance → Comms", desc: "End-to-end payment: invoice, confirmation email, bonus, team notification" },
-          ].map(chain => (
-            <Card key={chain.id}
-              className="group border-l-4 border-l-purple-500 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 cursor-pointer"
-              onClick={() => router.push(`/demos/live?chain=${chain.id}`)}
-            >
-              <CardContent className="p-5">
+        <Card
+          className="group border-2 border-purple-300 dark:border-purple-700 bg-gradient-to-r from-purple-50/50 to-blue-50/50 dark:from-purple-950/20 dark:to-blue-950/20 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 cursor-pointer"
+          onClick={() => router.push("/demos/live?chain=orchestrator")}
+        >
+          <CardContent className="p-8">
+            <div className="flex items-start gap-6">
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-600 to-blue-500 text-white shrink-0">
+                <Bot className="h-8 w-8" />
+              </div>
+              <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xl">{chain.emoji}</span>
-                  <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-200">{chain.title}</h3>
+                  <h2 className="text-xl font-bold text-zinc-800 dark:text-zinc-200">AI Orchestrator</h2>
+                  <Badge variant="default" className="text-xs">Multi-Agent</Badge>
                 </div>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">{chain.desc}</p>
-                <div className="mt-3 flex items-center gap-1.5">
-                  {chain.agents.split(" → ").map((a, i) => (
-                    <span key={i} className="flex items-center gap-1">
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 font-medium">{a}</span>
-                      {i < chain.agents.split(" → ").length - 1 && <ArrowRight className="h-3 w-3 text-zinc-300 dark:text-zinc-600" />}
-                    </span>
+                <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed mb-4">
+                  Describe any business situation in plain text. The AI orchestrator analyzes your request,
+                  selects the right specialized agents, assigns each one specific tools (least-privilege),
+                  and runs them in sequence — each agent reacts to previous results.
+                </p>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {["Customer Incidents", "Security Breaches", "Employee Onboarding", "Fraud Detection", "Product Launches", "Vendor Payments"].map(s => (
+                    <span key={s} className="text-[10px] px-2.5 py-1 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 font-medium">{s}</span>
                   ))}
                 </div>
-                <div className="mt-3 flex justify-end">
-                  <span className="text-xs font-semibold text-purple-600 dark:text-purple-400 group-hover:text-purple-700 dark:group-hover:text-purple-300 flex items-center gap-1.5 transition-all group-hover:gap-2">
-                    Run Chain <ArrowRight className="h-3.5 w-3.5" />
-                  </span>
+                <div className="flex items-center gap-4 text-xs text-zinc-500 dark:text-zinc-400">
+                  <span>12 specialized agents</span>
+                  <span>30 Token Vault services</span>
+                  <span>Per-tool least privilege</span>
+                  <span>Context-driven decisions</span>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+              </div>
+              <ArrowRight className="h-6 w-6 text-purple-400 group-hover:text-purple-600 dark:group-hover:text-purple-300 transition-colors shrink-0 mt-2" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Setup All Demos — prominent card */}
@@ -207,7 +193,10 @@ export default function DemosPage() {
         </Card>
       </div>
 
-      {/* Category sections */}
+      {/* Individual agents */}
+      <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-6">
+        Or explore individual agents
+      </p>
       <div className="space-y-14">
         {grouped.map(({ category, meta, agents: catAgents }) => (
           <section key={category}>
