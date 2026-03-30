@@ -189,7 +189,7 @@ SSE live feed via Redis pub/sub shows approval events as they happen. Pending ap
 | Auth | Auth0 Token Vault, CIBA, FGA, nextjs-auth0 v4, per-agent HMAC |
 | SDK | Python, pip-installable, sync + async, jitter polling |
 | Execution | 30 built-in handlers, all via Auth0 Token Vault |
-| Infrastructure | Docker Compose (8 services), Ollama GPU support, Healthcare companion demo |
+| Infrastructure | Docker Compose (8 services), Ollama GPU support |
 
 ---
 

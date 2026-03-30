@@ -346,7 +346,6 @@ After the app is running and you've logged in + completed the Setup Wizard:
 | Compliance | GDPR Request | Data deletion, transfers, compliance emails |
 | Communications | Communications | Slack, email, Discord across all domains |
 
-Healthcare is available as a separate companion demo (`healthcare-agent/`).
 
 Each agent has 3 pre-built scenarios (Safe / Risky / Rogue) that demonstrate different ApprovalKit capabilities: auto-approve, step-up authentication, scope creep detection, and more.
 
@@ -379,21 +378,6 @@ If you don't have a GPU or want faster responses:
 
 1. Get a free API key at [console.groq.com](https://console.groq.com/keys)
 2. In the app: go to any agent's page → API Key section → select Groq → enter key
-
----
-
-## Healthcare Agent (Companion Demo)
-
-A separate HIPAA-compliant healthcare demo with its own frontend, connected to the main ApprovalKit instance:
-
-```bash
-cd healthcare-agent
-docker compose up -d
-# Frontend: http://localhost:3003
-# API: http://localhost:3002
-```
-
-Healthcare rules and approvers (Doctor, Pharmacist, Chief Doctor, etc.) are managed in the main ApprovalKit dashboard. The healthcare agent sends approval requests through ApprovalKit's API, and you can approve/reject from the main dashboard.
 
 ---
 

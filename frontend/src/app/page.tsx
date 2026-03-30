@@ -310,7 +310,7 @@ kit.gate("github-main", "deploy", {"ref": "v2.0", "env": "production"})`}</pre>
         <div className="bg-gradient-to-br from-zinc-900 to-zinc-800 dark:from-zinc-800 dark:to-zinc-900 rounded-2xl p-10 border border-zinc-700">
           <h2 className="text-2xl font-bold text-white mb-2">See it in action</h2>
           <p className="text-zinc-400 text-sm mb-6">
-            Try the demo agents or chat with a real AI healthcare agent powered by ApprovalKit.
+            Try the demo agents powered by ApprovalKit with real Auth0 Token Vault integration.
           </p>
           <div className="flex items-center justify-center gap-3 flex-wrap">
             <Link
@@ -320,15 +320,6 @@ kit.gate("github-main", "deploy", {"ref": "v2.0", "env": "production"})`}</pre>
               Live Threat Demo
               <ArrowRight className="h-4 w-4" />
             </Link>
-            <a
-              href={`${process.env.NEXT_PUBLIC_HEALTHCARE_URL || "http://localhost:3003"}/chat`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 bg-white text-zinc-900 px-6 py-3 rounded-lg text-sm font-semibold hover:bg-zinc-100 transition-colors"
-            >
-              Healthcare AI Agent
-              <ArrowRight className="h-4 w-4" />
-            </a>
             <Link
               href="/demos"
               className="inline-flex items-center gap-2 border border-zinc-600 text-zinc-300 px-6 py-3 rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors"

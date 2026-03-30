@@ -28,8 +28,6 @@ import {
   Menu,
   Moon,
   Sun,
-  Stethoscope,
-  ExternalLink,
   ShieldCheck,
   ClipboardCheck,
 } from "lucide-react";
@@ -48,8 +46,6 @@ const navigation = [
   { name: "Docs", href: "/docs", icon: FileText },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
-
-const HEALTHCARE_URL = process.env.NEXT_PUBLIC_HEALTHCARE_URL || "http://localhost:3003";
 
 interface SidebarProps {
   collapsed: boolean;
@@ -135,33 +131,9 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         })}
       </nav>
 
-      {/* Healthcare End-to-End Demo */}
       <div className={cn("px-3 pb-2", collapsed && "px-2")}>
-        <a
-          href={`${HEALTHCARE_URL}/chat`}
-          target="_blank"
-          rel="noopener noreferrer"
-          title={collapsed ? "Healthcare Demo" : undefined}
-          className={cn(
-            "flex items-center rounded-lg text-sm font-medium transition-all",
-            collapsed ? "justify-center px-0 py-2" : "gap-3 px-3 py-2",
-            "bg-gradient-to-r from-blue-50 to-emerald-50 dark:from-blue-950/20 dark:to-emerald-950/20",
-            "border border-blue-200 dark:border-blue-800",
-            "text-blue-700 dark:text-blue-400 hover:from-blue-100 hover:to-emerald-100 dark:hover:from-blue-950/40 dark:hover:to-emerald-950/40",
-          )}
-        >
-          <Stethoscope className="h-4 w-4 shrink-0" />
-          {!collapsed && (
-            <>
-              <span className="flex-1">Healthcare Demo</span>
-              <ExternalLink className="h-3 w-3 opacity-50" />
-            </>
-          )}
-        </a>
         {!collapsed && (
-          <p className="text-[10px] text-zinc-400 mt-1 px-1">
-            End-to-end AI agent with real ApprovalKit flows
-          </p>
+          <span></span>
         )}
       </div>
 

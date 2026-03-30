@@ -34,12 +34,11 @@ const CATEGORY_META: Record<string, { label: string; color: string; icon: React.
   devops: { label: "DevOps & Software", color: "bg-blue-500", icon: Server },
   hr: { label: "Human Resources", color: "bg-purple-500", icon: Users },
   customer_service: { label: "Customer Service", color: "bg-orange-500", icon: Headphones },
-  healthcare: { label: "Healthcare & Clinical", color: "bg-red-500", icon: Heart },
   legal: { label: "Legal & Compliance", color: "bg-slate-500", icon: Scale },
 };
 
 const CATEGORY_ORDER = [
-  "finance", "devops", "hr", "customer_service", "healthcare", "legal",
+  "finance", "devops", "hr", "customer_service", "legal",
 ];
 
 const CATEGORY_BORDER: Record<string, string> = {
@@ -47,7 +46,6 @@ const CATEGORY_BORDER: Record<string, string> = {
   devops: "border-l-blue-500",
   hr: "border-l-purple-500",
   customer_service: "border-l-orange-500",
-  healthcare: "border-l-red-500",
   legal: "border-l-slate-500",
 };
 
@@ -56,7 +54,6 @@ const CATEGORY_ICON_BG: Record<string, string> = {
   devops: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
   hr: "bg-purple-500/10 text-purple-600 dark:text-purple-400",
   customer_service: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
-  healthcare: "bg-red-500/10 text-red-600 dark:text-red-400",
   legal: "bg-slate-500/10 text-slate-600 dark:text-slate-400",
 };
 
