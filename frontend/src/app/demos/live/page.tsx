@@ -12,7 +12,7 @@ import {
   Play, Server, Shield, ShieldAlert, ShieldCheck, ShieldOff,
   Users, Zap, AlertTriangle, XCircle, Clock, Lock,
   ThumbsUp, ThumbsDown, Activity, Send, RotateCcw,
-  Wrench, Sparkles,
+  Wrench, Sparkles, Link2,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -100,6 +100,58 @@ const DEFAULT_PROMPTS = [
   { label: "Dangerous", emoji: "💀", prompt: "Perform a large-scale destructive action immediately." },
 ];
 
+// ── Agent Chain Scenarios ───────────────────────────────────────────────
+
+interface ChainStep {
+  agentId: string;
+  agentTitle: string;
+  prompt: string;
+}
+
+interface ChainScenario {
+  id: string;
+  title: string;
+  description: string;
+  emoji: string;
+  steps: ChainStep[];
+}
+
+const CHAIN_SCENARIOS: ChainScenario[] = [
+  {
+    id: "incident_response",
+    title: "Customer Incident Response",
+    emoji: "🔗",
+    description: "E-Commerce → Communications → Finance: 3 agents handle a customer complaint end-to-end",
+    steps: [
+      { agentId: "expense", agentTitle: "E-Commerce Agent", prompt: "A VIP customer received a defective product worth $420. Process a full refund immediately." },
+      { agentId: "comms", agentTitle: "Communications Agent", prompt: "Send an apology email to customer@example.com about their defective product and the refund we just processed. Also notify the team on Slack #customer_service." },
+      { agentId: "finance", agentTitle: "Finance Agent", prompt: "Issue a $100 compensation gift card to the VIP customer as goodwill for the defective product incident." },
+    ],
+  },
+  {
+    id: "security_breach",
+    title: "Security Breach Response",
+    emoji: "🚨",
+    description: "Security → DevOps → Communications: Coordinated incident response across 3 teams",
+    steps: [
+      { agentId: "security_incident", agentTitle: "Security Agent", prompt: "We detected unauthorized access attempts. Lock the main repository and revoke all production tokens immediately." },
+      { agentId: "release_manager", agentTitle: "DevOps Agent", prompt: "Rollback production to the last known safe version v1.9.2 due to a security incident." },
+      { agentId: "comms", agentTitle: "Communications Agent", prompt: "Send an urgent security incident notification to #engineering on Slack and email the CTO at cto@company.com with the incident details." },
+    ],
+  },
+  {
+    id: "employee_onboarding",
+    title: "New Employee Onboarding",
+    emoji: "👋",
+    description: "HR → Access → Communications: Automated onboarding across HR, IT, and comms",
+    steps: [
+      { agentId: "recruitment", agentTitle: "HR Agent", prompt: "Send an offer letter to alice@example.com for the Senior Engineer position at $160,000/year." },
+      { agentId: "access_provisioning", agentTitle: "Access Agent", prompt: "Grant GitHub access to new developer Alice as a member of the engineering organization." },
+      { agentId: "comms", agentTitle: "Communications Agent", prompt: "Send a welcome message to #general on Slack announcing Alice is joining the engineering team. Also email the team at engineering@company.com." },
+    ],
+  },
+];
+
 const ICON_MAP: Record<string, React.ElementType> = { CreditCard, Server, Users, Package, FlaskConical, Zap, Banknote, Plane, GitBranch, MessageSquare, Shield, Bot, Play };
 function resolveIcon(name: string): React.ElementType { return ICON_MAP[name] ?? Bot; }
 
@@ -124,6 +176,9 @@ export default function LiveThreatDemoPage() {
   const [seeding, setSeeding] = useState(false);
   const [hasAIKey, setHasAIKey] = useState(false);
   const [shieldEnabled, setShieldEnabled] = useState(true);
+  const [activeChain, setActiveChain] = useState<ChainScenario | null>(null);
+  const [chainStepIndex, setChainStepIndex] = useState(0);
+  const [chainRunning, setChainRunning] = useState(false);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, selectedAgent?.id, isTyping]);
   useEffect(() => { eventsEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [events]);
@@ -159,7 +214,9 @@ export default function LiveThreatDemoPage() {
     });
   }, [user?.sub]);
 
-  const currentMessages = selectedAgent ? (messages[selectedAgent.id] || []) : [];
+  const currentMessages = activeChain
+    ? activeChain.steps.flatMap(step => messages[step.agentId] || []).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
+    : selectedAgent ? (messages[selectedAgent.id] || []) : [];
   const addMessage = useCallback((agentId: string, msg: Omit<ChatMessage, "id" | "timestamp">) => { const m: ChatMessage = { ...msg, id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, timestamp: new Date() }; setMessages(prev => ({ ...prev, [agentId]: [...(prev[agentId] || []), m] })); return m.id; }, []);
   const updateMessage = useCallback((agentId: string, msgId: string, updates: Partial<ChatMessage>) => { setMessages(prev => ({ ...prev, [agentId]: (prev[agentId] || []).map(m => m.id === msgId ? { ...m, ...updates } : m) })); }, []);
   const addEvent = useCallback((evt: Omit<ShieldEvent, "id" | "timestamp">) => {
@@ -175,6 +232,73 @@ export default function LiveThreatDemoPage() {
   }, []);
   const resetSummary = () => { setEvents([]); setSummary({ totalActions: 0, autoApproved: 0, pendingApproval: 0, blocked: 0, preventedDamage: 0 }); };
   const handleSeedAll = async () => { setSeeding(true); try { await api.seedDemoData(undefined, user?.sub); setSetupDone(true); } catch {} setSeeding(false); };
+
+  // ── Agent Chain Runner ──────────────────────────────────────────────
+  const runChain = async (chain: ChainScenario) => {
+    if (chainRunning || isTyping) return;
+    setActiveChain(chain);
+    setChainStepIndex(0);
+    setChainRunning(true);
+    resetSummary();
+    // Clear all messages
+    setMessages({});
+
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+    for (let i = 0; i < chain.steps.length; i++) {
+      const step = chain.steps[i];
+      setChainStepIndex(i);
+
+      // Add system message showing which agent is running
+      addMessage(step.agentId, { role: "system", text: `Step ${i + 1}/${chain.steps.length}: ${step.agentTitle}` });
+      addMessage(step.agentId, { role: "user", text: step.prompt });
+      setIsTyping(true);
+
+      try {
+        // Use non-streaming for chain (simpler, more reliable)
+        const res = await api.chatWithAgent(step.agentId, step.prompt, step.agentTitle, sessionIds[step.agentId] || "");
+        if (res.session_id) setSessionIds(prev => ({ ...prev, [step.agentId]: res.session_id }));
+        addMessage(step.agentId, { role: "agent", text: res.response || "Done." });
+
+        const actions = res.actions || (res.action ? [res.action] : []);
+        for (let j = 0; j < actions.length; j++) {
+          if (j > 0) await new Promise(r => setTimeout(r, 500));
+          const a = actions[j];
+          const status = a.status || "auto_approved";
+          addMessage(step.agentId, {
+            role: "tool", text: `${a.connection || "?"}/${a.action || "?"}`,
+            toolName: a.action, toolArgs: a.params,
+            toolStatus: status === "auto_approved" ? "auto_approved" : status === "pending" ? "pending" : "blocked",
+            jobId: a.job_id,
+          });
+
+          let eventType: ShieldEvent["type"] = "auto_approved";
+          if (status === "pending") eventType = "pending";
+          else if (status === "blocked") eventType = "blocked";
+          const rn = a.rule_name || "";
+          if ((rn.toLowerCase().includes("large") || rn.toLowerCase().includes("cfo")) && status === "pending") eventType = "step_up";
+
+          addEvent({
+            agentId: step.agentId, agentTitle: step.agentTitle,
+            type: eventType, action: a.action || "?", connection: a.connection || "?",
+            params: a.params || {}, message: a.message || `${a.action} — ${status}`,
+            jobId: a.job_id,
+          });
+        }
+      } catch (e: any) {
+        addMessage(step.agentId, { role: "system", text: `Error: ${e.message}` });
+      }
+
+      setIsTyping(false);
+
+      // Pause between agents
+      if (i < chain.steps.length - 1) {
+        await new Promise(r => setTimeout(r, 1500));
+      }
+    }
+
+    setChainRunning(false);
+  };
 
   const sendMessage = async (text: string) => {
     if (!selectedAgent || isTyping || !text.trim()) return;
@@ -431,18 +555,60 @@ export default function LiveThreatDemoPage() {
 
         {/* LEFT: Agent Chat */}
         <div className="rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 bg-white/50 dark:bg-zinc-900/20 flex flex-col overflow-hidden">
-          {/* Scenarios */}
+          {/* Scenarios + Chain */}
           {selectedAgent && (
-            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-zinc-200/40 dark:border-zinc-800/40">
-              {scenarios.map((s, i) => (
-                <button key={i} onClick={() => sendMessage(s.prompt)} disabled={isTyping || !setupDone || !hasAIKey}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-zinc-200/60 dark:border-zinc-700/40 hover:border-blue-400 dark:hover:border-blue-600 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                >
-                  <span>{s.emoji}</span><span>{s.label}</span>
-                </button>
-              ))}
-              <div className="flex-1" />
-              <button onClick={handleReset} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors p-1.5 rounded-lg" title="Reset"><RotateCcw className="h-4 w-4" /></button>
+            <div className="border-b border-zinc-200/40 dark:border-zinc-800/40">
+              {/* Single agent scenarios */}
+              <div className="flex items-center gap-2 px-4 py-2">
+                {scenarios.map((s, i) => (
+                  <button key={i} onClick={() => sendMessage(s.prompt)} disabled={isTyping || chainRunning || !setupDone || !hasAIKey}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-zinc-200/60 dark:border-zinc-700/40 hover:border-blue-400 dark:hover:border-blue-600 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <span>{s.emoji}</span><span>{s.label}</span>
+                  </button>
+                ))}
+                <div className="flex-1" />
+                <button onClick={handleReset} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors p-1.5 rounded-lg" title="Reset"><RotateCcw className="h-4 w-4" /></button>
+              </div>
+              {/* Agent chain scenarios */}
+              <div className="flex items-center gap-2 px-4 py-1.5 border-t border-zinc-200/20 dark:border-zinc-800/20">
+                <Link2 className="h-3.5 w-3.5 text-purple-500" />
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Agent Chains</span>
+                {CHAIN_SCENARIOS.map(chain => (
+                  <button key={chain.id} onClick={() => runChain(chain)} disabled={isTyping || chainRunning || !setupDone || !hasAIKey}
+                    className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium border border-purple-200/60 dark:border-purple-800/40 hover:border-purple-400 dark:hover:border-purple-600 bg-purple-50/30 dark:bg-purple-950/10 text-purple-700 dark:text-purple-400 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <span>{chain.emoji}</span><span>{chain.title}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Chain progress indicator */}
+          {activeChain && chainRunning && (
+            <div className="px-4 py-2 bg-purple-50/60 dark:bg-purple-950/10 border-b border-purple-200/40 dark:border-purple-800/30">
+              <div className="flex items-center gap-3">
+                <Link2 className="h-4 w-4 text-purple-500" />
+                <span className="text-xs font-bold text-purple-700 dark:text-purple-400">{activeChain.title}</span>
+              </div>
+              <div className="flex items-center gap-2 mt-1.5">
+                {activeChain.steps.map((step, i) => (
+                  <div key={i} className="flex items-center gap-1.5">
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                      i < chainStepIndex ? "bg-green-500 text-white" :
+                      i === chainStepIndex ? "bg-purple-500 text-white animate-pulse" :
+                      "bg-zinc-200 dark:bg-zinc-700 text-zinc-500"
+                    }`}>
+                      {i < chainStepIndex ? "✓" : i + 1}
+                    </div>
+                    <span className={`text-[11px] ${i === chainStepIndex ? "text-purple-700 dark:text-purple-400 font-medium" : "text-zinc-400"}`}>
+                      {step.agentTitle.replace(" Agent", "")}
+                    </span>
+                    {i < activeChain.steps.length - 1 && <span className="text-zinc-300 dark:text-zinc-600">→</span>}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
