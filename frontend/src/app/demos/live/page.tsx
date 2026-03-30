@@ -677,12 +677,21 @@ export default function LiveThreatDemoPage() {
                 /* Orchestrator mode — preset scenario suggestions */
                 <div className="flex flex-wrap items-center gap-2 px-4 py-2.5">
                   {[
+                    // Customer & Finance
                     { emoji: "😠", label: "VIP Complaint", text: "A VIP customer called 3 times furious about a $420 damaged order. Handle refund, apology, and compensation." },
-                    { emoji: "🚨", label: "Security Breach", text: "Unauthorized access detected on production. Lock systems, rollback, and notify the CTO." },
-                    { emoji: "👋", label: "New Hire", text: "Alice Chen accepted Senior Engineer at $160K. Send offer, set up GitHub access, welcome the team." },
-                    { emoji: "🏦", label: "Fraud Alert", text: "A $5,000 transaction flagged as suspicious. Freeze funds, investigate, notify customer." },
-                    { emoji: "🚀", label: "Launch v3.0", text: "Version 3.0 ready. Deploy to production, create GitHub release, announce publicly, allocate marketing budget." },
-                    { emoji: "💳", label: "Pay Vendor", text: "Acme Design delivered early. Process $3,500 invoice, send confirmation, add $500 bonus." },
+                    { emoji: "💀", label: "Mass Recall", text: "500 customers received defective products. Process $25,000 in bulk refunds, send mass apology emails, and notify the finance team." },
+                    { emoji: "🏦", label: "Fraud Alert", text: "A $5,000 transaction flagged as suspicious. Freeze funds, investigate, notify customer, and process refund if confirmed." },
+                    { emoji: "💳", label: "Pay Vendor", text: "Acme Design delivered Q1 branding 2 weeks early. Process $3,500 invoice, send confirmation, add $500 early delivery bonus." },
+                    // DevOps & Security
+                    { emoji: "🚀", label: "Launch v3.0", text: "Version 3.0 ready for launch. Deploy to production, create GitHub release, send press announcement, allocate $2,000 marketing budget." },
+                    { emoji: "🚨", label: "Security Breach", text: "Unauthorized access detected on production systems. Lock all repositories, rollback to safe version, and notify CTO immediately." },
+                    { emoji: "🔑", label: "Key Rotation", text: "Security audit found the Stripe API key was exposed in logs. Rotate all compromised keys and notify the security team." },
+                    { emoji: "🐛", label: "Emergency Hotfix", text: "Critical bug in production causing 5% error rate. Deploy hotfix immediately, notify engineering, and send status update to clients." },
+                    // HR & Compliance
+                    { emoji: "👋", label: "New Hire", text: "Alice Chen accepted Senior Engineer at $160K. Send offer letter, set up GitHub access, and welcome the team on Slack." },
+                    { emoji: "🚪", label: "Offboarding", text: "Employee Tom is leaving Friday. Revoke all GitHub access, notify HR, send farewell message to the team." },
+                    { emoji: "🗑️", label: "GDPR Deletion", text: "200 EU users requested data deletion under GDPR. Process bulk deletion across all systems, send compliance confirmations." },
+                    { emoji: "📊", label: "Research Budget", text: "ML team needs a 4-GPU A100 cluster for training at $1,200. Provision compute, notify the lab on Slack, submit the paper when done." },
                   ].map((s, i) => (
                     <button key={i} onClick={() => setInputText(s.text)} disabled={isTyping || chainRunning}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-purple-200/60 dark:border-purple-800/40 hover:border-purple-400 dark:hover:border-purple-600 bg-purple-50/30 dark:bg-purple-950/10 text-purple-700 dark:text-purple-400 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
