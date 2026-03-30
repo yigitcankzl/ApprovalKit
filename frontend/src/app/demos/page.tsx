@@ -193,77 +193,44 @@ export default function DemosPage() {
         </Card>
       </div>
 
-      {/* Individual agents */}
-      <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-6">
-        Or explore individual agents
+      {/* Available Agents — info only, not clickable */}
+      <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-2">
+        Available Specialized Agents
       </p>
-      <div className="space-y-14">
+      <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-6">
+        The orchestrator automatically selects from these agents based on your request. Each agent has specific tools and approval rules.
+      </p>
+      <div className="space-y-10">
         {grouped.map(({ category, meta, agents: catAgents }) => (
           <section key={category}>
-            <div className="flex items-center gap-3 mb-6">
-              <div className={`p-2 rounded-xl ${meta.color} text-white`}>
-                <meta.icon className="h-4 w-4" />
+            <div className="flex items-center gap-3 mb-4">
+              <div className={`p-1.5 rounded-lg ${meta.color} text-white`}>
+                <meta.icon className="h-3.5 w-3.5" />
               </div>
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
-                  Category
-                </p>
-                <h2 className="text-lg font-bold text-zinc-800 dark:text-zinc-200 -mt-0.5">
-                  {meta.label}
-                </h2>
-              </div>
-              <Badge variant="default" className="text-xs ml-1">{catAgents.length} agents</Badge>
+              <h2 className="text-sm font-bold text-zinc-700 dark:text-zinc-300">{meta.label}</h2>
+              <Badge variant="default" className="text-[10px]">{catAgents.length}</Badge>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {catAgents.map(agent => {
                 const Icon = ICON_MAP[agent.icon] ?? Bot;
                 return (
-                  <Card
-                    key={agent.id}
-                    className={`group border-l-4 ${CATEGORY_BORDER[category]} hover:shadow-lg hover:shadow-zinc-200/50 dark:hover:shadow-zinc-900/50 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer`}
-                    onClick={() => router.push(`/demos/live?chain=orchestrator`)}
-                  >
-                    <CardContent className="p-5">
-                      <div className="flex items-start gap-4">
-                        <div className={`p-2.5 rounded-xl shrink-0 ${CATEGORY_ICON_BG[category]}`}>
-                          <Icon className="h-5 w-5" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 group-hover:text-zinc-900 dark:group-hover:text-zinc-100 transition-colors">
-                            {agent.title}
-                          </h3>
-                          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1.5 line-clamp-2 leading-relaxed">
-                            {agent.description}
-                          </p>
-                        </div>
+                  <div key={agent.id} className={`rounded-xl border-l-4 ${CATEGORY_BORDER[category]} border border-zinc-200/60 dark:border-zinc-800/60 p-4`}>
+                    <div className="flex items-start gap-3">
+                      <div className={`p-2 rounded-lg shrink-0 ${CATEGORY_ICON_BG[category]}`}>
+                        <Icon className="h-4 w-4" />
                       </div>
-
-                      {/* Scenario badges */}
-                      <div className="mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
-                        <p className="text-[9px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-2">
-                          Scenarios
-                        </p>
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          {agent.scenarios.slice(0, 3).map((s, i) => (
-                            <Badge key={i} variant={s.badge} className="text-[10px] px-2 py-0.5 font-medium">
-                              {s.badgeLabel}
-                            </Badge>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{agent.title}</h3>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 leading-relaxed">{agent.description}</p>
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {agent.scenarios.slice(0, 4).map((s: any, i: number) => (
+                            <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400">{s.title || s.badgeLabel}</span>
                           ))}
-                          {agent.scenarios.length > 3 && (
-                            <span className="text-[10px] text-zinc-400 font-medium">+{agent.scenarios.length - 3} more</span>
-                          )}
                         </div>
                       </div>
-
-                      {/* CTA */}
-                      <div className="mt-4 flex justify-end">
-                        <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 group-hover:text-blue-700 dark:group-hover:text-blue-300 flex items-center gap-1.5 transition-all group-hover:gap-2">
-                          Launch Live Demo <ArrowRight className="h-3.5 w-3.5" />
-                        </span>
-                      </div>
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </div>
                 );
               })}
             </div>
