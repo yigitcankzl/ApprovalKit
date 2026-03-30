@@ -84,7 +84,7 @@ All actions execute through **Auth0 Token Vault** — the agent never sees crede
 | **Data & AI** | Amazon, Figma, Hugging Face, Fitbit |
 | **Enterprise** | Salesforce, Microsoft Entra (Azure AD), Google Workspace |
 
-ApprovalKit has **19 built-in service handlers** for direct execution: Stripe, GitHub, Slack, Google (Gmail/Calendar/Drive/Sheets), Microsoft (Outlook/OneDrive), Salesforce, Notion, Jira, Discord, Linear, HubSpot, Shopify, PayPal, Amadeus.
+ApprovalKit has **30 built-in service handlers** covering every Token Vault provider — Stripe, GitHub, Slack, Google (Gmail/Calendar/Drive/Sheets), Microsoft (Outlook/OneDrive), Salesforce, Notion, Jira, Discord, Linear, HubSpot, Shopify, PayPal, Dropbox, Box, Bitbucket, Figma, Spotify, Twitch, Fitbit, Freshbooks, DigitalOcean, Basecamp, Hugging Face, Amadeus.
 
 Existing MCP servers (GitHub, Slack, Stripe, etc.) give agents **direct API access with no oversight**. ApprovalKit sits in front — same actions, but with human approval, credential isolation via Token Vault, and full audit trail.
 
@@ -169,7 +169,7 @@ SSE live feed via Redis pub/sub shows approval events as they happen. Pending ap
 | Frontend | Next.js 14, React 18, Tailwind CSS, TypeScript, dark mode |
 | Auth | Auth0 Token Vault, CIBA, FGA, nextjs-auth0 v4, per-agent HMAC |
 | SDK | Python, pip-installable, sync + async, jitter polling |
-| Execution | 19 built-in handlers, all via Auth0 Token Vault |
+| Execution | 30 built-in handlers, all via Auth0 Token Vault |
 | Infrastructure | Docker Compose (8 services), Ollama GPU support, Healthcare companion demo |
 
 ---
