@@ -34,6 +34,7 @@ class ChatRequest(BaseModel):
     message: str = Field(..., max_length=10000)
     agent_title: str = ""
     session_id: str = ""
+    allowed_tools: list[str] | None = None  # restrict to specific tools (for chain steps)
 
 
 class ChatResponse(BaseModel):
@@ -86,6 +87,7 @@ async def chat_with_agent(
         agent_id, req.message, req.agent_title, req.session_id,
         api_key=api_key, provider=provider,
         workspace_id=str(workspace.owner_auth0_sub or workspace.id),
+        allowed_tools=req.allowed_tools,
     )
     return ChatResponse(**result)
 

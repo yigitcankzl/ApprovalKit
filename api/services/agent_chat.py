@@ -1469,7 +1469,7 @@ _PROVIDER_CONFIG = {
 }
 
 
-def process_message(agent_id: str, message: str, agent_title: str = "", session_id: str = "", api_key: str = "", provider: str = "gemini", workspace_id: str = "") -> dict:
+def process_message(agent_id: str, message: str, agent_title: str = "", session_id: str = "", api_key: str = "", provider: str = "gemini", workspace_id: str = "", allowed_tools: list[str] | None = None) -> dict:
     """Agentic loop: LLM thinks → calls tool → backend executes → result fed back → LLM responds.
 
     Supports multiple providers: Gemini, Groq, OpenRouter, Mistral.
@@ -1498,6 +1498,11 @@ def process_message(agent_id: str, message: str, agent_title: str = "", session_
 
     system_prompt = AGENT_PROMPTS.get(agent_id, f"You are a helpful AI assistant called {agent_title}.")
     tools = AGENT_TOOLS.get(agent_id, [])
+
+    # Filter tools if allowed_tools specified (for chain steps)
+    if allowed_tools:
+        tools = [t for t in tools if t["name"] in allowed_tools]
+        logger.info(f"Chain step: filtered tools for {agent_id} → {[t['name'] for t in tools]}")
 
     # Route to provider-specific implementation
     if pconfig["type"] == "openai":

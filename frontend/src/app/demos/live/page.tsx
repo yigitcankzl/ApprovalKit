@@ -106,6 +106,7 @@ interface ChainStep {
   agentId: string;
   agentTitle: string;
   role: string;
+  allowedTools?: string[];  // restrict which tools the agent can use in this step
 }
 
 interface ChainScenario {
@@ -125,9 +126,9 @@ const CHAIN_SCENARIOS: ChainScenario[] = [
     description: "E-Commerce → Communications → Finance: 3 agents react to each other's results",
     scenario: "A VIP customer called 3 times furious about a $420 damaged order.",
     steps: [
-      { agentId: "expense", agentTitle: "E-Commerce Agent", role: "ONLY process the $420 refund. Do NOT send emails or compensation — other agents will handle those." },
-      { agentId: "comms", agentTitle: "Communications Agent", role: "ONLY handle communication. Send an apology email to the customer and notify #customer_service on Slack. Do NOT process any payments." },
-      { agentId: "finance", agentTitle: "Finance Agent", role: "ONLY handle compensation. If the refund was approved or pending, issue a $150 goodwill gift card. If it was blocked, skip compensation. Do NOT repeat the refund." },
+      { agentId: "expense", agentTitle: "E-Commerce Agent", role: "Process the $420 refund for the damaged order.", allowedTools: ["process_refund"] },
+      { agentId: "comms", agentTitle: "Communications Agent", role: "Send an apology email to the customer and notify the team on Slack. Adapt based on whether the refund was approved or pending.", allowedTools: ["send_email", "send_slack"] },
+      { agentId: "finance", agentTitle: "Finance Agent", role: "If the refund was approved or pending, issue a $150 goodwill gift card. If blocked, skip compensation.", allowedTools: ["process_payment"] },
     ],
   },
   {
@@ -137,9 +138,9 @@ const CHAIN_SCENARIOS: ChainScenario[] = [
     description: "Security → DevOps → Communications: Each agent adapts based on previous outcomes",
     scenario: "Unauthorized access detected — multiple failed login attempts from unknown IPs on production.",
     steps: [
-      { agentId: "security_incident", agentTitle: "Security Agent", role: "ONLY lock the repository and alert the security team on Slack. Do NOT deploy or send emails." },
-      { agentId: "release_manager", agentTitle: "DevOps Agent", role: "ONLY handle the deployment. If repos were locked successfully, rollback production to v1.9.2. If lock was blocked, deploy an emergency hotfix instead. Do NOT send any notifications." },
-      { agentId: "comms", agentTitle: "Communications Agent", role: "ONLY handle notifications. Email cto@company.com and notify #engineering on Slack. If the incident is contained (previous steps approved), send all-clear. If still pending, send critical alert." },
+      { agentId: "security_incident", agentTitle: "Security Agent", role: "Lock the repository and alert the security team on Slack.", allowedTools: ["lock_repo", "log_alert"] },
+      { agentId: "release_manager", agentTitle: "DevOps Agent", role: "If repos were locked, rollback production to v1.9.2. If lock was blocked, deploy emergency hotfix instead.", allowedTools: ["deploy", "rollback"] },
+      { agentId: "comms", agentTitle: "Communications Agent", role: "Email cto@company.com and notify #engineering on Slack. If incident contained, send all-clear. If pending, send critical alert.", allowedTools: ["send_email", "send_slack"] },
     ],
   },
   {
@@ -149,9 +150,9 @@ const CHAIN_SCENARIOS: ChainScenario[] = [
     description: "HR → Access → Communications: Access provisioning adapts to HR outcome",
     scenario: "Alice Chen accepted Senior Engineer at $160,000/year, starts Monday.",
     steps: [
-      { agentId: "recruitment", agentTitle: "HR Agent", role: "ONLY send the offer confirmation email to alice@example.com. Do NOT set up access or send team announcements." },
-      { agentId: "access_provisioning", agentTitle: "Access Agent", role: "ONLY grant GitHub access. If the offer email was approved, grant standard member access. If it was blocked (high salary), hold access until approved. Do NOT send emails." },
-      { agentId: "comms", agentTitle: "Communications Agent", role: "ONLY handle team communication. If previous steps succeeded, welcome Alice on Slack #general. If steps are pending, notify HR manager about the onboarding delay." },
+      { agentId: "recruitment", agentTitle: "HR Agent", role: "Send the offer confirmation email to alice@example.com.", allowedTools: ["send_email"] },
+      { agentId: "access_provisioning", agentTitle: "Access Agent", role: "If offer email was approved, grant standard GitHub member access. If blocked, hold access.", allowedTools: ["grant_access"] },
+      { agentId: "comms", agentTitle: "Communications Agent", role: "If previous steps succeeded, welcome Alice on Slack #general. If pending, notify HR about delay.", allowedTools: ["send_slack"] },
     ],
   },
   {
@@ -161,10 +162,10 @@ const CHAIN_SCENARIOS: ChainScenario[] = [
     description: "Finance → Security → Communications → Finance: 4 agents build on each other's results",
     scenario: "Fraud system flagged a $5,000 transaction — doesn't match customer's spending history.",
     steps: [
-      { agentId: "finance", agentTitle: "Finance Agent", role: "ONLY freeze the $5,000 suspicious payment. Do NOT refund yet — investigation needed first." },
-      { agentId: "security_incident", agentTitle: "Security Agent", role: "ONLY log a critical security alert on Slack. If the freeze succeeded, investigate. If blocked, escalate urgently. Do NOT process payments." },
-      { agentId: "comms", agentTitle: "Communications Agent", role: "ONLY notify the customer at customer@example.com and alert #fraud-team on Slack. If funds were frozen, reassure. If still pending, warn about ongoing risk." },
-      { agentId: "finance", agentTitle: "Finance Agent", role: "ONLY handle the final resolution. Based on everything above, process a $5,000 refund if fraud was confirmed. Do NOT repeat the freeze." },
+      { agentId: "finance", agentTitle: "Finance Agent", role: "Freeze the $5,000 suspicious payment. Do NOT refund yet.", allowedTools: ["process_payment"] },
+      { agentId: "security_incident", agentTitle: "Security Agent", role: "Log a critical security alert on Slack. If freeze succeeded, investigate. If blocked, escalate.", allowedTools: ["log_alert"] },
+      { agentId: "comms", agentTitle: "Communications Agent", role: "Notify customer@example.com and alert #fraud-team. If frozen, reassure. If pending, warn.", allowedTools: ["send_email", "send_slack"] },
+      { agentId: "finance", agentTitle: "Finance Agent", role: "Final resolution: process $5,000 refund if fraud confirmed.", allowedTools: ["process_payment"] },
     ],
   },
   {
@@ -174,10 +175,10 @@ const CHAIN_SCENARIOS: ChainScenario[] = [
     description: "DevOps → Open Source → Communications → Finance: Launch adapts if deploy fails",
     scenario: "Version 3.0 is ready for launch — major release with new features.",
     steps: [
-      { agentId: "release_manager", agentTitle: "DevOps Agent", role: "ONLY deploy v3.0 to production. Do NOT create releases or send announcements." },
-      { agentId: "opensource", agentTitle: "Open Source Agent", role: "ONLY handle the GitHub release. If deploy succeeded, create official v3.0 release. If blocked, tag as release candidate. Do NOT deploy or send emails." },
-      { agentId: "comms", agentTitle: "Communications Agent", role: "ONLY handle announcements. If launch is confirmed, email press@techcrunch.com and post on Slack. If deploy was blocked, send internal-only update — do NOT contact press." },
-      { agentId: "finance", agentTitle: "Finance Agent", role: "ONLY allocate marketing budget. If launch is live, allocate $2,000. If delayed, allocate $500 for internal comms only." },
+      { agentId: "release_manager", agentTitle: "DevOps Agent", role: "Deploy v3.0 to production.", allowedTools: ["deploy"] },
+      { agentId: "opensource", agentTitle: "Open Source Agent", role: "If deploy succeeded, create official v3.0 release. If blocked, tag as release candidate.", allowedTools: ["create_release"] },
+      { agentId: "comms", agentTitle: "Communications Agent", role: "If launch confirmed, email press@techcrunch.com and post on Slack. If blocked, internal-only update.", allowedTools: ["send_email", "send_slack"] },
+      { agentId: "finance", agentTitle: "Finance Agent", role: "If launch live, allocate $2,000 marketing budget. If delayed, $500 only.", allowedTools: ["process_payment"] },
     ],
   },
   {
@@ -187,10 +188,10 @@ const CHAIN_SCENARIOS: ChainScenario[] = [
     description: "Finance → Communications → Finance → Communications: Payment flow adapts at each step",
     scenario: "Acme Design Co delivered Q1 branding 2 weeks early. Invoice: $3,500 + eligible for $500 early bonus.",
     steps: [
-      { agentId: "finance", agentTitle: "Finance Agent", role: "ONLY process the $3,500 invoice payment. Do NOT process the bonus yet." },
-      { agentId: "comms", agentTitle: "Communications Agent", role: "ONLY notify the vendor. If payment approved, send confirmation to billing@acmedesign.com. If pending/blocked, notify about delay. Do NOT process payments." },
-      { agentId: "finance", agentTitle: "Finance Agent", role: "ONLY handle the $500 early delivery bonus. If the invoice was approved, add the bonus. If invoice is pending, hold the bonus. Do NOT re-process the invoice." },
-      { agentId: "comms", agentTitle: "Communications Agent", role: "ONLY send final summary. Notify #accounting on Slack with complete payment status (invoice + bonus). Email vendor with final receipt." },
+      { agentId: "finance", agentTitle: "Finance Agent", role: "Process the $3,500 invoice payment.", allowedTools: ["process_payment"] },
+      { agentId: "comms", agentTitle: "Communications Agent", role: "If payment approved, send confirmation to billing@acmedesign.com. If pending, notify about delay.", allowedTools: ["send_email"] },
+      { agentId: "finance", agentTitle: "Finance Agent", role: "If invoice was approved, add $500 early delivery bonus. If pending, hold bonus.", allowedTools: ["process_payment"] },
+      { agentId: "comms", agentTitle: "Communications Agent", role: "Send final summary to #accounting on Slack and email vendor with receipt.", allowedTools: ["send_slack", "send_email"] },
     ],
   },
 ];
@@ -316,7 +317,7 @@ export default function LiveThreatDemoPage() {
       let stepResultSummary = `Step ${i + 1} — ${step.agentTitle}:`;
 
       try {
-        const res = await api.chatWithAgent(step.agentId, prompt, step.agentTitle, sessionIds[step.agentId] || "");
+        const res = await api.chatWithAgent(step.agentId, prompt, step.agentTitle, sessionIds[step.agentId] || "", step.allowedTools);
         if (res.session_id) setSessionIds(prev => ({ ...prev, [step.agentId]: res.session_id }));
         addMessage(step.agentId, { role: "agent", text: res.response || "Done." });
 

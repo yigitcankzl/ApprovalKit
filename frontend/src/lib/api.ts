@@ -135,10 +135,10 @@ export const api = {
     fetchAPI("/api/v1/demo/delete", { method: "POST", body: JSON.stringify(body) }),
 
   // Agent Chat
-  chatWithAgent: (agentId: string, message: string, agentTitle: string = "", sessionId: string = "") =>
+  chatWithAgent: (agentId: string, message: string, agentTitle: string = "", sessionId: string = "", allowedTools?: string[]) =>
     fetchAPI(`/api/v1/demo/agents/${agentId}/chat`, {
       method: "POST",
-      body: JSON.stringify({ message, agent_title: agentTitle, session_id: sessionId }),
+      body: JSON.stringify({ message, agent_title: agentTitle, session_id: sessionId, ...(allowedTools ? { allowed_tools: allowedTools } : {}) }),
     }),
   getAgentSuggestions: (agentId: string) =>
     fetchAPI(`/api/v1/demo/agents/${agentId}/suggestions`),
