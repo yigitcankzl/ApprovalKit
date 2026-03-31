@@ -142,6 +142,7 @@ export default function DemosPage() {
                   <span>30 Token Vault services</span>
                   <span>Per-tool least privilege</span>
                   <span>Context-driven decisions</span>
+                  <span className="text-purple-500 dark:text-purple-400 font-medium hover:underline" onClick={(e) => { e.stopPropagation(); router.push("/docs/demo-architecture"); }}>Architecture Docs →</span>
                 </div>
               </div>
               <ArrowRight className="h-6 w-6 text-purple-400 group-hover:text-purple-600 dark:group-hover:text-purple-300 transition-colors shrink-0 mt-2" />

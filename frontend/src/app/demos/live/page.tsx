@@ -645,7 +645,10 @@ export default function LiveThreatDemoPage() {
             <h1 className="text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-red-600 via-orange-600 to-amber-600 dark:from-red-400 dark:via-orange-400 dark:to-amber-400">
               {activeChain ? `${activeChain.emoji} ${activeChain.title}` : chainIdFromUrl === "orchestrator" ? "🧠 AI Orchestrator" : urlChain ? `${urlChain.emoji} ${urlChain.title}` : selectedAgent?.title || "Live Threat Demo"}
             </h1>
-            <p className="text-zinc-500 dark:text-zinc-400 mt-1 text-sm">{activeChain ? activeChain.description : chainIdFromUrl === "orchestrator" ? "Describe any situation — AI selects agents, assigns tools, and runs the workflow" : urlChain ? urlChain.description : selectedAgent?.description || "Watch AI agents act autonomously"}</p>
+            <p className="text-zinc-500 dark:text-zinc-400 mt-1 text-sm">
+              {activeChain ? activeChain.description : chainIdFromUrl === "orchestrator" ? "Describe any situation — AI selects agents, assigns tools, and runs the workflow" : urlChain ? urlChain.description : selectedAgent?.description || "Watch AI agents act autonomously"}
+              {chainIdFromUrl === "orchestrator" && <a href="/docs/demo-architecture" className="ml-2 text-purple-500 dark:text-purple-400 hover:underline text-xs font-medium">How it works →</a>}
+            </p>
           </div>
         </div>
       </div>
