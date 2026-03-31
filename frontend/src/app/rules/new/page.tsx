@@ -10,7 +10,7 @@ import { ConditionBuilder } from "@/components/rule-builder/condition-builder";
 import { LivePreview } from "@/components/rule-builder/live-preview";
 import { api } from "@/lib/api";
 import type { ApprovalModel, Approver, Condition, TimeoutAction } from "@/types";
-import { Save, Zap, Gauge, Clock } from "lucide-react";
+import { Save, Zap, Gauge, Clock, Bot, Send, X, Sparkles, ChevronUp, ChevronDown } from "lucide-react";
 import { FormError } from "@/components/ui/form-error";
 import { useSearchParams } from "next/navigation";
 
@@ -423,6 +423,129 @@ export default function NewRulePage() {
           />
         </div>
       </div>
+
+      {/* AI Rule Assistant */}
+      <RuleAssistant onApplyRule={(rule) => {
+        if (rule.name) setName(rule.name);
+        if (rule.connection) setConnection(rule.connection);
+        if (rule.action) setAction(rule.action);
+        if (rule.model) setModel(rule.model as ApprovalModel);
+        if (rule.conditions) setConditions(rule.conditions);
+        if (rule.context_template) setContextTemplate(rule.context_template);
+        if (rule.timeout_seconds) setTimeoutSeconds(rule.timeout_seconds);
+      }} />
+    </div>
+  );
+}
+
+function RuleAssistant({ onApplyRule }: { onApplyRule: (rule: any) => void }) {
+  const [open, setOpen] = useState(false);
+  const [input, setInput] = useState("");
+  const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const send = async () => {
+    if (!input.trim() || loading) return;
+    const userMsg = input.trim();
+    setInput("");
+    setMessages(prev => [...prev, { role: "user", content: userMsg }]);
+    setLoading(true);
+
+    try {
+      const res = await api.ruleAssistant(userMsg, messages);
+      const reply = res.response || "Sorry, I could not process that.";
+      setMessages(prev => [...prev, { role: "assistant", content: reply }]);
+
+      // Try to extract JSON rule from response
+      const jsonMatch = reply.match(/```json\n?([\s\S]*?)```/);
+      if (jsonMatch) {
+        try {
+          const rule = JSON.parse(jsonMatch[1]);
+          // Auto-apply if valid
+          if (rule.name || rule.connection) onApplyRule(rule);
+        } catch {}
+      }
+    } catch (e: any) {
+      setMessages(prev => [...prev, { role: "assistant", content: `Error: ${e.message}` }]);
+    }
+    setLoading(false);
+  };
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-2xl bg-gradient-to-r from-purple-600 to-blue-500 text-white shadow-lg shadow-purple-500/20 hover:shadow-purple-500/30 transition-all text-sm font-semibold"
+      >
+        <Sparkles className="h-4 w-4" />
+        AI Rule Assistant
+      </button>
+    );
+  }
+
+  return (
+    <div className="fixed bottom-6 right-6 z-50 w-96 rounded-2xl border border-purple-200 dark:border-purple-800 bg-white dark:bg-zinc-900 shadow-2xl flex flex-col" style={{ maxHeight: "500px" }}>
+      {/* Header */}
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/30 dark:to-blue-950/30 rounded-t-2xl">
+        <Bot className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+        <span className="text-sm font-semibold text-purple-800 dark:text-purple-200 flex-1">AI Rule Assistant</span>
+        <button onClick={() => setOpen(false)} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto p-3 space-y-3" style={{ maxHeight: "350px" }}>
+        {messages.length === 0 && (
+          <div className="text-center py-6 space-y-2">
+            <Sparkles className="h-8 w-8 text-purple-300 mx-auto" />
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">Describe the rule you need</p>
+            <div className="flex flex-wrap gap-1.5 justify-center">
+              {[
+                "Block charges over $10K",
+                "Require CFO for deployments",
+                "Auto-approve Slack messages",
+                "Step-up auth for refunds over $500",
+              ].map(s => (
+                <button key={s} onClick={() => setInput(s)} className="text-[10px] px-2 py-1 rounded-full border border-purple-200 dark:border-purple-800 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/20">
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {messages.map((msg, i) => (
+          <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+            <div className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${
+              msg.role === "user"
+                ? "bg-purple-600 text-white"
+                : "bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200"
+            }`}>
+              <pre className="whitespace-pre-wrap font-sans text-xs leading-relaxed">{msg.content}</pre>
+            </div>
+          </div>
+        ))}
+        {loading && (
+          <div className="flex items-center gap-2 text-purple-500 text-xs">
+            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-purple-500" />
+            Thinking...
+          </div>
+        )}
+      </div>
+
+      {/* Input */}
+      <form onSubmit={(e) => { e.preventDefault(); send(); }} className="px-3 py-2 border-t border-zinc-200 dark:border-zinc-800 flex gap-2">
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="e.g. Block payments over $5000..."
+          className="flex-1 text-sm px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-purple-500"
+          disabled={loading}
+        />
+        <Button type="submit" disabled={loading || !input.trim()} size="sm" className="rounded-lg bg-purple-600 hover:bg-purple-700">
+          <Send className="h-3.5 w-3.5" />
+        </Button>
+      </form>
     </div>
   );
 }
