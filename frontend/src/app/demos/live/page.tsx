@@ -298,7 +298,10 @@ export default function LiveThreatDemoPage() {
     ? [...activeChain.steps.map(s => s.agentId), "orchestrator", "sub_agents", "risk_assessor", "validator", "summary"]
         .flatMap(id => messages[id] || [])
         .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
-    : selectedAgent ? (messages[selectedAgent.id] || []) : [];
+    : selectedAgent ? (messages[selectedAgent.id] || [])
+    : chainIdFromUrl === "orchestrator"
+      ? [...(messages["orchestrator"] || []), ...(messages["sub_agents"] || [])].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
+      : [];
   const addMessage = useCallback((agentId: string, msg: Omit<ChatMessage, "id" | "timestamp">) => { const m: ChatMessage = { ...msg, id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, timestamp: new Date() }; setMessages(prev => ({ ...prev, [agentId]: [...(prev[agentId] || []), m] })); return m.id; }, []);
   const updateMessage = useCallback((agentId: string, msgId: string, updates: Partial<ChatMessage>) => { setMessages(prev => ({ ...prev, [agentId]: (prev[agentId] || []).map(m => m.id === msgId ? { ...m, ...updates } : m) })); }, []);
   const addEvent = useCallback((evt: Omit<ShieldEvent, "id" | "timestamp">) => {
