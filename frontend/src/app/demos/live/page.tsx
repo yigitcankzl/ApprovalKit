@@ -251,8 +251,18 @@ export default function LiveThreatDemoPage() {
   useEffect(() => {
     api.getDemoAgents().then((d: any) => {
       const list = Array.isArray(d) ? d : d.agents || [];
-      const target = agentIdFromUrl ? list.find((a: DemoAgent) => a.id === agentIdFromUrl) : list[0];
-      if (target) setSelectedAgent(target);
+      // In orchestrator mode, don't select a default agent — orchestrator handles routing
+      if (chainIdFromUrl) {
+        // Only set agent if explicitly requested via ?agent= param
+        if (agentIdFromUrl) {
+          const target = list.find((a: DemoAgent) => a.id === agentIdFromUrl);
+          if (target) setSelectedAgent(target);
+        }
+        // Otherwise selectedAgent stays null → form uses orchestrator path
+      } else {
+        const target = agentIdFromUrl ? list.find((a: DemoAgent) => a.id === agentIdFromUrl) : list[0];
+        if (target) setSelectedAgent(target);
+      }
     }).catch(() => {}).finally(() => setLoading(false));
   }, [agentIdFromUrl]);
   // Auto-seed demo data + set Ollama if not configured
