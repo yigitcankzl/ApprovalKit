@@ -1546,6 +1546,7 @@ This is a controlled demonstration of AI safety middleware.
                     "model": act["result"].get("model"),
                     "approvers": act["result"].get("approvers", []),
                     "message": act["result"].get("message"),
+                    "reasoning": act.get("reasoning", ""),
                 }
                 all_action_results.append(action_item)
                 if act["result"].get("success"):
@@ -1629,9 +1630,11 @@ def _process_openai_compatible(
                     all_text_parts.append(msg.content)
                 break
 
-            # Tool call present — only collect text if it's NOT json garbage
+            # Tool call present — collect reasoning text
+            reasoning = ""
             if msg.content and not msg.content.strip().startswith("{"):
-                all_text_parts.append(msg.content)
+                reasoning = msg.content.strip()
+                all_text_parts.append(reasoning)
 
             # Add assistant message with tool calls to conversation
             msg_dict = {"role": msg.role, "content": msg.content or ""}
@@ -1649,7 +1652,7 @@ def _process_openai_compatible(
                 logger.info(f"Agent {agent_id} calling tool: {tc.function.name}({tool_args})")
 
                 result = _execute_tool(agent_id, tc.function.name, tool_args, workspace_id)
-                all_actions.append({"tool": tc.function.name, "args": tool_args, "result": result})
+                all_actions.append({"tool": tc.function.name, "args": tool_args, "result": result, "reasoning": reasoning})
 
                 logger.info(f"Tool result: {result.get('status', 'error')} — {result.get('message', result.get('error', ''))}")
 
@@ -1691,6 +1694,7 @@ def _process_openai_compatible(
                     "model": act["result"].get("model"),
                     "approvers": act["result"].get("approvers", []),
                     "message": act["result"].get("message"),
+                    "reasoning": act.get("reasoning", ""),
                 }
                 all_action_results.append(action_item)
                 if act["result"].get("success"):

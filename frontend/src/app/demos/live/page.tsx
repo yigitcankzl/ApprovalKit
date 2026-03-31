@@ -26,7 +26,7 @@ interface ChatMessage {
   id: string; role: "user" | "agent" | "tool" | "system"; text: string; timestamp: Date;
   toolName?: string; toolArgs?: Record<string, unknown>;
   toolStatus?: "running" | "auto_approved" | "pending" | "blocked" | "approved" | "rejected" | "error";
-  jobId?: string;
+  jobId?: string; reasoning?: string;
 }
 interface SessionSummary { totalActions: number; autoApproved: number; pendingApproval: number; blocked: number; preventedDamage: number; }
 
@@ -400,6 +400,7 @@ export default function LiveThreatDemoPage() {
             toolName: a.action, toolArgs: a.params,
             toolStatus: status === "auto_approved" ? "auto_approved" : status === "pending" ? "pending" : "blocked",
             jobId: a.job_id,
+            reasoning: a.reasoning || "",
           });
 
           // Human-friendly event message
@@ -485,7 +486,7 @@ export default function LiveThreatDemoPage() {
         for (let i = 0; i < actions.length; i++) {
           if (i > 0) await new Promise(r => setTimeout(r, 600));
           const a = actions[i];
-          addMessage(agentId, { role: "tool", text: `${a.connection || "unknown"}/${a.action || "unknown"}`, toolName: a.action, toolArgs: a.params, toolStatus: "auto_approved" });
+          addMessage(agentId, { role: "tool", text: `${a.connection || "unknown"}/${a.action || "unknown"}`, toolName: a.action, toolArgs: a.params, toolStatus: "auto_approved", reasoning: a.reasoning || "" });
           addEvent({ agentId, agentTitle, type: "auto_approved", action: a.action || "unknown", connection: a.connection || "unknown", params: a.params || {}, message: `EXECUTED WITHOUT OVERSIGHT — ${a.action || "unknown"}` });
         }
       } catch (e: any) { addMessage(agentId, { role: "system", text: `Error: ${e.message}` }); }
@@ -1148,6 +1149,7 @@ function ChatBubble({ message, shieldOff }: { message: ChatMessage; shieldOff?: 
           </div>
         )}
         {amt > 0 && <div className="mt-1 pl-5"><span className={`text-xs font-mono font-bold ${c.color}`}>${amt.toLocaleString()}</span></div>}
+        {message.reasoning && <div className="mt-1.5 pl-5 text-[10px] text-zinc-400 italic border-l-2 border-zinc-200 dark:border-zinc-700 pl-3 ml-5">{message.reasoning}</div>}
       </div>
     );
   }
