@@ -61,6 +61,7 @@ export default function DashboardPage() {
   const [events, setEvents]     = useState<LiveEvent[]>([]);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState<string | null>(null);
+  const [patterns, setPatterns] = useState<any[]>([]);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -80,6 +81,9 @@ export default function DashboardPage() {
       loadStats(),
       api.getRecentActivity(20)
         .then((rows: LiveEvent[]) => { if (ctrl.active) setEvents(Array.isArray(rows) ? rows : []); })
+        .catch(() => {}),
+      api.getApprovalPatterns(30)
+        .then((data: any) => { if (ctrl.active) setPatterns(data.patterns || []); })
         .catch(() => {}),
     ])
       .catch((err) => { if (ctrl.active) setError(err.message || "Failed to load"); })
@@ -281,6 +285,35 @@ export default function DashboardPage() {
             <ArrowRight className="h-4 w-4" />
           </button>
         </div>
+      )}
+
+      {/* Learned Patterns */}
+      {patterns.length > 0 && (
+        <section className="mb-6">
+          <Card className="border-zinc-200/80 dark:border-zinc-800/80">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Gauge className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                Learned Patterns
+                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400">{patterns.length}</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {patterns.map((p: any, i: number) => (
+                <div key={i} className={`flex items-start gap-2.5 text-xs rounded-lg px-3 py-2 ${
+                  p.severity === "warning"
+                    ? "bg-amber-50 dark:bg-amber-950/15 text-amber-800 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/40"
+                    : "bg-blue-50 dark:bg-blue-950/15 text-blue-800 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/40"
+                }`}>
+                  {p.severity === "warning"
+                    ? <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                    : <TrendingUp className="h-3.5 w-3.5 shrink-0 mt-0.5" />}
+                  <span>{p.message}</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </section>
       )}
 
       {/* Bottom panels */}

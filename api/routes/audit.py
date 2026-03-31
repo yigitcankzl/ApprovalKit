@@ -315,3 +315,103 @@ async def revoke_connection(connection_id: str, workspace: Workspace = Depends(g
     if not success:
         raise HTTPException(status_code=500, detail="Failed to revoke connection")
     return {"status": "revoked", "connection_id": connection_id}
+
+
+@router.get("/audit/patterns")
+async def get_approval_patterns(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    days: int = Query(default=30, le=365),
+):
+    """Analyze approval history and extract patterns (inspired by Claude Code's agent memory)."""
+    since = datetime.utcnow() - timedelta(days=days)
+
+    # Get all jobs in period
+    result = await db.execute(
+        select(ApprovalJob)
+        .where(ApprovalJob.workspace_id == workspace.id, ApprovalJob.created_at >= since)
+        .order_by(ApprovalJob.created_at.desc())
+    )
+    jobs = result.scalars().all()
+
+    if not jobs:
+        return {"patterns": [], "stats": {"total_jobs": 0, "period_days": days}}
+
+    # Analyze patterns
+    patterns = []
+    by_connection: dict[str, dict] = {}
+    by_action: dict[str, dict] = {}
+
+    for j in jobs:
+        key_conn = j.connection
+        key_action = f"{j.connection}/{j.action}"
+
+        if key_conn not in by_connection:
+            by_connection[key_conn] = {"total": 0, "approved": 0, "rejected": 0, "blocked": 0, "amounts": []}
+        by_connection[key_conn]["total"] += 1
+        if j.state == JobState.APPROVED: by_connection[key_conn]["approved"] += 1
+        elif j.state == JobState.REJECTED: by_connection[key_conn]["rejected"] += 1
+        elif j.state == JobState.BLOCKED: by_connection[key_conn]["blocked"] += 1
+        amt = j.params.get("amount_usd") or j.params.get("amount")
+        if amt: by_connection[key_conn]["amounts"].append(float(amt))
+
+        if key_action not in by_action:
+            by_action[key_action] = {"total": 0, "approved": 0, "rejected": 0, "avg_time": []}
+        by_action[key_action]["total"] += 1
+        if j.state == JobState.APPROVED:
+            by_action[key_action]["approved"] += 1
+            if j.completed_at and j.created_at:
+                by_action[key_action]["avg_time"].append((j.completed_at - j.created_at).total_seconds())
+        elif j.state == JobState.REJECTED:
+            by_action[key_action]["rejected"] += 1
+
+    # Generate patterns
+    for conn, data in by_connection.items():
+        if data["total"] < 2:
+            continue
+        approval_rate = round(data["approved"] / data["total"] * 100)
+        if data["rejected"] > data["approved"] and data["total"] >= 3:
+            patterns.append({
+                "type": "high_rejection",
+                "severity": "warning",
+                "message": f"{conn}: {data['rejected']}/{data['total']} actions rejected ({100 - approval_rate}% rejection rate)",
+                "connection": conn,
+            })
+        if data["amounts"]:
+            avg_amt = sum(data["amounts"]) / len(data["amounts"])
+            max_amt = max(data["amounts"])
+            if max_amt > avg_amt * 3 and len(data["amounts"]) >= 3:
+                patterns.append({
+                    "type": "amount_anomaly",
+                    "severity": "info",
+                    "message": f"{conn}: max ${max_amt:,.0f} is 3x above average ${avg_amt:,.0f}",
+                    "connection": conn,
+                })
+        if approval_rate == 100 and data["total"] >= 5:
+            patterns.append({
+                "type": "always_approved",
+                "severity": "info",
+                "message": f"{conn}: 100% approval rate across {data['total']} actions — consider auto-approve rule",
+                "connection": conn,
+            })
+
+    for action, data in by_action.items():
+        if data["avg_time"] and len(data["avg_time"]) >= 3:
+            avg_t = sum(data["avg_time"]) / len(data["avg_time"])
+            if avg_t > 300:  # > 5 min
+                patterns.append({
+                    "type": "slow_approval",
+                    "severity": "warning",
+                    "message": f"{action}: average approval time {avg_t/60:.0f} min — consider lowering threshold",
+                    "action": action,
+                })
+
+    return {
+        "patterns": patterns,
+        "stats": {
+            "total_jobs": len(jobs),
+            "period_days": days,
+            "connections_analyzed": len(by_connection),
+            "actions_analyzed": len(by_action),
+        },
+    }
