@@ -757,22 +757,41 @@ async def _execute_webhook(conn_obj, action: str, params: dict, creds: dict) -> 
 
     logger.info(f"Webhook: {method} {url[:80]}...")
 
-    async with httpx.AsyncClient(timeout=30) as c:
-        if method == "GET":
-            r = await c.get(url, headers=headers, params=body if isinstance(body, dict) else None)
-        elif method == "DELETE":
-            r = await c.delete(url, headers=headers)
-        else:
-            r = await c.request(method, url, headers=headers, json=body)
+    import asyncio, random
 
-        response_data = None
+    max_retries = 3
+    for attempt in range(max_retries):
         try:
-            response_data = r.json()
-        except Exception:
-            response_data = r.text[:500]
+            async with httpx.AsyncClient(timeout=30) as c:
+                if method == "GET":
+                    r = await c.get(url, headers=headers, params=body if isinstance(body, dict) else None)
+                elif method == "DELETE":
+                    r = await c.delete(url, headers=headers)
+                else:
+                    r = await c.request(method, url, headers=headers, json=body)
 
-        if r.status_code >= 400:
-            raise RuntimeError(f"Webhook returned {r.status_code}: {str(response_data)[:200]}")
+                response_data = None
+                try:
+                    response_data = r.json()
+                except Exception:
+                    response_data = r.text[:500]
+
+                if r.status_code >= 500 and attempt < max_retries - 1:
+                    delay = (0.5 * (2 ** attempt)) + random.uniform(0, 0.5)
+                    logger.warning(f"Webhook {r.status_code}, retrying in {delay:.1f}s (attempt {attempt + 1})")
+                    await asyncio.sleep(delay)
+                    continue
+
+                if r.status_code >= 400:
+                    raise RuntimeError(f"Webhook returned {r.status_code}: {str(response_data)[:200]}")
+                break
+        except httpx.TimeoutException:
+            if attempt < max_retries - 1:
+                delay = (0.5 * (2 ** attempt)) + random.uniform(0, 0.5)
+                logger.warning(f"Webhook timeout, retrying in {delay:.1f}s (attempt {attempt + 1})")
+                await asyncio.sleep(delay)
+            else:
+                raise RuntimeError(f"Webhook timeout after {max_retries} attempts")
 
         return {
             "success": True,
