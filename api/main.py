@@ -109,3 +109,52 @@ async def root():
 @app.get("/health")
 async def health():
     return {"status": "healthy"}
+
+
+@app.get("/health/deep")
+async def health_deep():
+    """Deep health check — verifies DB, Redis, and Ollama connectivity."""
+    checks = {}
+
+    # DB check
+    try:
+        from api.database import engine
+        from sqlalchemy import text
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        checks["database"] = "ok"
+    except Exception as e:
+        checks["database"] = f"error: {str(e)[:50]}"
+
+    # Redis check
+    try:
+        import redis.asyncio as aioredis
+        r = aioredis.from_url(settings.REDIS_URL)
+        await r.ping()
+        await r.aclose()
+        checks["redis"] = "ok"
+    except Exception as e:
+        checks["redis"] = f"error: {str(e)[:50]}"
+
+    # Ollama check
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=5) as c:
+            resp = await c.get("http://ollama:11434/api/tags")
+            checks["ollama"] = "ok" if resp.status_code == 200 else f"status: {resp.status_code}"
+    except Exception as e:
+        checks["ollama"] = f"error: {str(e)[:50]}"
+
+    all_ok = all(v == "ok" for v in checks.values())
+    return {"status": "healthy" if all_ok else "degraded", "checks": checks}
+
+
+@app.middleware("http")
+async def add_trace_id(request: Request, call_next):
+    """Add trace_id to every request for distributed tracing."""
+    import uuid as _uuid
+    trace_id = request.headers.get("X-Trace-Id", str(_uuid.uuid4())[:8])
+    request.state.trace_id = trace_id
+    response = await call_next(request)
+    response.headers["X-Trace-Id"] = trace_id
+    return response
