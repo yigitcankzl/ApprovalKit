@@ -354,6 +354,8 @@ async def dashboard_test_status(job_id: str, workspace: Workspace = Depends(get_
         "status": job.state.value,
         "final_params": job.final_params,
         "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+        "approvals_count": job.approvals_count or 0,
+        "required_count": job.required_count or 1,
     }
 
 
