@@ -244,7 +244,7 @@ export default function SetupPage() {
                   </div>
                   <div>
                     <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Try Demo Agents</p>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">8 AI agents across finance, devops, HR, and legal. Connect your accounts and start chatting.</p>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">10 specialized agents across finance, devops, security, HR, and compliance. Connect your accounts and start chatting.</p>
                   </div>
                   <ArrowRight className="h-4 w-4 text-zinc-400 mt-1 flex-shrink-0" />
                 </button>
