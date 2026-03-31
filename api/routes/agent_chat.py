@@ -175,7 +175,7 @@ IMPORTANT: Always respond in English. All tool parameters (emails, subjects, mes
                 stream = client.chat.completions.create(
                     model=model, messages=messages,
                     tools=openai_tools if openai_tools else None,
-                    temperature=0.7, stream=True,
+                    temperature=0.2, stream=True,
                 )
 
                 collected_content = ""

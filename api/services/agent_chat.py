@@ -1474,7 +1474,7 @@ IMPORTANT: Always respond in English. All tool parameters (emails, subjects, mes
         config = types.GenerateContentConfig(
             system_instruction=system_prompt,
             tools=gemini_tools,
-            temperature=0.7,
+            temperature=0.2,
         )
 
         # Build conversation contents from history
