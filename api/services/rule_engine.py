@@ -481,10 +481,16 @@ def build_escalation_chain(rule: Rule) -> list[dict]:
 
 def render_binding_message(template: str | None, params: dict) -> str:
     if not template:
-        return f"Approval requested for action with params: {params}"
+        # Generate a readable default message
+        amt = params.get("amount_usd") or params.get("amount")
+        if amt:
+            return f"Approve ${amt} action?"
+        return f"Approve action?"
     result = template
     for key, value in params.items():
+        # Support both {key} and {{key}} placeholder formats
         result = result.replace(f"{{{{{key}}}}}", str(value))
+        result = result.replace(f"{{{key}}}", str(value))
     return result
 
 
