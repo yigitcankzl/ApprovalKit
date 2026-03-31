@@ -11,6 +11,14 @@ from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 
 from api.config import get_settings
 import api.models  # noqa: F401 — registers all ORM mappers before any query runs
+import sys
+
+# Structured logging setup
+logger.remove()
+if get_settings().ENVIRONMENT == "production":
+    logger.add(sys.stderr, format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}", level="INFO")
+else:
+    logger.add(sys.stderr, format="{time:HH:mm:ss} | {level:<7} | {message}", level="DEBUG", colorize=True)
 from api.routes import request, rules, approvers, audit, connections, workspace, consent, demo, agents, agent_chat, auth0_webhook, email_approval, auth0_logs
 
 settings = get_settings()
