@@ -142,11 +142,28 @@ export default function DemosPage() {
                   <span>30 Token Vault services</span>
                   <span>Per-tool least privilege</span>
                   <span>Context-driven decisions</span>
-                  <span className="text-purple-500 dark:text-purple-400 font-medium hover:underline" onClick={(e) => { e.stopPropagation(); router.push("/docs/demo-architecture"); }}>Architecture Docs →</span>
                 </div>
               </div>
               <ArrowRight className="h-6 w-6 text-purple-400 group-hover:text-purple-600 dark:group-hover:text-purple-300 transition-colors shrink-0 mt-2" />
             </div>
+          </CardContent>
+        </Card>
+        {/* Architecture Docs Link */}
+        <Card
+          className="group border border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/10 hover:bg-purple-100/50 dark:hover:bg-purple-950/20 hover:shadow-md transition-all cursor-pointer mt-4"
+          onClick={() => router.push("/docs/demo-architecture")}
+        >
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className="p-2.5 rounded-xl bg-purple-100 dark:bg-purple-900/40">
+              <FileText className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-bold text-purple-800 dark:text-purple-200">Demo Architecture Docs</h3>
+              <p className="text-xs text-purple-600/80 dark:text-purple-400/70 mt-0.5">
+                Deep dive: AI Orchestrator, defense-in-depth, 7 sub-agents, adversarial validation, parallel execution, and more
+              </p>
+            </div>
+            <ArrowRight className="h-5 w-5 text-purple-400 group-hover:text-purple-600 dark:group-hover:text-purple-300 transition-colors shrink-0" />
           </CardContent>
         </Card>
       </div>
