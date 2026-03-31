@@ -604,7 +604,7 @@ async def run_sub_agent(
         raise HTTPException(400, f"Unknown sub-agent role: {req.role}")
 
     from openai import OpenAI
-    client = OpenAI(api_key=api_key or "ollama", base_url=pconfig["base_url"], timeout=20)
+    client = OpenAI(api_key=api_key or "ollama", base_url=pconfig["base_url"], timeout=45)
 
     try:
         resp = client.chat.completions.create(
