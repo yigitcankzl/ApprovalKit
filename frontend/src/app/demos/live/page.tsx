@@ -295,7 +295,7 @@ export default function LiveThreatDemoPage() {
   const urlChain = chainIdFromUrl ? CHAIN_SCENARIOS.find(c => c.id === chainIdFromUrl) : null;
 
   const currentMessages = activeChain
-    ? [...activeChain.steps.map(s => s.agentId), "orchestrator", "sub_agents", "risk_assessor", "validator", "summary"]
+    ? Array.from(new Set([...activeChain.steps.map(s => s.agentId), "orchestrator", "sub_agents", "risk_assessor", "validator", "summary"]))
         .flatMap(id => messages[id] || [])
         .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
     : selectedAgent ? (messages[selectedAgent.id] || [])
