@@ -21,6 +21,18 @@ from typing import Any
 
 from loguru import logger
 
+# Shared sync DB engine for Celery/agent tasks (avoids creating engine per task)
+_sync_engine = None
+def _get_sync_engine():
+    global _sync_engine
+    if _sync_engine is None:
+        from sqlalchemy import create_engine
+        from api.config import get_settings
+        settings = get_settings()
+        sync_url = settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
+        _sync_engine = create_engine(sync_url, pool_pre_ping=True, pool_size=5, max_overflow=10, pool_recycle=300)
+    return _sync_engine
+
 
 # ── Session Storage ───────────────────────────────────────────────────────────
 
@@ -1135,8 +1147,7 @@ def _execute_tool(agent_id: str, tool_name: str, tool_args: dict, workspace_id: 
 
         settings = get_settings()
         # Convert async DB URL to sync
-        sync_url = settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
-        engine = create_engine(sync_url)
+        engine = _get_sync_engine()
 
         with Session(engine) as db:
             # Get workspace
@@ -1168,7 +1179,7 @@ def _execute_tool(agent_id: str, tool_name: str, tool_args: dict, workspace_id: 
                     matched_rule = rule
                     break
 
-        engine.dispose()
+        # engine is shared pool — do not dispose
 
         if not matched_rule:
             print(f"[RULE DEBUG] NO MATCH — auto-approving {action['connection']}/{action['action']}", flush=True)
@@ -1394,7 +1405,7 @@ def _fire_token_vault_execution(connection: str, action: str, params: dict, user
                 ws_client_id = workspace.auth0_web_client_id or settings.AUTH0_WEB_CLIENT_ID or settings.AUTH0_CLIENT_ID
                 ws_client_secret = decrypt_secret(workspace.auth0_web_client_secret) or settings.AUTH0_WEB_CLIENT_SECRET or settings.AUTH0_CLIENT_SECRET
 
-            engine.dispose()
+            # engine is shared pool — do not dispose
 
             if not refresh_token:
                 logger.warning(f"Token Vault fire: no token for '{connection}'")
