@@ -1163,10 +1163,32 @@ class TokenVaultService:
 
         If the provider rotates the refresh token, the new value is stored in
         ``self._rotated_refresh_token`` so the caller can persist it.
+        Includes retry with exponential backoff (inspired by Claude Code's withRetry pattern).
         """
         if not auth0_breaker.allow_request():
             logger.warning(f"Token Exchange skipped for {connection_name} — Auth0 circuit breaker OPEN")
             return None
+
+        import asyncio as _asyncio
+
+        max_retries = 3
+        base_delay = 0.5  # 500ms base delay
+
+        for attempt in range(max_retries):
+            try:
+                return await self._do_token_exchange(connection_name, refresh_token, domain, client_id, client_secret)
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    delay = base_delay * (2 ** attempt)  # exponential backoff: 0.5, 1.0, 2.0
+                    logger.warning(f"Token Exchange attempt {attempt + 1} failed for {connection_name}: {e} — retrying in {delay}s")
+                    await _asyncio.sleep(delay)
+                else:
+                    logger.error(f"Token Exchange failed after {max_retries} attempts for {connection_name}: {e}")
+                    auth0_breaker.record_failure()
+                    return None
+
+    async def _do_token_exchange(self, connection_name: str, refresh_token: str, domain: str = "", client_id: str = "", client_secret: str = "") -> str | None:
+        """Single Token Exchange attempt."""
         try:
             _domain = domain or self.domain
             _client_id = client_id or self.client_id
@@ -1215,12 +1237,14 @@ class TokenVaultService:
                 else:
                     if r.status_code >= 500:
                         auth0_breaker.record_failure()
+                        raise RuntimeError(f"Token Exchange server error ({r.status_code}): {r.text[:200]}")
                     logger.warning(f"Token Vault Token Exchange failed ({r.status_code}): {r.text}")
                     return None
+        except RuntimeError:
+            raise  # Let retry handler catch this
         except Exception as e:
             auth0_breaker.record_failure()
-            logger.warning(f"Token Vault Token Exchange error for {connection_name}: {e}")
-            return None
+            raise RuntimeError(f"Token Exchange error for {connection_name}: {e}")
 
     # NOTE: Management API fallback (get_token_from_auth0) has been intentionally
     # removed.  Token Exchange is the only supported credential retrieval path.
