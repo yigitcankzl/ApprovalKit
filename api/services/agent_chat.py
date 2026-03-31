@@ -1130,8 +1130,8 @@ def _execute_tool(agent_id: str, tool_name: str, tool_args: dict, workspace_id: 
 
         # Dispatch Celery task for CIBA push notification
         try:
-            from api.worker.tasks import process_approval
-            process_approval.delay(str(job_id))
+            from api.worker.tasks import process_approval_job
+            process_approval_job.delay(str(job_id))
             logger.info(f"CIBA task dispatched for job {job_id}")
         except Exception as e:
             logger.warning(f"Failed to dispatch CIBA task (approval still works via web): {e}")
