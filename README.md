@@ -90,7 +90,7 @@ subject_token={auth0_refresh_token}
 connection={stripe|github|slack|...}
 ```
 
-All actions execute through **Auth0 Token Vault** — the agent never sees credentials. Token Vault supports 27+ OAuth providers:
+All actions execute through **Auth0 Token Vault** — the agent never sees credentials. Token Vault supports 30 OAuth providers:
 
 | Category | Services |
 |----------|----------|
@@ -140,6 +140,18 @@ Step-up conditions are configurable per rule. The Celery worker evaluates condit
 | `all_of_n` | Every approver must approve |
 | `k_of_n` | k out of n within a quorum time window |
 | `sequential` | Ordered chain — each step waits for the previous |
+
+### AI Orchestrator & Sub-Agents
+
+The live demo features a multi-agent orchestrator powered by local LLM (Qwen 2.5 7B). Describe any business situation and the orchestrator:
+
+1. Plans a multi-agent workflow (selects agents, assigns per-step tools)
+2. Runs 4 pre-execution sub-agents **in parallel**: risk assessor, cost estimator, compliance checker, rollback planner
+3. Executes the chain with verified action passing between agents
+4. Validates each step with an **adversarial validator** (checks for scope creep, amount anomalies, sequence violations)
+5. Generates structured audit trail + executive summary
+
+24+ preset scenarios across finance, security, HR, compliance, and **rogue agent testing** (demonstrates ApprovalKit blocking malicious actions).
 
 ### Consent & Permissions
 
@@ -226,9 +238,13 @@ This starts all services (PostgreSQL, Redis, Vault, Ollama, API, Worker, Fronten
 12. **PII Masking** — Emails and names masked in audit logs automatically
 13. **Rate Limiting** — Per-agent API key + per-job decision limits
 14. **Refresh Token Encryption** — OAuth tokens encrypted at rest, decrypted only at execution
-15. **27+ Token Vault Providers** — Any Auth0 OAuth connection works out of the box
+15. **30 Token Vault Providers** — Any Auth0 OAuth connection works out of the box
 16. **Per-Step Least Privilege** — Each agent in a chain gets only the tools needed for its specific role (1-2 tools, not the full 15+). Framework-level enforcement, not prompt-level — even prompt injection can't access filtered tools
 17. **Cascading Hallucination Prevention** — Chain context passes only verified tool execution results between agents, not LLM-generated text. Prevents Agent A's hallucination from propagating to Agent B
+18. **Input Parameter Validation** — SQL injection, shell injection, path traversal, and script injection patterns blocked at framework level before tool execution
+19. **Defense-in-Depth Prompt Security** — Security rules repeated across 3 layers (agent prompt, orchestrator, chain context) to prevent LLM instruction drift
+20. **Token Exchange Retry with Backoff** — Exponential backoff (500ms, 1s, 2s) on Token Vault server errors; client errors fail immediately
+21. **Approval Pattern Analysis** — Learned insights from approval history: high rejection rates, amount anomalies, slow approvals, always-approved connections
 
 ### Known Limitations
 
@@ -242,15 +258,16 @@ This starts all services (PostgreSQL, Redis, Vault, Ollama, API, Worker, Fronten
 | Page | Description |
 |------|-------------|
 | Dashboard | Real-time stats, SSE live feed, pending approvals, security status |
-| Connections | 27+ services via Token Vault, inline action edit, OAuth connect |
-| Rules | Approval rules with step-up, expandable cards with Check Rule / Run Live |
+| Connections | 30 services via Token Vault, inline action edit, OAuth connect |
+| Rules & Consent | Approval rules with step-up + consent/permissions (tabbed) |
 | Approvers | CRUD + Guardian auto-linking + delegation + workspace isolation |
 | Audit Log | Filterable event log with PII masking, binding messages, Token Vault receipts |
 | Connect Agent | Per-agent API key generation, SDK code snippets, live testing |
 | Agents | 8 demo agents (backend-served) + My Agents tab with scenarios |
 | Setup | Full-page onboarding wizard (Auth0 creds + connections), no sidebar |
 | Settings | Edit existing workspace credentials (sidebar layout) |
-| Docs | Full SDK reference, API endpoints, approval models |
+| Compliance | Audit trail with timeline visualization, JSON/CSV export for SOC2 |
+| Docs | Full SDK reference, API endpoints, approval models, demo architecture |
 
 **Dark mode** supported across all pages (system preference + manual toggle).
 
