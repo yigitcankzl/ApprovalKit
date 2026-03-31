@@ -451,6 +451,12 @@ For each step, evaluate:
 - Compliance risk (GDPR, HIPAA, regulatory)
 - Blast radius (how many people/systems affected)
 
+Risk level thresholds:
+- LOW: <$100 total, internal only, no credential changes
+- MEDIUM: $100-$999, external emails, single system access changes
+- HIGH: $1,000-$9,999, multiple external parties, credential rotation, bulk operations
+- CRITICAL: $10,000+, mass operations (10+ users), all-system access changes, irreversible actions
+
 Respond in this EXACT format:
 RISK LEVEL: LOW/MEDIUM/HIGH/CRITICAL
 TOTAL ESTIMATED SPEND: $X
