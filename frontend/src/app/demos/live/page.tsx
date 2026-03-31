@@ -713,8 +713,9 @@ export default function LiveThreatDemoPage() {
     if (selectedAgent) setMessages(prev => ({ ...prev, [selectedAgent.id]: (prev[selectedAgent.id] || []).map(m => m.jobId === jobId ? { ...m, toolStatus: "approved" as const } : m) }));
   };
   const handleReject = async (jobId: string, eventId: string) => {
+    const reason = prompt("Rejection reason (optional):") || "Rejected by approver";
     const evt = events.find(e => e.id === eventId); const amt = Number(evt?.params?.amount_usd) || 0;
-    try { await api.rejectJob(jobId); } catch (e) { console.error("Reject failed:", e); }
+    try { await api.rejectJob(jobId, reason); } catch (e) { console.error("Reject failed:", e); }
     setEvents(prev => prev.map(e => e.id === eventId ? { ...e, type: "rejected" as const } : e));
     setSummary(prev => ({ ...prev, pendingApproval: Math.max(0, prev.pendingApproval - 1), blocked: prev.blocked + 1, preventedDamage: prev.preventedDamage + amt }));
     if (selectedAgent) setMessages(prev => ({ ...prev, [selectedAgent.id]: (prev[selectedAgent.id] || []).map(m => m.jobId === jobId ? { ...m, toolStatus: "rejected" as const } : m) }));

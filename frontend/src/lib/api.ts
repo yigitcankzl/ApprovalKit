@@ -101,8 +101,8 @@ export const api = {
     fetchAPI("/api/v1/test-request", { method: "POST", body: JSON.stringify(data) }),
   approveJob: (jobId: string) =>
     fetchAPI(`/api/v1/jobs/${jobId}/decision`, { method: "POST", body: JSON.stringify({ decision: "approve" }) }),
-  rejectJob: (jobId: string) =>
-    fetchAPI(`/api/v1/jobs/${jobId}/decision`, { method: "POST", body: JSON.stringify({ decision: "reject" }) }),
+  rejectJob: (jobId: string, reason?: string) =>
+    fetchAPI(`/api/v1/jobs/${jobId}/decision`, { method: "POST", body: JSON.stringify({ decision: "reject", note: reason || "Rejected" }) }),
 
   // Consent
   getConsent: () => fetchAPI("/api/v1/consent"),
