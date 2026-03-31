@@ -223,6 +223,7 @@ export default function LiveThreatDemoPage() {
   const searchParams = useSearchParams();
   const agentIdFromUrl = searchParams.get("agent");
   const chainIdFromUrl = searchParams.get("chain");
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
   const [selectedAgent, setSelectedAgent] = useState<DemoAgent | null>(null);
   const [loading, setLoading] = useState(true);
   const [messages, setMessages] = useState<Record<string, ChatMessage[]>>({});
@@ -387,56 +388,68 @@ export default function LiveThreatDemoPage() {
       let stepResultSummary = `Step ${i + 1} — ${step.agentTitle}:`;
 
       try {
-        const res = await api.chatWithAgent(step.agentId, prompt, step.agentTitle, sessionIds[step.agentId] || "", step.allowedTools);
-        if (res.session_id) setSessionIds(prev => ({ ...prev, [step.agentId]: res.session_id }));
-        // Only show agent text if it's meaningful (not just "Done." or very short)
-        const agentText = (res.response || "").trim();
-        if (agentText && agentText !== "Done." && agentText !== "Done" && agentText.length > 10) {
-          addMessage(step.agentId, { role: "agent", text: agentText });
+        // STREAMING: tool cards appear in real-time (not after full LLM response)
+        const streamResp = await fetch(`${API_BASE}/api/v1/demo/agents/${step.agentId}/chat/stream`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...(user?.sub ? { "X-User-Sub": user.sub as string } : {}) },
+          body: JSON.stringify({ message: prompt, agent_title: step.agentTitle, session_id: sessionIds[step.agentId] || "", allowed_tools: step.allowedTools }),
+        });
+        if (!streamResp.ok || !streamResp.body) throw new Error(`Stream failed: ${streamResp.status}`);
+
+        const reader = streamResp.body.getReader();
+        const decoder = new TextDecoder();
+        let stepAgentMsgId: string | null = null;
+        let stepAgentText = "";
+        let sseBuffer = "";
+        let gotActions = false;
+
+        while (true) {
+          const { done: sDone, value: sVal } = await reader.read();
+          if (sDone) break;
+          sseBuffer += decoder.decode(sVal, { stream: true });
+          const sseParts = sseBuffer.split("\n\n");
+          sseBuffer = sseParts.pop() || "";
+          for (const ssePart of sseParts) {
+            const sseLine = ssePart.trim();
+            if (!sseLine.startsWith("data: ")) continue;
+            try {
+              const d = JSON.parse(sseLine.slice(6));
+              if (d.type === "token") {
+                stepAgentText += d.content;
+                if (!stepAgentMsgId) stepAgentMsgId = addMessage(step.agentId, { role: "agent", text: stepAgentText });
+                else updateMessage(step.agentId, stepAgentMsgId, { text: stepAgentText });
+              } else if (d.type === "tool_call") {
+                addMessage(step.agentId, { role: "tool", text: d.name, toolName: d.name, toolArgs: d.args, toolStatus: "running" });
+              } else if (d.type === "tool_result") {
+                gotActions = true;
+                const r = d.result || {};
+                const st = r.status || "auto_approved";
+                const mp = { connection: r.connection || "unknown", action: r.action || d.name, params: r.params || d.args || {} };
+                const amt = mp.params?.amount_usd ? ` ($${mp.params.amount_usd})` : "";
+                stepResultSummary += `\n  - ${mp.connection}/${mp.action}${amt} → ${st.toUpperCase()}${r.rule_name ? ` (rule: ${r.rule_name})` : ""}`;
+                setMessages(prev => {
+                  const msgs = prev[step.agentId] || [];
+                  const idx = msgs.findLastIndex((m: ChatMessage) => m.role === "tool" && m.toolStatus === "running");
+                  if (idx >= 0) { const u = [...msgs]; u[idx] = { ...u[idx], text: `${mp.connection}/${mp.action}`, toolArgs: mp.params, toolStatus: st === "auto_approved" ? "auto_approved" : st === "pending" ? "pending" : "blocked", jobId: r.job_id }; return { ...prev, [step.agentId]: u }; }
+                  return prev;
+                });
+                const lbl = mp.action.replace(/_/g, " ");
+                const fMsg = amt ? `${step.agentTitle} → ${lbl}${amt} ${st === "auto_approved" ? "executed via Token Vault" : st === "pending" ? "awaiting approval" : "blocked"}` : `${step.agentTitle} → ${lbl} ${st === "auto_approved" ? "executed" : st === "pending" ? "awaiting approval" : "blocked"}`;
+                let eType: ShieldEvent["type"] = "auto_approved";
+                if (st === "pending") eType = "pending"; else if (st === "blocked") eType = "blocked";
+                const rn = r.rule_name || "";
+                if ((rn.toLowerCase().includes("large") || rn.toLowerCase().includes("cfo")) && st === "pending") eType = "step_up";
+                addEvent({ agentId: step.agentId, agentTitle: step.agentTitle, type: eType, action: mp.action, connection: mp.connection, params: mp.params, message: fMsg, jobId: r.job_id });
+              } else if (d.type === "done") {
+                if (d.session_id) setSessionIds(prev => ({ ...prev, [step.agentId]: d.session_id }));
+              }
+            } catch {}
+          }
         }
-
-        const actions = res.actions || (res.action ? [res.action] : []);
-
-        if (actions.length === 0) {
-          stepResultSummary += "\n  No actions taken.";
-        }
-
-        for (let j = 0; j < actions.length; j++) {
-          if (j > 0) await new Promise(r => setTimeout(r, 300));
-          const a = actions[j];
-          const status = a.status || "auto_approved";
-          const amount = a.params?.amount_usd ? ` ($${a.params.amount_usd})` : "";
-
-          stepResultSummary += `\n  - ${a.connection || "?"}/${a.action || "?"}${amount} → ${status.toUpperCase()}${a.rule_name ? ` (rule: ${a.rule_name})` : ""}`;
-
-          addMessage(step.agentId, {
-            role: "tool", text: `${a.connection || "?"}/${a.action || "?"}`,
-            toolName: a.action, toolArgs: a.params,
-            toolStatus: status === "auto_approved" ? "auto_approved" : status === "pending" ? "pending" : "blocked",
-            jobId: a.job_id,
-            reasoning: a.reasoning || "",
-          });
-
-          // Human-friendly event message
-          const actionLabel = (a.action || "?").replace(/_/g, " ");
-          const friendlyMsg = amount
-            ? `${step.agentTitle} → ${actionLabel}${amount} ${status === "auto_approved" ? "executed via Token Vault" : status === "pending" ? "awaiting approval" : "blocked by rule"}`
-            : `${step.agentTitle} → ${actionLabel} ${status === "auto_approved" ? "executed" : status === "pending" ? "awaiting approval" : "blocked"}`;
-
-          let eventType: ShieldEvent["type"] = "auto_approved";
-          if (status === "pending") eventType = "pending";
-          else if (status === "blocked") eventType = "blocked";
-          const rn = a.rule_name || "";
-          if ((rn.toLowerCase().includes("large") || rn.toLowerCase().includes("cfo")) && status === "pending") eventType = "step_up";
-
-          const evtId = addEvent({
-            agentId: step.agentId, agentTitle: step.agentTitle,
-            type: eventType, action: a.action || "?", connection: a.connection || "?",
-            params: a.params || {}, message: friendlyMsg,
-            jobId: a.job_id,
-          });
-
-          // Polling starts after chain completes (see setTimeout below setChainRunning)
+        if (!gotActions) stepResultSummary += "\n  No actions taken.";
+        // Remove "Done." text
+        if (stepAgentMsgId && (stepAgentText.trim() === "Done." || stepAgentText.trim() === "Done" || stepAgentText.trim().length <= 10)) {
+          setMessages(prev => ({ ...prev, [step.agentId]: (prev[step.agentId] || []).filter((m: ChatMessage) => m.id !== stepAgentMsgId) }));
         }
       } catch (e: any) {
         addMessage(step.agentId, { role: "system", text: `Error: ${e.message}` });
@@ -503,7 +516,6 @@ export default function LiveThreatDemoPage() {
     const agentId = selectedAgent.id, agentTitle = selectedAgent.title;
     addMessage(agentId, { role: "user", text: text.trim() }); setInputText(""); setIsTyping(true);
 
-    const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     const sessionId = sessionIds[agentId] || "";
 
     // Shield OFF: use non-streaming endpoint (no approval waiting)
