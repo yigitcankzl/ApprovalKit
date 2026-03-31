@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Copy, Check, BookOpen, Shield, Key, Smartphone, Lock, Layers, ArrowLeft } from "lucide-react";
+import { Copy, Check, BookOpen, Shield, Key, Smartphone, Lock, Layers, ArrowLeft, Brain } from "lucide-react";
 import Link from "next/link";
 
 function CodeBlock({ code, language = "python" }: { code: string; language?: string }) {
@@ -129,6 +129,13 @@ export default function DocsPage() {
             >
               <BookOpen className="h-4 w-4" />
               Full Setup &amp; Integration Guide
+            </a>
+            <a
+              href="/docs/demo-architecture"
+              className="inline-flex items-center gap-3 px-5 py-3 rounded-xl text-sm font-semibold bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-700 hover:to-pink-600 text-white shadow-lg shadow-purple-500/20 hover:shadow-purple-500/30 transition-all duration-200 ml-3"
+            >
+              <Layers className="h-4 w-4" />
+              Demo Architecture
             </a>
           </div>
         </div>
