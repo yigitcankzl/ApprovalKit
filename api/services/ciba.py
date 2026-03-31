@@ -8,7 +8,7 @@ from api.services.circuit_breaker import auth0_breaker
 
 settings = get_settings()
 
-_CIBA_MSG_ALLOWED = re.compile(r"[^A-Za-z0-9 +\-_.,]")
+_CIBA_MSG_ALLOWED = re.compile(r"[^A-Za-z0-9 +\-_.,?!$@#:()/]")
 
 
 def _backoff(interval: int) -> int:
