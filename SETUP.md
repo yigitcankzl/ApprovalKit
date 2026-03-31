@@ -182,7 +182,7 @@ For each service you want agents to control:
 
 #### E. Other Services (Discord, PayPal, Figma, etc.)
 
-Auth0 Token Vault supports 27+ OAuth providers. For any service:
+Auth0 Token Vault supports 30 OAuth providers. For any service:
 
 1. Create OAuth app on the service's developer portal
 2. Set redirect URI to `https://YOUR_AUTH0_DOMAIN/login/callback`
@@ -349,9 +349,16 @@ After the app is running and you've logged in + completed the Setup Wizard:
 
 Each agent has 3 pre-built scenarios (Safe / Risky / Rogue) that demonstrate different ApprovalKit capabilities: auto-approve, step-up authentication, scope creep detection, and more.
 
+The **AI Orchestrator** (`/demos/live?chain=orchestrator`) is the recommended entry point:
+- Describe any business situation in plain text
+- AI plans a multi-agent workflow with per-step least privilege
+- 7 sub-agents analyze risk, cost, compliance, rollback before execution
+- 24+ preset scenarios including 4 rogue agent tests
+
 The **Live Demo** page provides a split-screen view:
-- **Left:** AI agent reasoning + tool calls
+- **Left:** AI agent reasoning + tool calls + chain progress bar
 - **Right:** ApprovalKit Shield showing approvals, blocks, and pending decisions in real-time
+- **Stop Chain** button to halt execution mid-workflow
 
 Toggle **Shield ON/OFF** to compare: same agent, same scenario — one protected, one unprotected.
 
