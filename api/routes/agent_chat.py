@@ -394,7 +394,7 @@ async def orchestrate(
         raise HTTPException(400, "Orchestrator requires OpenAI-compatible provider")
 
     from openai import OpenAI
-    client = OpenAI(api_key=api_key or "ollama", base_url=pconfig["base_url"], timeout=30)
+    client = OpenAI(api_key=api_key or "ollama", base_url=pconfig["base_url"], timeout=60)
 
     import re as _re
 
@@ -432,7 +432,6 @@ async def orchestrate(
                     {"role": "user", "content": req.message},
                 ],
                 temperature=0.2 if attempt == 0 else 0.1,
-                response_format={"type": "json_object"},  # Structured output
             )
 
             text = resp.choices[0].message.content or "{}"
