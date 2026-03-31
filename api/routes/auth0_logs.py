@@ -193,6 +193,18 @@ async def export_compliance_report(
         summary["by_state"][r["state"]] = summary["by_state"].get(r["state"], 0) + 1
         summary["by_connection"][r["connection"]] = summary["by_connection"].get(r["connection"], 0) + 1
 
+    # Hash chain for tamper-evident audit trail (SOC2 compliance)
+    import hashlib
+    prev_hash = "genesis"
+    for record in records:
+        entry_data = f"{record['job_id']}:{record['state']}:{record['created_at']}:{prev_hash}"
+        record["integrity_hash"] = hashlib.sha256(entry_data.encode()).hexdigest()[:16]
+        record["prev_hash"] = prev_hash
+        prev_hash = record["integrity_hash"]
+
+    summary["chain_head"] = prev_hash
+    summary["integrity"] = "hash_chained"
+
     if format == "csv":
         return _export_csv(records, summary)
 
