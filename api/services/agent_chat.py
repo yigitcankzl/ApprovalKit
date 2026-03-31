@@ -1090,10 +1090,30 @@ def _execute_tool(agent_id: str, tool_name: str, tool_args: dict, workspace_id: 
         from datetime import datetime, timezone, timedelta
         from api.models.approval_job import ApprovalJob, AuditLog
 
+        import hashlib as _hashlib
+        params_hash = _hashlib.sha256(json.dumps(action["params"], sort_keys=True, default=str).encode()).hexdigest()[:16]
+        idem_key = f"agent:{action['connection']}:{action['action']}:{params_hash}"
+
+        # Server-side idempotency dedup: check if same action+params already submitted
+        existing = db.execute(
+            select(ApprovalJob).where(
+                ApprovalJob.workspace_id == workspace.id,
+                ApprovalJob.idempotency_key == idem_key,
+            )
+        ).scalar_one_or_none()
+        if existing:
+            logger.info(f"Idempotency hit: {idem_key} → job {existing.id} (state={existing.state})")
+            return {
+                "success": True, "status": existing.state.value if hasattr(existing.state, 'value') else str(existing.state),
+                "message": f"Duplicate request — existing job is {existing.state}",
+                "job_id": str(existing.id), "rule_name": matched_rule.name,
+                "connection": action["connection"], "action": action["action"], "params": action["params"],
+            }
+
         job_id = _uuid.uuid4()
         job = ApprovalJob(
             id=job_id,
-            idempotency_key=f"agent-{_uuid.uuid4()}",
+            idempotency_key=idem_key,
             workspace_id=workspace.id,
             rule_id=matched_rule.id,
             connection=action["connection"],
