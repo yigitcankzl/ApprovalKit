@@ -134,7 +134,6 @@ DECISION TREE — classify first, then act:
 STEP 1: Identify incident type:
   UNAUTHORIZED ACCESS → log_alert + lock_repo (+ revoke_tokens if critical)
   ACCOUNT TAKEOVER → freeze_account (+ ban_account if confirmed fraud)
-  KEY COMPROMISE → rotate_key (+ rotate_all_keys if infrastructure-wide)
   CUSTOMER IMPACT → issue_credit (only AFTER incident is contained)
 
 STEP 2: Execute tools in the order above. Containment FIRST, compensation LAST.
@@ -146,49 +145,91 @@ Approval rules:
 - freeze_account: Security team approval
 - ban_account: Security + Legal (both)
 - issue_credit <$100: Auto-approved
-- rotate_key: Security Lead approval
-- rotate_all_keys: CTO + Security Lead (both)
 
 EXAMPLES:
 - "Unusual API traffic" → log_alert (medium severity)
 - "Suspicious code in main repo" → log_alert (HIGH) + lock_repo
 - "Data breach detected" → log_alert (CRITICAL) + lock_repo + revoke_tokens
 - "Customer didn't make those purchases" → freeze_account
-- "Stripe key exposed in public gist" → rotate_key (emergency)
-- "Full infrastructure breach" → rotate_all_keys (nuclear option)
 
 NEVER DO:
 - Do NOT issue_credit before the incident is contained (lock/freeze first)
+- Do NOT send duplicate Slack alerts for the same incident
+- For key rotation requests, delegate to the Key Rotation Agent""",
+
+    "key_rotation": _CORE_BEHAVIOR + """
+You are the AI Key Rotation Agent. You handle API key rotation and credential lifecycle management.
+
+Your tools:
+- rotate_key: Rotate a single API key (scheduled or emergency)
+- rotate_all_keys: Rotate ALL keys across infrastructure (nuclear option)
+- log_alert: Post alert to #security channel
+
+DECISION TREE:
+  SCHEDULED ROTATION → rotate_key (auto-approved)
+  SINGLE KEY COMPROMISED → log_alert + rotate_key (Security Lead approval)
+  INFRASTRUCTURE BREACH → log_alert + rotate_all_keys (CTO + Security Lead)
+
+Approval rules:
+- Scheduled rotation: Auto-approved
+- Emergency single key: Security Lead approval
+- Full rotation (all keys): CTO + Security Lead (both)
+
+EXAMPLES:
+- "Stripe key due for 90-day rotation" → rotate_key (scheduled)
+- "GitHub token exposed in public gist" → log_alert (HIGH) + rotate_key (emergency)
+- "Full infrastructure breach" → log_alert (CRITICAL) + rotate_all_keys
+
+NEVER DO:
 - Do NOT call both rotate_key and rotate_all_keys — pick one based on scope
-- Do NOT send duplicate Slack alerts for the same incident""",
+- Do NOT rotate keys without logging an alert first""",
 
     "recruitment": _CORE_BEHAVIOR + """
-You are the AI Recruitment Agent for HR. Hiring managers and HR staff tell you about candidates and hiring decisions — you execute the paperwork and system access autonomously.
-Also manages system access: grant/revoke GitHub permissions, handle onboarding/offboarding access.
+You are the AI Recruitment Agent for HR. You handle hiring paperwork: offer letters, interview invites, termination notices.
 
-Your capabilities: Send emails (invites, offers, terminations), add to GitHub org, post Slack announcements, grant access, revoke access.
+Your tools:
+- send_email: Send HR emails (offers, invites, terminations)
+- notify_slack: Post HR announcements
 
 Approval rules:
 - Interview invites: Auto
 - Offer letters: HR Manager approval
 - Salary $180k+: HR Manager + CFO
 - Terminations: HR Manager + CEO
-- GitHub member: IT Manager
-- GitHub admin: IT Manager + CTO
-- Standard access (member): IT Manager approval
-- Admin access: CTO approval
-- Financial systems: CFO + CTO (both)
+
+EXAMPLES:
+- "Interview Sarah Chen for frontend Thursday" → send_email (interview invite)
+- "Hire Senior Engineer at $160k" → send_email (offer letter, HR Manager approves)
+- "Let go of underperforming engineer" → send_email (termination, HR + CEO approve)
+
+NEVER DO:
+- For access provisioning (GitHub, admin access), delegate to the Access Provisioning Agent
+- Do NOT handle system access — only HR paperwork""",
+
+    "access_provisioning": _CORE_BEHAVIOR + """
+You are the AI Access Provisioning Agent. You handle system access: grant/revoke GitHub permissions, admin access, onboarding/offboarding access changes.
+
+Your tools:
+- grant_access: Grant system access (GitHub, admin, financial)
+- revoke_access: Revoke system access (offboarding, security)
+- add_to_github: Add user to GitHub organization
+- notify_slack: Post access change notifications
+
+Approval rules:
+- GitHub member: IT Manager approval
+- GitHub admin: CTO approval
+- Financial system access: CFO + CTO (both)
 - Offboarding revoke: HR Manager approval
 
 EXAMPLES:
-- User says "We want to bring Sarah Chen in for a frontend interview next Thursday" → Send an interview invitation email immediately.
-- User says "We've decided to hire the candidate for the Senior Engineer role at $160k" → Send the offer letter (HR Manager will need to approve).
-- User says "The new hire starts Monday, username is schen on GitHub" → Add them to the GitHub org as member.
-- User says "We need to let go of the underperforming engineer in the backend team" → Send termination notice (HR + CEO must both approve). Handle this with appropriate gravity.
-- User says "John got promoted to Staff Engineer, bump him to $210k" → Send offer letter with new salary (HR + CFO must both approve since $180k+).
-- User says "New developer starting Monday, username jsmith" → Grant standard GitHub access immediately (IT Manager will approve).
-- User says "Sarah needs admin access, she's now the team lead" → Grant admin privileges (CTO will approve).
-- User says "Mike left the company today" → Revoke ALL access immediately. This is an offboarding.""",
+- "New hire jsmith, add to GitHub" → add_to_github (member, IT Manager approves)
+- "Sarah promoted to lead, needs admin" → grant_access (admin, CTO approves)
+- "Mike left today" → revoke_access (all access) + notify_slack
+- "Grant finance system access" → grant_access (financial, CFO + CTO approve)
+
+NEVER DO:
+- Do NOT send offer letters or termination notices — delegate to Recruitment Agent
+- Do NOT revoke access without notifying the team on Slack""",
 
 
 
@@ -471,6 +512,9 @@ AGENT_TOOLS: dict[str, list[dict]] = {
                 "required": ["account_email", "amount_usd", "reason"],
             },
         },
+    ],
+
+    "key_rotation": [
         {
             "name": "rotate_key",
             "description": "Rotate an API key for a specific service.",
@@ -495,6 +539,18 @@ AGENT_TOOLS: dict[str, list[dict]] = {
                     "scope": {"type": "string", "enum": ["production", "staging", "all"]},
                 },
                 "required": ["reason", "scope"],
+            },
+        },
+        {
+            "name": "log_alert",
+            "description": "Log a security alert to #security Slack channel.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "severity": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
+                    "message": {"type": "string"},
+                },
+                "required": ["severity", "message"],
             },
         },
     ],
@@ -540,6 +596,9 @@ AGENT_TOOLS: dict[str, list[dict]] = {
                 "required": ["channel", "message"],
             },
         },
+    ],
+
+    "access_provisioning": [
         {
             "name": "grant_access",
             "description": "Grant system access to a user (GitHub org, admin privileges, etc.).",
@@ -567,8 +626,19 @@ AGENT_TOOLS: dict[str, list[dict]] = {
                 "required": ["username", "org", "reason"],
             },
         },
+        {
+            "name": "notify_slack",
+            "description": "Post access change notification to Slack.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "channel": {"type": "string"},
+                    "message": {"type": "string"},
+                },
+                "required": ["channel", "message"],
+            },
+        },
     ],
-
 
     "gdpr_request": [
         {
@@ -832,19 +902,35 @@ _TOOL_ACTION_MAP: dict[str, dict[str, dict]] = {
                                                     "reason": p["reason"],
                                                     "migration_name": "rotate_all_keys"}},
     },
+    "key_rotation": {
+        "rotate_key": {"connection": "github-prod", "action": "deploy",
+                       "param_map": lambda p: {"type": "key_rotation", "env": "production",
+                                               "service": p["service"], "urgency": p["urgency"],
+                                               "reason": p["reason"],
+                                               "migration_name": f"rotate_{p['service']}_key"}},
+        "rotate_all_keys": {"connection": "github-prod", "action": "deploy",
+                            "param_map": lambda p: {"type": "key_rotation", "env": "production",
+                                                    "urgency": "emergency", "scope": p.get("scope", "all"),
+                                                    "reason": p["reason"],
+                                                    "migration_name": "rotate_all_keys"}},
+        "log_alert": {"connection": "slack-prod", "action": "send_message",
+                      "param_map": lambda p: {"channel": "#security", "message": f"[{p['severity'].upper()}] {p['message']}"}},
+    },
     "recruitment": {
         "send_email": {"connection": "gmail-prod", "action": "send_email",
                        "param_map": lambda p: {k: v for k, v in p.items() if v is not None}},
-        "add_to_github": {"connection": "github-prod", "action": "add_member",
-                          "param_map": lambda p: p},
         "notify_slack": {"connection": "slack-prod", "action": "send_message",
                          "param_map": lambda p: p},
+    },
+    "access_provisioning": {
         "grant_access": {"connection": "github-prod", "action": "add_member",
                          "param_map": lambda p: {"username": p["username"], "org": p["org"],
                                                  "role": p["role"],
                                                  "system": p.get("system", "github")}},
         "revoke_access": {"connection": "github-prod", "action": "remove_member",
                           "param_map": lambda p: p},
+        "notify_slack": {"connection": "slack-prod", "action": "send_message",
+                         "param_map": lambda p: p},
     },
     "gdpr_request": {
         "process_deletion": {"connection": "github-prod", "action": "deploy",
