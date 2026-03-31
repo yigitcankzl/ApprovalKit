@@ -355,8 +355,10 @@ SECURITY (defense-in-depth):
 
 Rules:
 - Each agent does ONE job — never overlap responsibilities
-- Communication (comms) is usually the LAST step to notify about results
+- NEVER include the same agent_id twice in a plan — combine tools into one step instead
+- Communication (comms) is ALWAYS the LAST step to notify about results
 - Order: primary action first → investigation/follow-up → notification last
+- Maximum 4 steps per plan
 - RESPOND ONLY WITH VALID JSON
 
 {"plan": [{"agent_id": "...", "agent_title": "... Agent", "role": "one sentence", "allowed_tools": ["tool1"]}, ...], "scenario": "one line summary"}

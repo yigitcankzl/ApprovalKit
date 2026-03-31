@@ -365,6 +365,16 @@ export default function LiveThreatDemoPage() {
     if (rollbackResult.status === "fulfilled") addMessage("sub_agents", { role: "agent", text: `🔄 Rollback Plan:\n${rollbackResult.value.analysis}` });
     else { console.error("Rollback planner failed:", rollbackResult.reason); addMessage("sub_agents", { role: "agent", text: "🔄 Rollback Plan: Skipped (LLM unavailable)" }); }
 
+    // Parse risk level — if CRITICAL, warn and require confirmation
+    if (riskResult.status === "fulfilled") {
+      const riskText = riskResult.value.analysis || "";
+      const riskMatch = riskText.match(/RISK LEVEL:\s*(CRITICAL)/i);
+      if (riskMatch) {
+        addMessage("sub_agents", { role: "system", text: "⚠️ CRITICAL RISK detected — all actions will require human approval before execution." });
+        addEvent({ agentId: "risk_assessor", agentTitle: "Risk Assessor", type: "scope_creep", action: "risk_analysis", connection: "workflow", message: "CRITICAL risk level — enhanced approval required", params: {} });
+      }
+    }
+
     await new Promise(r => setTimeout(r, 500));
 
     // Accumulate context from each step's results
