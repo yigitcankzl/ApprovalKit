@@ -355,7 +355,7 @@ export default function LiveThreatDemoPage() {
 
       addMessage(step.agentId, { role: "system", text: `Step ${i + 1}/${chain.steps.length}: ${step.agentTitle} — ${step.role}` });
       // Progress event in shield panel
-      addEvent({ type: "auto_approved", agent: step.agentTitle, action: `Step ${i + 1}/${chain.steps.length}`, connection: "workflow", rule: step.role, params: {} });
+      addEvent({ agentId: step.agentId, agentTitle: step.agentTitle, type: "auto_approved", action: `Step ${i + 1}/${chain.steps.length}`, connection: "workflow", message: step.role, params: {} });
       if (step.allowedTools && step.allowedTools.length > 0) {
         addMessage(step.agentId, { role: "system", text: `Available tools: ${step.allowedTools.join(", ")}` });
       }
