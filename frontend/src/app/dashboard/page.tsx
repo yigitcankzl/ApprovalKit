@@ -10,7 +10,7 @@ import type { DashboardStats } from "@/types";
 import {
   CheckCircle2, XCircle, ShieldOff, Clock, KeyRound, Users,
   Activity, AlertTriangle, Radio, ShieldCheck, Gauge, CircleDot,
-  TrendingUp, Zap,
+  TrendingUp, Zap, ArrowRight,
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -141,6 +141,7 @@ export default function DashboardPage() {
   if (error) return <div className="flex items-center justify-center h-64"><p className="text-red-500">{error}</p></div>;
   if (!stats) return null;
 
+  const hasNoData = stats.total_actions_week === 0 && (stats.pending_count || 0) === 0;
   const cibaPercent = Math.round((stats.ciba_usage / stats.ciba_limit) * 100);
 
   const statCards: {
@@ -259,6 +260,28 @@ export default function DashboardPage() {
           ))}
         </div>
       </section>
+
+      {/* Empty state CTA */}
+      {hasNoData && (
+        <div className="rounded-xl border-2 border-dashed border-purple-300 dark:border-purple-700 bg-purple-50/30 dark:bg-purple-950/10 p-6 flex items-center gap-5">
+          <div className="p-3 rounded-2xl bg-gradient-to-br from-purple-600 to-blue-500 text-white shrink-0">
+            <Zap className="h-6 w-6" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-200">No activity yet</h3>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+              Run the AI Orchestrator demo to see real-time approval decisions, rule matches, and Token Vault execution here.
+            </p>
+          </div>
+          <button
+            onClick={() => router.push("/demos/live?chain=orchestrator")}
+            className="shrink-0 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600 text-white text-sm font-semibold shadow-lg shadow-purple-500/20 transition-all"
+          >
+            Run Demo
+            <ArrowRight className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* Bottom panels */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">

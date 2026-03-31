@@ -157,8 +157,13 @@ export default function WelcomePage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
           {/* Left: text */}
           <div>
-            <div className="inline-flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 text-xs font-medium px-3 py-1.5 rounded-full mb-5">
-              Built on Auth0 Token Vault + CIBA + FGA
+            <div className="flex items-center gap-2 mb-5 flex-wrap">
+              <span className="inline-flex items-center gap-1.5 bg-gradient-to-r from-purple-100 to-blue-100 dark:from-purple-900/30 dark:to-blue-900/30 text-purple-700 dark:text-purple-300 text-xs font-semibold px-3 py-1.5 rounded-full border border-purple-200 dark:border-purple-800">
+                🏆 Auth0 Hackathon 2026
+              </span>
+              <span className="inline-flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 text-xs font-medium px-3 py-1.5 rounded-full">
+                Built on Auth0 Token Vault + CIBA + FGA
+              </span>
             </div>
 
             <h1 className="text-4xl lg:text-5xl font-bold text-zinc-900 dark:text-zinc-100 leading-[1.1] tracking-tight mb-5">
@@ -177,17 +182,17 @@ export default function WelcomePage() {
 
             <div className="flex items-center gap-3 flex-wrap">
               <Link
-                href="/demos"
+                href="/demos/live?chain=orchestrator"
                 className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 to-emerald-500 hover:from-blue-700 hover:to-emerald-600 text-white px-6 py-3 rounded-lg text-sm font-semibold shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all duration-200"
               >
-                Try Live Demo
+                Try AI Orchestrator
                 <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
                 href="/demos"
                 className="inline-flex items-center gap-2 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 px-5 py-3 rounded-lg text-sm font-semibold hover:bg-zinc-700 dark:hover:bg-zinc-200 transition-colors"
               >
-                All Demos
+                All 8 Agents
               </Link>
               <Link
                 href="/dashboard"
@@ -206,7 +211,7 @@ export default function WelcomePage() {
                   <span className="text-xs text-zinc-500 dark:text-zinc-400 hidden sm:inline">{s.name}</span>
                 </div>
               ))}
-              <span className="text-xs text-zinc-400">+ 10 more</span>
+              <span className="text-xs text-zinc-400">+ 25 more</span>
             </div>
           </div>
 
@@ -314,21 +319,39 @@ kit.gate("github-main", "deploy", {"ref": "v2.0", "env": "production"})`}</pre>
           </p>
           <div className="flex items-center justify-center gap-3 flex-wrap">
             <Link
-              href="/demos/live"
-              className="inline-flex items-center gap-2 bg-red-600 text-white px-6 py-3 rounded-lg text-sm font-semibold hover:bg-red-700 transition-colors shadow-lg shadow-red-500/20"
+              href="/demos/live?chain=orchestrator"
+              className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-blue-500 text-white px-6 py-3 rounded-lg text-sm font-semibold hover:from-purple-700 hover:to-blue-600 transition-colors shadow-lg shadow-purple-500/20"
             >
-              Live Threat Demo
+              AI Orchestrator Demo
               <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
               href="/demos"
               className="inline-flex items-center gap-2 border border-zinc-600 text-zinc-300 px-6 py-3 rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors"
             >
-              Demo Scenarios
+              All 8 Agent Demos
             </Link>
           </div>
         </div>
       </section>
+
+      {/* Footer */}
+      <footer className="max-w-4xl mx-auto px-4 pb-8 pt-4 border-t border-zinc-100 dark:border-zinc-800">
+        <div className="flex items-center justify-between text-xs text-zinc-400">
+          <div className="flex items-center gap-4">
+            <a href="https://github.com/yigitcankzl/ApprovalKit" target="_blank" rel="noopener noreferrer" className="hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors flex items-center gap-1">
+              <GitBranch className="h-3 w-3" /> GitHub
+            </a>
+            <a href="https://authorizedtoact.devpost.com/" target="_blank" rel="noopener noreferrer" className="hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors">
+              Devpost
+            </a>
+            <Link href="/docs/demo-architecture" className="hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors">
+              Architecture
+            </Link>
+          </div>
+          <span>Built with Auth0 Token Vault, CIBA &amp; FGA</span>
+        </div>
+      </footer>
 
     </div>
   );
