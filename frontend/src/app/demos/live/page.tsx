@@ -244,6 +244,7 @@ export default function LiveThreatDemoPage() {
   const [chainRunning, setChainRunning] = useState(false);
   const chainAbortRef = useRef(false);
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
+  const [scenariosCollapsed, setScenariosCollapsed] = useState(false);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, selectedAgent?.id, isTyping]);
   useEffect(() => { eventsEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [events]);
@@ -750,12 +751,24 @@ export default function LiveThreatDemoPage() {
 
         {/* LEFT: Agent Chat */}
         <div className={`rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 bg-white/50 dark:bg-zinc-900/20 flex flex-col overflow-hidden transition-all duration-300 ${shieldCollapsed ? "flex-1" : "w-1/2"}`}>
-          {/* Scenarios */}
+          {/* Scenarios — collapsible */}
           {(selectedAgent || chainIdFromUrl) && (
             <div className="border-b border-zinc-200/40 dark:border-zinc-800/40">
               {chainIdFromUrl === "orchestrator" ? (
+                <div>
+                  <button
+                    onClick={() => setScenariosCollapsed(prev => !prev)}
+                    className="w-full flex items-center gap-2 px-4 py-2 text-left hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition-colors"
+                  >
+                    <ChevronRight className={`h-3.5 w-3.5 text-zinc-400 transition-transform duration-200 ${scenariosCollapsed ? "" : "rotate-90"}`} />
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Preset Scenarios</span>
+                    <span className="text-[10px] text-zinc-400">24</span>
+                    <div className="flex-1" />
+                    <RotateCcw onClick={(e) => { e.stopPropagation(); setActiveChain(null); setChainRunning(false); setMessages({}); resetSummary(); }} className="h-3.5 w-3.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300" />
+                  </button>
+                {!scenariosCollapsed && (
                 /* Orchestrator mode — categorized preset scenarios */
-                <div className="px-4 py-2.5 space-y-2 max-h-[200px] overflow-y-auto">
+                <div className="px-4 pb-2.5 space-y-2 max-h-[200px] overflow-y-auto">
                   {[
                     { cat: "💰 Finance", color: "emerald", items: [
                       { emoji: "😠", label: "VIP Complaint", text: "A VIP customer called 3 times furious about a $420 damaged order. Handle refund, apology, and compensation." },
@@ -817,9 +830,8 @@ export default function LiveThreatDemoPage() {
                     </div>
                     );
                   })}
-                  <div className="flex justify-end pt-1">
-                    <button onClick={() => { setActiveChain(null); setChainRunning(false); setMessages({}); resetSummary(); }} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors p-1.5 rounded-lg" title="Reset"><RotateCcw className="h-4 w-4" /></button>
-                  </div>
+                </div>
+                )}
                 </div>
               ) : chainIdFromUrl ? (
                 /* Specific chain mode */
