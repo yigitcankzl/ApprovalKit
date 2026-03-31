@@ -21,6 +21,16 @@ celery_app.conf.update(
     worker_prefetch_multiplier=1,
     task_soft_time_limit=600,
     task_time_limit=660,
+    task_reject_on_worker_lost=True,
+    task_default_queue="approvalkit",
+    task_routes={
+        "api.worker.tasks.process_approval_job": {"queue": "approvalkit"},
+    },
+    # DLQ: failed tasks after max retries go to dead letter queue
+    task_queues={
+        "approvalkit": {"exchange": "approvalkit", "routing_key": "approvalkit"},
+        "dead_letter": {"exchange": "dead_letter", "routing_key": "dead_letter"},
+    },
 )
 
 celery_app.autodiscover_tasks(["api.worker"])
