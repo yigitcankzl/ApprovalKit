@@ -341,7 +341,7 @@ export default function LiveThreatDemoPage() {
     const planContext = `SCENARIO: ${chain.scenario}\n\nPLAN:\n${planDesc}`;
 
     // Run all 4 pre-execution sub-agents IN PARALLEL (inspired by Claude Code's coordinator pattern)
-    addMessage("sub_agents", { role: "system", text: "Running pre-execution analysis (4 agents in parallel)..." });
+    addMessage("sub_agents", { role: "system", text: "Running pre-execution sub-agents: Risk, Cost, Compliance, Rollback..." });
     const [riskResult, costResult, complianceResult, rollbackResult] = await Promise.allSettled([
       api.runSubAgent("risk_assessor", planContext),
       api.runSubAgent("cost_estimator", planContext),
