@@ -1229,7 +1229,16 @@ class TokenVaultService:
 
                     return token
                 elif r.status_code == 401:
-                    logger.warning(f"Token Vault Token Exchange: 401 Unauthorized for {connection_name} — refresh token may be expired. User should reconnect via /connections.")
+                    logger.warning(f"Token Vault Token Exchange: 401 Unauthorized for {connection_name} — refresh token expired. Marking connection as needs_reconnect.")
+                    # Mark connection as needing reconnection
+                    try:
+                        from sqlalchemy import update as _update
+                        from api.models.connection import ServiceConnection
+                        # Fire-and-forget: don't block on this
+                        import asyncio
+                        asyncio.get_event_loop().create_task(self._mark_connection_expired(connection_name))
+                    except Exception:
+                        pass
                     return None
                 elif r.status_code == 403:
                     logger.warning(f"Token Vault Token Exchange: 403 Forbidden for {connection_name} — {r.text}")
@@ -1245,6 +1254,28 @@ class TokenVaultService:
         except Exception as e:
             auth0_breaker.record_failure()
             raise RuntimeError(f"Token Exchange error for {connection_name}: {e}")
+
+    async def _mark_connection_expired(self, connection_name: str):
+        """Mark a connection as needing reconnection when token exchange returns 401."""
+        try:
+            from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+            from sqlalchemy import update
+            from api.models.connection import ServiceConnection
+            from api.config import get_settings
+            settings = get_settings()
+            engine = create_async_engine(settings.DATABASE_URL, echo=False)
+            async_session = async_sessionmaker(engine, expire_on_commit=False)
+            async with async_session() as session:
+                await session.execute(
+                    update(ServiceConnection)
+                    .where(ServiceConnection.slug == connection_name)
+                    .values(auth0_refresh_token=None)
+                )
+                await session.commit()
+            await engine.dispose()
+            logger.info(f"Token Vault: marked {connection_name} as needs_reconnect (cleared refresh token)")
+        except Exception as e:
+            logger.warning(f"Failed to mark connection expired: {e}")
 
     # NOTE: Management API fallback (get_token_from_auth0) has been intentionally
     # removed.  Token Exchange is the only supported credential retrieval path.
