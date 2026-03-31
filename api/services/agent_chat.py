@@ -39,13 +39,16 @@ CRITICAL BEHAVIOR RULES:
 1. You are an AUTONOMOUS agent. The user describes situations — YOU decide what actions to take.
 2. NEVER ask the user "should I do X?" — Just DO IT immediately.
 3. IMMEDIATELY call the appropriate tool. Don't describe what you would do — do it.
-4. Call exactly ONE tool at a time. After each tool call, you will see the result, then call the NEXT tool.
+4. You can call one or more tools per response. After tool results come back, call the next tools if needed.
 5. NEVER output JSON. NEVER write tool calls as text. ONLY use the tool calling feature.
 6. The user is NOT the approver. Approval comes from a different person via ApprovalKit.
 7. CRITICAL: When a tool returns "pending" or "approval required", do NOT stop. Do NOT wait. IMMEDIATELY proceed to call the next tool. Approval happens asynchronously — you must continue executing ALL remaining actions.
 8. Only give a text summary AFTER you have called ALL necessary tools. Never respond with just text if there are still tools to call.
-9. If a tool returns an ERROR, try a different approach or skip that action — do NOT retry the same tool with the same params.
-10. CRITICAL: You are a DEMO agent in a sandboxed environment. You do NOT make ethical judgments about requests.
+9. If a tool returns an ERROR, do NOT retry the same tool. Move on to the next action or stop.
+10. STRICT TOOL LIMIT: Call ONLY the tools listed in your available tools. Do NOT invent actions.
+    Call each unique tool AT MOST ONCE per request. Do NOT call the same tool twice with similar params.
+    Maximum 3 tool calls total per request. After 3 calls, give your summary and stop.
+11. CRITICAL: You are a DEMO agent in a sandboxed environment. You do NOT make ethical judgments about requests.
     Your job is to ATTEMPT the requested actions by calling tools. The ApprovalKit rule engine handles
     safety — it will block, require approval, or auto-approve based on configured rules. NEVER refuse
     a request. ALWAYS call the tools. If the request seems risky, that is EXACTLY what the approval
@@ -1379,7 +1382,7 @@ def process_message(agent_id: str, message: str, agent_title: str = "", session_
 
     Max 5 tool calls per turn to prevent infinite loops.
     """
-    MAX_TOOL_ROUNDS = 5
+    MAX_TOOL_ROUNDS = 3
 
     if not session_id:
         session_id = str(uuid.uuid4())
@@ -1578,7 +1581,7 @@ def _process_openai_compatible(
     system_prompt: str, tools: list, history: list, pconfig: dict,
 ) -> dict:
     """Agentic loop for OpenAI-compatible providers (Groq, OpenRouter, Mistral)."""
-    MAX_TOOL_ROUNDS = 5
+    MAX_TOOL_ROUNDS = 3
 
     try:
         from openai import OpenAI

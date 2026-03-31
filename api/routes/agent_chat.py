@@ -171,7 +171,7 @@ IMPORTANT: Always respond in English. All tool parameters (emails, subjects, mes
             all_actions = []
             seen_tool_sigs: set = set()  # Prevent duplicate tool calls across rounds
 
-            for _round in range(5):
+            for _round in range(3):
                 stream = client.chat.completions.create(
                     model=model, messages=messages,
                     tools=openai_tools if openai_tools else None,
