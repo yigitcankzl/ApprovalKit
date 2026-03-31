@@ -1057,14 +1057,19 @@ def _execute_tool(agent_id: str, tool_name: str, tool_args: dict, workspace_id: 
 
             from api.services.rule_engine import evaluate_conditions
             matched_rule = None
+            print(f"[RULE DEBUG] Matching: {action['connection']}/{action['action']} params={action['params']}", flush=True)
+            print(f"[RULE DEBUG] Found {len(rules)} candidate rules", flush=True)
             for rule in rules:
-                if evaluate_conditions(rule.conditions or [], action["params"]):
+                result = evaluate_conditions(rule.conditions or [], action["params"])
+                print(f"[RULE DEBUG]   Rule '{rule.name}': conditions={rule.conditions}, match={result}", flush=True)
+                if result:
                     matched_rule = rule
                     break
 
         engine.dispose()
 
         if not matched_rule:
+            print(f"[RULE DEBUG] NO MATCH — auto-approving {action['connection']}/{action['action']}", flush=True)
             # Auto-approved — execute via Token Vault in background
             _fire_token_vault_execution(action["connection"], action["action"], action["params"], workspace_id)
             return {
@@ -1636,30 +1641,30 @@ def _process_openai_compatible(
             ]
             messages.append(msg_dict)
 
-            # Execute ONLY the first tool call (one at a time for reliability)
+            # Execute ALL tool calls from this response (prevents duplicates from re-calling)
             import json as _json
-            tc = msg.tool_calls[0]
-            tool_args = _json.loads(tc.function.arguments) if tc.function.arguments else {}
+            for tc in msg.tool_calls:
+                tool_args = _json.loads(tc.function.arguments) if tc.function.arguments else {}
 
-            logger.info(f"Agent {agent_id} calling tool: {tc.function.name}({tool_args})")
+                logger.info(f"Agent {agent_id} calling tool: {tc.function.name}({tool_args})")
 
-            result = _execute_tool(agent_id, tc.function.name, tool_args, workspace_id)
-            all_actions.append({"tool": tc.function.name, "args": tool_args, "result": result})
+                result = _execute_tool(agent_id, tc.function.name, tool_args, workspace_id)
+                all_actions.append({"tool": tc.function.name, "args": tool_args, "result": result})
 
-            logger.info(f"Tool result: {result.get('status', 'error')} — {result.get('message', result.get('error', ''))}")
+                logger.info(f"Tool result: {result.get('status', 'error')} — {result.get('message', result.get('error', ''))}")
 
-            # Add tool result to messages — enrich error results so LLM can adapt
-            tool_result_content = result.copy()
-            if not result.get("success") and result.get("error"):
-                tool_result_content["_hint"] = "This action FAILED. Try a different approach, use different parameters, or skip this action."
-            elif result.get("status") == "pending":
-                tool_result_content["_hint"] = "Action submitted for human approval. Continue with your next action — do NOT wait."
+                # Add tool result to messages — enrich error results so LLM can adapt
+                tool_result_content = result.copy()
+                if not result.get("success") and result.get("error"):
+                    tool_result_content["_hint"] = "This action FAILED. Try a different approach, use different parameters, or skip this action."
+                elif result.get("status") == "pending":
+                    tool_result_content["_hint"] = "Action submitted for human approval. Continue with your next action — do NOT wait."
 
-            messages.append({
-                "role": "tool",
-                "tool_call_id": tc.id,
-                "content": _json.dumps(tool_result_content),
-            })
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc.id,
+                    "content": _json.dumps(tool_result_content),
+                })
 
         response_text = "\n".join(all_text_parts).strip()
 
