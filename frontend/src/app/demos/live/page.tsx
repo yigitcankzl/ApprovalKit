@@ -319,30 +319,22 @@ export default function LiveThreatDemoPage() {
     const planDesc = chain.steps.map((s, i) => `${i+1}. ${s.agentTitle} — ${s.role} [tools: ${(s.allowedTools || []).join(", ")}]`).join("\n");
     const planContext = `SCENARIO: ${chain.scenario}\n\nPLAN:\n${planDesc}`;
 
-    // Risk Assessor
-    try {
-      addMessage("sub_agents", { role: "system", text: "🛡️ Risk Assessor analyzing plan..." });
-      const risk = await api.runSubAgent("risk_assessor", planContext);
-      addMessage("sub_agents", { role: "agent", text: `🛡️ Risk Assessment:\n${risk.analysis}` });
-    } catch (e) { console.error("Risk assessor failed:", e); addMessage("sub_agents", { role: "agent", text: "🛡️ Risk Assessment: Skipped (LLM unavailable)" }); }
-
-    // Cost Estimator
-    try {
-      const cost = await api.runSubAgent("cost_estimator", planContext);
-      addMessage("sub_agents", { role: "agent", text: `💰 Cost Estimate:\n${cost.analysis}` });
-    } catch (e) { console.error("Cost estimator failed:", e); addMessage("sub_agents", { role: "agent", text: "💰 Cost Estimate: Skipped (LLM unavailable)" }); }
-
-    // Compliance Checker
-    try {
-      const compliance = await api.runSubAgent("compliance_checker", planContext);
-      addMessage("sub_agents", { role: "agent", text: `📜 Compliance Check:\n${compliance.analysis}` });
-    } catch (e) { console.error("Compliance checker failed:", e); addMessage("sub_agents", { role: "agent", text: "📜 Compliance Check: Skipped (LLM unavailable)" }); }
-
-    // Rollback Planner
-    try {
-      const rollback = await api.runSubAgent("rollback_planner", planContext);
-      addMessage("sub_agents", { role: "agent", text: `🔄 Rollback Plan:\n${rollback.analysis}` });
-    } catch (e) { console.error("Rollback planner failed:", e); addMessage("sub_agents", { role: "agent", text: "🔄 Rollback Plan: Skipped (LLM unavailable)" }); }
+    // Run all 4 pre-execution sub-agents IN PARALLEL (inspired by Claude Code's coordinator pattern)
+    addMessage("sub_agents", { role: "system", text: "Running pre-execution analysis (4 agents in parallel)..." });
+    const [riskResult, costResult, complianceResult, rollbackResult] = await Promise.allSettled([
+      api.runSubAgent("risk_assessor", planContext),
+      api.runSubAgent("cost_estimator", planContext),
+      api.runSubAgent("compliance_checker", planContext),
+      api.runSubAgent("rollback_planner", planContext),
+    ]);
+    if (riskResult.status === "fulfilled") addMessage("sub_agents", { role: "agent", text: `🛡️ Risk Assessment:\n${riskResult.value.analysis}` });
+    else { console.error("Risk assessor failed:", riskResult.reason); addMessage("sub_agents", { role: "agent", text: "🛡️ Risk Assessment: Skipped (LLM unavailable)" }); }
+    if (costResult.status === "fulfilled") addMessage("sub_agents", { role: "agent", text: `💰 Cost Estimate:\n${costResult.value.analysis}` });
+    else { console.error("Cost estimator failed:", costResult.reason); addMessage("sub_agents", { role: "agent", text: "💰 Cost Estimate: Skipped (LLM unavailable)" }); }
+    if (complianceResult.status === "fulfilled") addMessage("sub_agents", { role: "agent", text: `📜 Compliance Check:\n${complianceResult.value.analysis}` });
+    else { console.error("Compliance checker failed:", complianceResult.reason); addMessage("sub_agents", { role: "agent", text: "📜 Compliance Check: Skipped (LLM unavailable)" }); }
+    if (rollbackResult.status === "fulfilled") addMessage("sub_agents", { role: "agent", text: `🔄 Rollback Plan:\n${rollbackResult.value.analysis}` });
+    else { console.error("Rollback planner failed:", rollbackResult.reason); addMessage("sub_agents", { role: "agent", text: "🔄 Rollback Plan: Skipped (LLM unavailable)" }); }
 
     await new Promise(r => setTimeout(r, 500));
 
@@ -362,6 +354,8 @@ export default function LiveThreatDemoPage() {
       }
 
       addMessage(step.agentId, { role: "system", text: `Step ${i + 1}/${chain.steps.length}: ${step.agentTitle} — ${step.role}` });
+      // Progress event in shield panel
+      addEvent({ type: "auto_approved", agent: step.agentTitle, action: `Step ${i + 1}/${chain.steps.length}`, connection: "workflow", rule: step.role, params: {} });
       if (step.allowedTools && step.allowedTools.length > 0) {
         addMessage(step.agentId, { role: "system", text: `Available tools: ${step.allowedTools.join(", ")}` });
       }
