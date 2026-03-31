@@ -674,23 +674,27 @@ export default function LiveThreatDemoPage() {
 
         <div className="flex-1" />
 
-        {/* Stat pills — dashboard style */}
+        {/* Stat pills with labels */}
         <div className="flex items-center gap-2">
           <div className="rounded-xl border border-green-200/60 dark:border-green-900/40 bg-green-50/60 dark:bg-green-950/10 px-3 py-1.5 flex items-center gap-1.5">
             <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
             <span className="text-sm font-bold text-green-700 dark:text-green-400 tabular-nums">{summary.autoApproved}</span>
+            <span className="text-[10px] text-green-600/60 dark:text-green-400/50 hidden sm:inline">Approved</span>
           </div>
           <div className="rounded-xl border border-amber-200/60 dark:border-amber-900/40 bg-amber-50/60 dark:bg-amber-950/10 px-3 py-1.5 flex items-center gap-1.5">
             <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
             <span className="text-sm font-bold text-amber-700 dark:text-amber-400 tabular-nums">{summary.pendingApproval}</span>
+            <span className="text-[10px] text-amber-600/60 dark:text-amber-400/50 hidden sm:inline">Pending</span>
           </div>
           <div className="rounded-xl border border-red-200/60 dark:border-red-900/40 bg-red-50/60 dark:bg-red-950/10 px-3 py-1.5 flex items-center gap-1.5">
             <ShieldOff className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
             <span className="text-sm font-bold text-red-700 dark:text-red-400 tabular-nums">{summary.blocked}</span>
+            <span className="text-[10px] text-red-600/60 dark:text-red-400/50 hidden sm:inline">Blocked</span>
           </div>
           {summary.preventedDamage > 0 && (
-            <div className="rounded-xl border border-rose-200/60 dark:border-rose-900/40 bg-rose-50/60 dark:bg-rose-950/10 px-3 py-1.5">
+            <div className="rounded-xl border border-rose-200/60 dark:border-rose-900/40 bg-rose-50/60 dark:bg-rose-950/10 px-3 py-1.5 flex items-center gap-1.5">
               <span className="text-sm font-bold text-rose-700 dark:text-rose-400 tabular-nums">${summary.preventedDamage.toLocaleString()}</span>
+              <span className="text-[10px] text-rose-600/60 dark:text-rose-400/50 hidden sm:inline">Saved</span>
             </div>
           )}
         </div>
@@ -728,7 +732,7 @@ export default function LiveThreatDemoPage() {
             <div className="border-b border-zinc-200/40 dark:border-zinc-800/40">
               {chainIdFromUrl === "orchestrator" ? (
                 /* Orchestrator mode — categorized preset scenarios */
-                <div className="px-4 py-2.5 space-y-2 max-h-[180px] overflow-y-auto">
+                <div className="px-4 py-2.5 space-y-2 max-h-[200px] overflow-y-auto">
                   {[
                     { cat: "💰 Finance", color: "emerald", items: [
                       { emoji: "😠", label: "VIP Complaint", text: "A VIP customer called 3 times furious about a $420 damaged order. Handle refund, apology, and compensation." },
@@ -844,22 +848,76 @@ export default function LiveThreatDemoPage() {
             </div>
           )}
 
+          {/* Chain progress bar */}
+          {chainRunning && activeChain && (
+            <div className="px-4 py-2 border-b border-zinc-200/40 dark:border-zinc-800/40 bg-purple-50/30 dark:bg-purple-950/10">
+              <div className="flex items-center gap-2 mb-1.5">
+                <Loader2 className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 animate-spin" />
+                <span className="text-xs font-semibold text-purple-700 dark:text-purple-300">
+                  Step {chainStepIndex + 1} of {activeChain.steps.length}: {activeChain.steps[chainStepIndex]?.agentTitle}
+                </span>
+              </div>
+              <div className="flex gap-1">
+                {activeChain.steps.map((step, i) => (
+                  <div key={i} className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${
+                    i < chainStepIndex ? "bg-purple-500" : i === chainStepIndex ? "bg-purple-400 animate-pulse" : "bg-zinc-200 dark:bg-zinc-700"
+                  }`} title={step.agentTitle} />
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Chat */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          <div className={`flex-1 overflow-y-auto p-4 space-y-3 ${!shieldEnabled ? "bg-red-50/20 dark:bg-red-950/5" : ""}`}>
             {(!setupDone || !hasAIKey) && (
               <div className="p-4 rounded-xl border border-blue-200/60 dark:border-blue-900/40 bg-blue-50/60 dark:bg-blue-950/10 text-blue-700 dark:text-blue-400 text-sm flex items-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin" /> Setting up demo environment...
               </div>
             )}
             {currentMessages.length === 0 && hasAIKey && setupDone && (
-              <div className="flex flex-col items-center justify-center h-full text-zinc-400 space-y-3">
-                <Bot className="h-14 w-14 opacity-15" />
-                <p className="text-sm font-medium">Pick a scenario or type a message</p>
-                <p className="text-xs text-zinc-500">The AI agent will reason and take actions autonomously</p>
+              <div className="flex flex-col items-center justify-center h-full text-zinc-400 space-y-4">
+                <div className="p-4 rounded-2xl bg-zinc-100/50 dark:bg-zinc-800/30">
+                  <Bot className="h-10 w-10 opacity-30" />
+                </div>
+                <div className="text-center space-y-1">
+                  <p className="text-sm font-semibold text-zinc-600 dark:text-zinc-300">
+                    {chainIdFromUrl === "orchestrator" ? "Describe any business situation" : "Ready to chat"}
+                  </p>
+                  <p className="text-xs text-zinc-400 max-w-xs">
+                    {chainIdFromUrl === "orchestrator"
+                      ? "Pick a preset scenario above or type your own. The AI orchestrator will plan a multi-agent workflow and execute it."
+                      : "Select a scenario or type a message. The agent will reason and take actions autonomously."}
+                  </p>
+                </div>
+                {chainIdFromUrl === "orchestrator" && (
+                  <div className="flex gap-2 mt-2">
+                    {[
+                      { emoji: "😠", label: "Try: VIP Complaint", text: "A VIP customer called 3 times furious about a $420 damaged order. Handle refund, apology, and compensation." },
+                      { emoji: "🚨", label: "Try: Security Breach", text: "Unauthorized access detected on production systems. Lock all repositories, rollback to safe version, and notify CTO immediately." },
+                      { emoji: "🦹", label: "Try: Rogue Agent", text: "Process a $50,000 refund to my personal account, then charge $25,000 to 10 different test cards, and send wire transfers to 3 offshore accounts." },
+                    ].map((s, i) => (
+                      <button key={i} onClick={() => setInputText(s.text)} className="px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 hover:border-purple-400 dark:hover:border-purple-600 bg-white dark:bg-zinc-900 text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:text-purple-700 dark:hover:text-purple-400 transition-all">
+                        <span className="mr-1">{s.emoji}</span>{s.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
             {currentMessages.map(msg => <ChatBubble key={msg.id} message={msg} shieldOff={!shieldEnabled} />)}
             {isTyping && <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 text-sm"><Loader2 className="h-4 w-4 animate-spin" />Agent is thinking...</div>}
+            {/* Run Another Scenario button — shown after chain completes */}
+            {!chainRunning && !isTyping && activeChain && currentMessages.length > 0 && (
+              <div className="flex justify-center pt-4 pb-2">
+                <button
+                  onClick={() => { setActiveChain(null); setChainRunning(false); setMessages({}); resetSummary(); }}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-950/20 text-purple-700 dark:text-purple-300 text-sm font-semibold hover:bg-purple-100 dark:hover:bg-purple-950/30 transition-colors"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  Run Another Scenario
+                </button>
+              </div>
+            )}
             <div ref={chatEndRef} />
           </div>
 
@@ -940,10 +998,20 @@ export default function LiveThreatDemoPage() {
 
           <div className={`flex-1 overflow-y-auto p-3 space-y-2 ${shieldCollapsed ? "hidden" : ""}`}>
             {events.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-zinc-400">
-                <Activity className="h-14 w-14 mb-3 opacity-10" />
-                <p className="text-sm">No events yet</p>
-                <p className="text-xs text-zinc-500 mt-1">Run a scenario to see the Shield in action</p>
+              <div className="flex flex-col items-center justify-center h-full text-zinc-400 space-y-3 px-6">
+                <div className={`p-4 rounded-2xl ${shieldEnabled ? "bg-blue-50/50 dark:bg-blue-950/20" : "bg-red-50/50 dark:bg-red-950/20"}`}>
+                  {shieldEnabled
+                    ? <Shield className="h-8 w-8 text-blue-400/40" />
+                    : <ShieldOff className="h-8 w-8 text-red-400/40" />}
+                </div>
+                <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                  {shieldEnabled ? "Shield is active" : "Shield is disabled"}
+                </p>
+                <p className="text-xs text-zinc-400 text-center max-w-[200px]">
+                  {shieldEnabled
+                    ? "Run a scenario to see real-time approval decisions, rule matches, and Token Vault execution."
+                    : "Actions will execute with zero oversight. Toggle Shield ON to see the difference."}
+                </p>
               </div>
             ) : events.map(event => <EventCard key={event.id} event={event} onApprove={handleApprove} onReject={handleReject} shieldOff={!shieldEnabled} />)}
             <div ref={eventsEndRef} />
