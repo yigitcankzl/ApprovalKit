@@ -389,7 +389,11 @@ export default function LiveThreatDemoPage() {
       try {
         const res = await api.chatWithAgent(step.agentId, prompt, step.agentTitle, sessionIds[step.agentId] || "", step.allowedTools);
         if (res.session_id) setSessionIds(prev => ({ ...prev, [step.agentId]: res.session_id }));
-        addMessage(step.agentId, { role: "agent", text: res.response || "Done." });
+        // Only show agent text if it's meaningful (not just "Done." or very short)
+        const agentText = (res.response || "").trim();
+        if (agentText && agentText !== "Done." && agentText !== "Done" && agentText.length > 10) {
+          addMessage(step.agentId, { role: "agent", text: agentText });
+        }
 
         const actions = res.actions || (res.action ? [res.action] : []);
 
