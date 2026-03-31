@@ -488,9 +488,11 @@ def render_binding_message(template: str | None, params: dict) -> str:
         return f"Approve action?"
     result = template
     for key, value in params.items():
+        # Sanitize value to prevent prompt injection in binding messages
+        safe_value = str(value)[:200].replace("\n", " ").replace("\r", "")
         # Support both {key} and {{key}} placeholder formats
-        result = result.replace(f"{{{{{key}}}}}", str(value))
-        result = result.replace(f"{{{key}}}", str(value))
+        result = result.replace(f"{{{{{key}}}}}", safe_value)
+        result = result.replace(f"{{{key}}}", safe_value)
     return result
 
 
