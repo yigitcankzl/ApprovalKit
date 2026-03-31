@@ -429,12 +429,17 @@ export default function LiveThreatDemoPage() {
           const rn = a.rule_name || "";
           if ((rn.toLowerCase().includes("large") || rn.toLowerCase().includes("cfo")) && status === "pending") eventType = "step_up";
 
-          addEvent({
+          const evtId = addEvent({
             agentId: step.agentId, agentTitle: step.agentTitle,
             type: eventType, action: a.action || "?", connection: a.connection || "?",
             params: a.params || {}, message: friendlyMsg,
             jobId: a.job_id,
           });
+
+          // Start polling for pending actions so UI updates when Guardian approves
+          if (status === "pending" && a.job_id) {
+            pollJob(step.agentId, a.job_id);
+          }
         }
       } catch (e: any) {
         addMessage(step.agentId, { role: "system", text: `Error: ${e.message}` });
@@ -639,7 +644,7 @@ export default function LiveThreatDemoPage() {
     setIsTyping(false); inputRef.current?.focus();
   };
 
-  const pollJob = async (agentId: string, jobId: string, toolMsgId: string) => {
+  const pollJob = async (agentId: string, jobId: string, toolMsgId?: string) => {
     let attempts = 0;
     const poll = setInterval(async () => {
       try {
@@ -647,7 +652,19 @@ export default function LiveThreatDemoPage() {
         if (["approved", "rejected", "timeout", "blocked"].includes(s.status)) {
           clearInterval(poll);
           const ns = s.status === "approved" ? "approved" : s.status === "rejected" ? "rejected" : "blocked";
-          updateMessage(agentId, toolMsgId, { toolStatus: ns as any });
+          // Update tool card — find by toolMsgId or by jobId
+          if (toolMsgId) {
+            updateMessage(agentId, toolMsgId, { toolStatus: ns as any });
+          } else {
+            // Find message by jobId across all agents
+            setMessages(prev => {
+              const updated = { ...prev };
+              for (const [aid, msgs] of Object.entries(updated)) {
+                updated[aid] = msgs.map(m => m.jobId === jobId ? { ...m, toolStatus: ns as any } : m);
+              }
+              return updated;
+            });
+          }
           setEvents(prev => prev.map(e => e.jobId === jobId ? { ...e, type: ns as any } : e));
           if (ns === "approved") setSummary(prev => ({ ...prev, pendingApproval: Math.max(0, prev.pendingApproval - 1), autoApproved: prev.autoApproved + 1 }));
           else setSummary(prev => ({ ...prev, pendingApproval: Math.max(0, prev.pendingApproval - 1), blocked: prev.blocked + 1 }));
