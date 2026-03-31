@@ -242,6 +242,7 @@ export default function LiveThreatDemoPage() {
   const [activeChain, setActiveChain] = useState<ChainScenario | null>(null);
   const [chainStepIndex, setChainStepIndex] = useState(0);
   const [chainRunning, setChainRunning] = useState(false);
+  const chainAbortRef = useRef(false);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, selectedAgent?.id, isTyping]);
   useEffect(() => { eventsEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [events]);
@@ -307,8 +308,15 @@ export default function LiveThreatDemoPage() {
     return runChain(chainWithScenario);
   };
 
+  const stopChain = useCallback(() => {
+    chainAbortRef.current = true;
+    setChainRunning(false);
+    addMessage("sub_agents", { role: "system", text: "Chain stopped by user." });
+  }, [addMessage]);
+
   const runChain = async (chain: ChainScenario) => {
     if (chainRunning || isTyping) return;
+    chainAbortRef.current = false;
     setActiveChain(chain);
     setChainStepIndex(0);
     setChainRunning(true);
@@ -342,6 +350,9 @@ export default function LiveThreatDemoPage() {
     const chainContext: string[] = [];
 
     for (let i = 0; i < chain.steps.length; i++) {
+      // Check abort
+      if (chainAbortRef.current) { addMessage("sub_agents", { role: "system", text: `Chain stopped at step ${i + 1}.` }); break; }
+
       const step = chain.steps[i];
       setChainStepIndex(i);
 
@@ -354,7 +365,6 @@ export default function LiveThreatDemoPage() {
       }
 
       addMessage(step.agentId, { role: "system", text: `Step ${i + 1}/${chain.steps.length}: ${step.agentTitle} — ${step.role}` });
-      // Progress event in shield panel
       addEvent({ agentId: step.agentId, agentTitle: step.agentTitle, type: "auto_approved", action: `Step ${i + 1}/${chain.steps.length}`, connection: "workflow", message: step.role, params: {} });
       if (step.allowedTools && step.allowedTools.length > 0) {
         addMessage(step.agentId, { role: "system", text: `Available tools: ${step.allowedTools.join(", ")}` });
@@ -371,18 +381,16 @@ export default function LiveThreatDemoPage() {
 
         const actions = res.actions || (res.action ? [res.action] : []);
 
-        // Build result summary for next agent's context
         if (actions.length === 0) {
           stepResultSummary += "\n  No actions taken.";
         }
 
         for (let j = 0; j < actions.length; j++) {
-          if (j > 0) await new Promise(r => setTimeout(r, 500));
+          if (j > 0) await new Promise(r => setTimeout(r, 300));
           const a = actions[j];
           const status = a.status || "auto_approved";
           const amount = a.params?.amount_usd ? ` ($${a.params.amount_usd})` : "";
 
-          // Add to context for next agent
           stepResultSummary += `\n  - ${a.connection || "?"}/${a.action || "?"}${amount} → ${status.toUpperCase()}${a.rule_name ? ` (rule: ${a.rule_name})` : ""}`;
 
           addMessage(step.agentId, {
@@ -391,6 +399,12 @@ export default function LiveThreatDemoPage() {
             toolStatus: status === "auto_approved" ? "auto_approved" : status === "pending" ? "pending" : "blocked",
             jobId: a.job_id,
           });
+
+          // Human-friendly event message
+          const actionLabel = (a.action || "?").replace(/_/g, " ");
+          const friendlyMsg = amount
+            ? `${step.agentTitle} → ${actionLabel}${amount} ${status === "auto_approved" ? "executed via Token Vault" : status === "pending" ? "awaiting approval" : "blocked by rule"}`
+            : `${step.agentTitle} → ${actionLabel} ${status === "auto_approved" ? "executed" : status === "pending" ? "awaiting approval" : "blocked"}`;
 
           let eventType: ShieldEvent["type"] = "auto_approved";
           if (status === "pending") eventType = "pending";
@@ -401,7 +415,7 @@ export default function LiveThreatDemoPage() {
           addEvent({
             agentId: step.agentId, agentTitle: step.agentTitle,
             type: eventType, action: a.action || "?", connection: a.connection || "?",
-            params: a.params || {}, message: a.message || `${a.action} — ${status}`,
+            params: a.params || {}, message: friendlyMsg,
             jobId: a.job_id,
           });
         }
@@ -410,20 +424,28 @@ export default function LiveThreatDemoPage() {
         stepResultSummary += `\n  ERROR: ${e.message}`;
       }
 
-      // Add this step's results to the growing context
       chainContext.push(stepResultSummary);
 
-      // ── SUB-AGENT 2: Validator (after each step) ──
+      // ── Validator with FAIL → chain halt ──
+      let validatorFailed = false;
       try {
         const validationCtx = `SCENARIO: ${chain.scenario}\nSTEP ${i + 1} of ${chain.steps.length}: ${step.agentTitle}\nORIGINAL REQUEST: ${step.role}\n\nRESULTS:\n${stepResultSummary}`;
         const validation = await api.runSubAgent("validator", validationCtx);
-        addMessage("validator", { role: "agent", text: `✅ Validator: ${validation.analysis}` });
+        const analysis = validation.analysis || "";
+        addMessage("validator", { role: "agent", text: `✅ Validator: ${analysis}` });
+        if (analysis.includes("STATUS: FAIL")) {
+          validatorFailed = true;
+          addMessage("sub_agents", { role: "system", text: `Validator FAILED at step ${i + 1}. Chain halted — review required.` });
+          addEvent({ agentId: "validator", agentTitle: "Validator", type: "blocked", action: "validation", connection: "workflow", message: `Validator FAILED: ${step.agentTitle} output rejected`, params: {} });
+        }
       } catch (e) { console.error("Validator failed:", e); }
 
       setIsTyping(false);
 
+      if (validatorFailed || chainAbortRef.current) break;
+
       if (i < chain.steps.length - 1) {
-        await new Promise(r => setTimeout(r, 1000));
+        await new Promise(r => setTimeout(r, 800));
       }
     }
 
@@ -954,13 +976,19 @@ export default function LiveThreatDemoPage() {
               }
             }} className="flex gap-2">
               <input ref={inputRef} type="text" value={inputText} onChange={(e) => setInputText(e.target.value)}
-                placeholder={chainIdFromUrl ? "Describe a situation — AI will plan which agents to use..." : selectedAgent ? `Tell ${selectedAgent.title} what to do...` : "Select an agent"}
-                disabled={isTyping || chainRunning || !setupDone || !hasAIKey}
+                placeholder={chainRunning ? "Chain running... type next scenario or press Stop" : chainIdFromUrl ? "Describe a situation — AI will plan which agents to use..." : selectedAgent ? `Tell ${selectedAgent.title} what to do...` : "Select an agent"}
+                disabled={isTyping || !setupDone || !hasAIKey}
                 className="flex-1 rounded-xl px-4 py-2.5 text-sm border border-zinc-200/60 dark:border-zinc-700/40 bg-white dark:bg-zinc-900/30 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 disabled:opacity-30"
               />
-              <Button type="submit" disabled={isTyping || chainRunning || !inputText.trim() || !setupDone || !hasAIKey} className="rounded-xl px-4 shadow-md hover:shadow-lg transition-shadow">
-                <Send className="h-4 w-4" />
-              </Button>
+              {chainRunning ? (
+                <Button type="button" onClick={stopChain} className="rounded-xl px-4 bg-red-600 hover:bg-red-700 text-white shadow-md">
+                  <XCircle className="h-4 w-4 mr-1" /> Stop
+                </Button>
+              ) : (
+                <Button type="submit" disabled={isTyping || !inputText.trim() || !setupDone || !hasAIKey} className="rounded-xl px-4 shadow-md hover:shadow-lg transition-shadow">
+                  <Send className="h-4 w-4" />
+                </Button>
+              )}
               <button
                 onClick={() => setShieldCollapsed(prev => !prev)}
                 className="rounded-xl px-3 py-2.5 border border-zinc-200/60 dark:border-zinc-700/40 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
