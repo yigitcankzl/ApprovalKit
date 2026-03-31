@@ -35,9 +35,11 @@ Our final Token Vault integration has two paths:
 
 **Primary (Token Exchange):** For providers that support refresh tokens (Stripe, Google, Salesforce). The user connects via Connected Accounts flow, Auth0 stores the federated refresh token, and Token Exchange retrieves fresh access tokens at execution time.
 
-**Fallback (Management API):** Only when no refresh token exists (legacy connections without Token Vault). If Token Exchange is attempted and fails (expired token), we do **not** fall back — the user must reconnect. This prevents silently downgrading to a less secure path.
+**No Fallback by Design:** If Token Exchange fails (expired token), we do **not** fall back to Management API — the user must reconnect via the Connected Accounts flow. This prevents silently downgrading to a less secure path. Retry with exponential backoff handles transient server errors (5xx).
 
 **Generic Webhook:** For services without a built-in handler, the webhook config (URL + headers + body template) is rendered with `{{token}}` and `{{params}}` placeholders at execution time. Zero code needed.
+
+**M2M Credential Vault:** For APIs that don't support user-delegated OAuth (Amadeus, Twilio, AWS), credentials are stored in HashiCorp Vault — never in the database.
 
 ## What We Built With Token Vault
 
@@ -60,7 +62,9 @@ In our live demo, an AI agent powered by a local LLM (Qwen 2.5) reasons about cu
 
 **3. Step-up authentication makes security proportional to risk.** A $30 refund auto-approves. A $420 refund needs a manager. A $25,000 bulk refund needs the CFO. Same agent, same code, different approval chains based on risk.
 
-**4. The "rogue agent" scenario is real.** In our demo, we deliberately prompt agents with aggressive instructions ("refund everyone, send emails to all 500 customers"). Without ApprovalKit, $50,000 in charges execute instantly. With it, they're caught and blocked.
+**4. The "rogue agent" scenario is real.** In our demo, we deliberately prompt agents with aggressive instructions — fund draining ($50K refunds), repository deletion, data exfiltration, infrastructure sabotage. Without ApprovalKit, all actions execute instantly. With it, every high-risk action requires human approval, and the adversarial validator catches scope creep and amount anomalies in real-time.
+
+**5. Defense-in-depth works.** Inspired by Claude Code's layered permission system, we repeat security rules across 3 prompt layers (agent → orchestrator → chain context). Input parameters are validated against SQL injection, shell injection, path traversal, and script injection patterns at the framework level — before the LLM even processes them.
 
 ## Feedback for Auth0
 
