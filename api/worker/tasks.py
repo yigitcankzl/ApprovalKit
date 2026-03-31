@@ -59,12 +59,12 @@ async def _get_db_session():
     return session_factory()
 
 
-_current_ws_ciba: dict = {}  # Set per-job in _process_job
+_current_ws_ciba: dict = {}  # DEPRECATED: kept for backward compat, use ws_creds param
 
-async def _send_ciba(approver, binding_msg: str, rule: Rule, scope: str = "", job_id: str = "") -> dict:
-    """Shared CIBA initiate → record → poll pattern. Uses workspace credentials."""
+async def _send_ciba(approver, binding_msg: str, rule: Rule, scope: str = "", job_id: str = "", ws_creds: dict | None = None) -> dict:
+    """Shared CIBA initiate → record → poll pattern. Uses workspace credentials passed as param (thread-safe)."""
     actual = _resolve_delegation(approver)
-    ws = _current_ws_ciba
+    ws = ws_creds or _current_ws_ciba
     ciba_result = await ciba_service.initiate_ciba_request(
         user_id=actual.auth0_user_id,
         binding_message=binding_msg,
@@ -371,12 +371,14 @@ async def _process_job(job_id: str):
             if engine2:
                 await engine2.dispose()
 
+        # Thread-safe: set both global (backward compat) and pass via contextvars
         global _current_ws_ciba
-        _current_ws_ciba = {
+        ws_creds = {
             "domain": ws_config.auth0_domain,
             "client_id": ws_config.auth0_client_id,
             "client_secret": ws_config.auth0_client_secret,
         }
+        _current_ws_ciba = ws_creds
 
         # Process based on approval model
         processor = MODEL_PROCESSORS.get(effective_model)
