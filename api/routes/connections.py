@@ -648,3 +648,70 @@ async def delete_connection(connection_id: str, workspace: Workspace = Depends(g
     await db.delete(conn)
     await db.commit()
     return {"status": "deleted", "connection": conn.name}
+
+
+@router.get("/connections/{connection_id}/health")
+async def check_connection_health(
+    connection_id: str,
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+):
+    """Check if a connection's stored token is still valid."""
+    from api.models.connection import ServiceConnection
+    result = await db.execute(
+        select(ServiceConnection).where(
+            ServiceConnection.id == connection_id,
+            ServiceConnection.workspace_id == workspace.id,
+        )
+    )
+    conn = result.scalar_one_or_none()
+    if not conn:
+        raise HTTPException(status_code=404, detail="Connection not found")
+
+    health = {
+        "connection_id": connection_id,
+        "name": conn.name,
+        "service": conn.service,
+        "has_credentials": bool(conn.auth0_refresh_token or conn.m2m_token_url),
+        "token_vault_linked": bool(conn.connected_auth0_user_id),
+        "connected_user": conn.connected_user_name,
+        "is_active": conn.is_active,
+        "status": "unknown",
+    }
+
+    if not conn.is_active:
+        health["status"] = "inactive"
+    elif not conn.auth0_refresh_token and not conn.m2m_token_url:
+        health["status"] = "not_connected"
+    else:
+        # Try token exchange to verify credentials are still valid
+        try:
+            from api.services.token_vault import token_vault_service
+            from api.services.encryption import decrypt_secret
+            from api.services.workspace_config import get_workspace_config
+
+            ws_config = await get_workspace_config(workspace.id, db)
+            provider = conn.service.lower()
+            if conn.connected_auth0_user_id:
+                parts = conn.connected_auth0_user_id.split("|")
+                if len(parts) >= 2 and parts[0] == "oauth2":
+                    provider = parts[1]
+
+            refresh_tok = decrypt_secret(conn.auth0_refresh_token) if conn.auth0_refresh_token else None
+            if refresh_tok:
+                token = await token_vault_service.get_token_via_exchange(
+                    provider, refresh_tok,
+                    ws_config.auth0_domain,
+                    ws_config.auth0_web_client_id or ws_config.auth0_client_id,
+                    ws_config.auth0_web_client_secret or ws_config.auth0_client_secret,
+                )
+                health["status"] = "healthy" if token else "token_expired"
+            elif conn.m2m_token_url:
+                health["status"] = "m2m_configured"
+            else:
+                health["status"] = "no_token"
+        except Exception as e:
+            health["status"] = "error"
+            health["error"] = str(e)[:100]
+
+    return health
