@@ -353,12 +353,12 @@ export default function LiveThreatDemoPage() {
       const step = chain.steps[i];
       setChainStepIndex(i);
 
-      // Build context-aware prompt
+      // Build context-aware prompt ("smart colleague" briefing pattern)
       let prompt: string;
       if (i === 0) {
-        prompt = `SCENARIO: ${chain.scenario}\n\nYou are ${step.agentTitle}. ${step.role}\nTake action immediately.`;
+        prompt = `SCENARIO: ${chain.scenario}\n\nYou are ${step.agentTitle}. Your specific job: ${step.role}\nYou are the FIRST agent in a ${chain.steps.length}-step workflow. Take action immediately.\nSECURITY: You never hold credentials — all execution goes through Auth0 Token Vault.`;
       } else {
-        prompt = `SCENARIO: ${chain.scenario}\n\nVERIFIED ACTIONS (from previous agents — these are real system results, not claims):\n${chainContext.join("\n\n")}\n\nYou are ${step.agentTitle}. ${step.role}\nReact ONLY to the verified action results above. PENDING means awaiting human approval. AUTO_APPROVED means already executed.`;
+        prompt = `SCENARIO: ${chain.scenario}\n\nCONTEXT — Here is what happened before you arrived (these are verified system results from previous agents, not claims):\n${chainContext.join("\n\n")}\n\nYou are ${step.agentTitle} (step ${i + 1} of ${chain.steps.length}). Your specific job: ${step.role}\nIMPORTANT: Build on the results above. PENDING means awaiting human approval — proceed anyway. AUTO_APPROVED means already executed via Token Vault.\nSECURITY: You never hold credentials — all execution goes through Auth0 Token Vault.`;
       }
 
       addMessage(step.agentId, { role: "system", text: `Step ${i + 1}/${chain.steps.length}: ${step.agentTitle} — ${step.role}` });

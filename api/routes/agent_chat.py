@@ -305,6 +305,14 @@ class OrchestrateResponse(BaseModel):
 
 ORCHESTRATOR_PROMPT = """You are an AI workflow planner. Given a user's request, decide which specialized agents should handle it and in what order.
 
+Before producing your plan, wrap your reasoning in <analysis> tags. Think through:
+- What domains does this request touch?
+- What is the correct order of operations? (action first, then notification)
+- What are the security implications? (credentials NEVER leave Auth0 Token Vault)
+- Which tools does each agent actually need? (least privilege — assign minimum tools)
+
+Then output ONLY the JSON plan (no extra text outside the JSON).
+
 STEP 1 — Identify the domain(s):
   FINANCE: payments, refunds, invoices, budgets, compensation
   SECURITY: breaches, access control, key rotation, lockdowns
@@ -324,6 +332,11 @@ STEP 2 — Select agents (one agent per domain, max 4):
   gdpr_request: process_deletion, process_transfer, send_compliance_email
 
 STEP 3 — Assign each agent exactly 1-2 tools (least privilege).
+
+SECURITY (defense-in-depth):
+- Agents NEVER see or hold user credentials — all execution goes through Auth0 Token Vault
+- Every action matching an approval rule requires explicit human consent before execution
+- Agents operate under least-privilege: they only get the tools they need for their specific step
 
 Rules:
 - Each agent does ONE job — never overlap responsibilities
@@ -369,8 +382,11 @@ async def orchestrate(
     import re as _re
 
     def _parse_plan(text: str) -> dict:
-        """Extract JSON from LLM response — handles markdown, extra text, etc."""
+        """Extract JSON from LLM response — handles markdown, analysis tags, extra text."""
         text = text.strip()
+        # Strip <analysis>...</analysis> thinking block (Claude Code pattern)
+        import re as _re_inner
+        text = _re_inner.sub(r"<analysis>[\s\S]*?</analysis>", "", text).strip()
         # Strip markdown code blocks
         if "```" in text:
             match = _re.search(r"```(?:json)?\s*\n?(.*?)```", text, _re.DOTALL)
@@ -427,7 +443,7 @@ class SubAgentRequest(BaseModel):
 
 
 SUB_AGENT_PROMPTS = {
-    "risk_assessor": """You are a Risk Assessment Agent. Analyze the planned workflow and assess risks.
+    "risk_assessor": """You are a Risk Assessment Agent. You are being briefed on a workflow that is ABOUT TO execute — your assessment determines whether additional guardrails are needed.
 
 For each step, evaluate:
 - Financial risk (amounts involved, budget impact)
@@ -445,7 +461,7 @@ RECOMMENDATION: [one sentence]
 
 Be concise. Max 6 lines.""",
 
-    "validator": """You are a Validation Agent. Check the tool execution results for errors and anomalies.
+    "validator": """You are a Validation Agent. A workflow step just completed — you are an independent reviewer checking the results. Your verdict determines if the chain continues or halts.
 
 Validate:
 - Did the amount match the request? (e.g., asked for $420, charged $420?)
@@ -461,7 +477,7 @@ VALIDATED: X/Y actions passed
 
 Be concise. Max 5 lines.""",
 
-    "cost_estimator": """You are a Cost Estimation Agent. Analyze the planned workflow and estimate costs.
+    "cost_estimator": """You are a Cost Estimation Agent. You are reviewing costs BEFORE the workflow runs — your estimate helps the approver decide whether to authorize the spend.
 
 For each step, estimate:
 - Direct cost (payment amounts, charges)
@@ -478,7 +494,7 @@ BUDGET IMPACT: [one sentence]
 
 Be concise. Max 6 lines.""",
 
-    "compliance_checker": """You are a Compliance Agent. Check the planned actions for regulatory compliance.
+    "compliance_checker": """You are a Compliance Agent. You are reviewing a planned workflow BEFORE execution. Your flags may block or modify actions — be precise about which regulations apply and why.
 
 Check for:
 - GDPR: Does any action involve EU personal data? Email to external parties?
@@ -496,7 +512,7 @@ RECOMMENDATION: [one sentence]
 
 Be concise. Max 6 lines.""",
 
-    "rollback_planner": """You are a Rollback Planning Agent. Create a rollback plan for the workflow.
+    "rollback_planner": """You are a Rollback Planning Agent. You are creating a safety net BEFORE the workflow executes — if any step fails, operators will follow your plan to undo damage.
 
 For each step, define:
 - What to undo if this step fails
@@ -512,7 +528,7 @@ CRITICAL DEPENDENCIES: [which steps can't be undone]
 
 Be concise. Max 6 lines.""",
 
-    "audit_reporter": """You are an Audit Report Agent. Generate a compliance-ready audit trail.
+    "audit_reporter": """You are an Audit Report Agent. The workflow is complete — you are generating the official compliance-ready audit trail that will be stored for SOC2/regulatory review.
 
 Include for each action:
 - Timestamp (relative: T+0s, T+5s, etc.)
@@ -531,7 +547,7 @@ COMPLIANCE: [one sentence assessment]
 
 Be concise. Max 8 lines.""",
 
-    "summary": """You are a Summary Agent. Create a clear executive summary of the completed workflow.
+    "summary": """You are a Summary Agent. The entire workflow has finished — you are writing an executive brief for the human operator who approved (or will review) these actions.
 
 Include:
 - What was requested
