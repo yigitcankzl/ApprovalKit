@@ -424,10 +424,12 @@ export default function LiveThreatDemoPage() {
               const d = JSON.parse(sseLine.slice(6));
               if (d.type === "token") {
                 stepAgentText += d.content;
-                if (!stepAgentMsgId) stepAgentMsgId = addMessage(step.agentId, { role: "agent", text: stepAgentText });
-                else updateMessage(step.agentId, stepAgentMsgId, { text: stepAgentText });
+                // Don't render agent text as bubble during chain — collect for reasoning
               } else if (d.type === "tool_call") {
-                addMessage(step.agentId, { role: "tool", text: d.name, toolName: d.name, toolArgs: d.args, toolStatus: "running" });
+                // Use collected text as reasoning for this tool call
+                const reasoning = stepAgentText.trim();
+                stepAgentText = ""; // Reset for next tool call's reasoning
+                addMessage(step.agentId, { role: "tool", text: d.name, toolName: d.name, toolArgs: d.args, toolStatus: "running", reasoning: reasoning.length > 10 && !reasoning.startsWith("-") && !reasoning.startsWith("{") ? reasoning : "" });
               } else if (d.type === "tool_result") {
                 gotActions = true;
                 const r = d.result || {};
