@@ -79,3 +79,15 @@ class CircuitBreaker:
 
 # Shared breakers for external services
 auth0_breaker = CircuitBreaker("auth0", failure_threshold=5, reset_timeout=30)
+
+
+# Per-workspace circuit breakers (lazy creation)
+_workspace_breakers: dict[str, CircuitBreaker] = {}
+
+def get_workspace_breaker(workspace_id: str) -> CircuitBreaker:
+    """Get or create a per-workspace circuit breaker."""
+    if workspace_id not in _workspace_breakers:
+        _workspace_breakers[workspace_id] = CircuitBreaker(
+            f"ws:{workspace_id[:8]}", failure_threshold=5, reset_timeout=30
+        )
+    return _workspace_breakers[workspace_id]
