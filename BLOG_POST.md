@@ -48,7 +48,7 @@ ApprovalKit is a human approval middleware for AI agents. When an AI agent wants
 3. Waits for approval on the human's phone
 4. Executes the action through Token Vault — the agent never sees the credentials
 
-We built 16 service handlers (Stripe, GitHub, Slack, Gmail, and more) that all execute through Token Vault Token Exchange. The agent calls `kit.gate("stripe-prod", "charge", {"amount": 420})` and ApprovalKit handles the entire OAuth token lifecycle server-side.
+We built 30 service handlers (Stripe, GitHub, Slack, Gmail, Google Calendar, Microsoft, Salesforce, Notion, Jira, Discord, and more) that all execute through Token Vault Token Exchange. The agent calls `kit.gate("stripe-prod", "charge", {"amount": 420})` and ApprovalKit handles the entire OAuth token lifecycle server-side.
 
 In our live demo, an AI agent powered by a local LLM (Qwen 2.5) reasons about customer complaints, decides to issue refunds, send apology emails, and notify teams — all gated through ApprovalKit. The agent calls real Stripe charges and real Gmail sends, but never holds a single API key.
 

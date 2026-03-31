@@ -202,7 +202,14 @@ done
 if docker compose exec -T ollama ollama list 2>/dev/null | grep -q "qwen2.5:7b"; then
     log "Qwen 2.5 7B model already downloaded"
 else
-    info "Downloading Qwen 2.5 7B (4.7 GB — one-time download)..."
+    echo ""
+    echo -e "  ${YELLOW}╔══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "  ${YELLOW}║  Downloading Qwen 2.5 7B model (4.7 GB)                 ║${NC}"
+    echo -e "  ${YELLOW}║  This is a ONE-TIME download.                            ║${NC}"
+    echo -e "  ${YELLOW}║  Estimated time: 5-30 min depending on internet speed.   ║${NC}"
+    echo -e "  ${YELLOW}║  You can skip this and use Groq (free API key) instead.  ║${NC}"
+    echo -e "  ${YELLOW}╚══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
     docker compose exec -T ollama ollama pull qwen2.5:7b 2>&1 | tail -1
     log "Model downloaded"
 fi

@@ -324,25 +324,25 @@ export default function LiveThreatDemoPage() {
       addMessage("sub_agents", { role: "system", text: "🛡️ Risk Assessor analyzing plan..." });
       const risk = await api.runSubAgent("risk_assessor", planContext);
       addMessage("sub_agents", { role: "agent", text: `🛡️ Risk Assessment:\n${risk.analysis}` });
-    } catch {}
+    } catch (e) { console.error("Risk assessor failed:", e); addMessage("sub_agents", { role: "agent", text: "🛡️ Risk Assessment: Skipped (LLM unavailable)" }); }
 
     // Cost Estimator
     try {
       const cost = await api.runSubAgent("cost_estimator", planContext);
       addMessage("sub_agents", { role: "agent", text: `💰 Cost Estimate:\n${cost.analysis}` });
-    } catch {}
+    } catch (e) { console.error("Cost estimator failed:", e); addMessage("sub_agents", { role: "agent", text: "💰 Cost Estimate: Skipped (LLM unavailable)" }); }
 
     // Compliance Checker
     try {
       const compliance = await api.runSubAgent("compliance_checker", planContext);
       addMessage("sub_agents", { role: "agent", text: `📜 Compliance Check:\n${compliance.analysis}` });
-    } catch {}
+    } catch (e) { console.error("Compliance checker failed:", e); addMessage("sub_agents", { role: "agent", text: "📜 Compliance Check: Skipped (LLM unavailable)" }); }
 
     // Rollback Planner
     try {
       const rollback = await api.runSubAgent("rollback_planner", planContext);
       addMessage("sub_agents", { role: "agent", text: `🔄 Rollback Plan:\n${rollback.analysis}` });
-    } catch {}
+    } catch (e) { console.error("Rollback planner failed:", e); addMessage("sub_agents", { role: "agent", text: "🔄 Rollback Plan: Skipped (LLM unavailable)" }); }
 
     await new Promise(r => setTimeout(r, 500));
 
@@ -620,19 +620,19 @@ export default function LiveThreatDemoPage() {
           if (ns === "approved") setSummary(prev => ({ ...prev, pendingApproval: Math.max(0, prev.pendingApproval - 1), autoApproved: prev.autoApproved + 1 }));
           else setSummary(prev => ({ ...prev, pendingApproval: Math.max(0, prev.pendingApproval - 1), blocked: prev.blocked + 1 }));
         }
-      } catch {} if (++attempts > 60) clearInterval(poll);
+      } catch {} if (++attempts > 180) clearInterval(poll);
     }, 2000);
   };
 
   const handleApprove = async (jobId: string, eventId: string) => {
-    try { await api.approveJob(jobId); } catch {}
+    try { await api.approveJob(jobId); } catch (e) { console.error("Approve failed:", e); }
     setEvents(prev => prev.map(e => e.id === eventId ? { ...e, type: "approved" as const } : e));
     setSummary(prev => ({ ...prev, pendingApproval: Math.max(0, prev.pendingApproval - 1), autoApproved: prev.autoApproved + 1 }));
     if (selectedAgent) setMessages(prev => ({ ...prev, [selectedAgent.id]: (prev[selectedAgent.id] || []).map(m => m.jobId === jobId ? { ...m, toolStatus: "approved" as const } : m) }));
   };
   const handleReject = async (jobId: string, eventId: string) => {
     const evt = events.find(e => e.id === eventId); const amt = Number(evt?.params?.amount_usd) || 0;
-    try { await api.rejectJob(jobId); } catch {}
+    try { await api.rejectJob(jobId); } catch (e) { console.error("Reject failed:", e); }
     setEvents(prev => prev.map(e => e.id === eventId ? { ...e, type: "rejected" as const } : e));
     setSummary(prev => ({ ...prev, pendingApproval: Math.max(0, prev.pendingApproval - 1), blocked: prev.blocked + 1, preventedDamage: prev.preventedDamage + amt }));
     if (selectedAgent) setMessages(prev => ({ ...prev, [selectedAgent.id]: (prev[selectedAgent.id] || []).map(m => m.jobId === jobId ? { ...m, toolStatus: "rejected" as const } : m) }));
