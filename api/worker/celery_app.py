@@ -24,3 +24,11 @@ celery_app.conf.update(
 )
 
 celery_app.autodiscover_tasks(["api.worker"])
+
+# Beat schedule for periodic tasks
+celery_app.conf.beat_schedule = {
+    "cleanup-zombie-jobs": {
+        "task": "api.worker.tasks.cleanup_zombie_jobs",
+        "schedule": 300.0,  # Every 5 minutes
+    },
+}
