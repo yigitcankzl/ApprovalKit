@@ -146,10 +146,11 @@ Step-up conditions are configurable per rule. The Celery worker evaluates condit
 The live demo features a multi-agent orchestrator powered by local LLM (Qwen 2.5 7B). Describe any business situation and the orchestrator:
 
 1. Plans a multi-agent workflow (selects agents, assigns per-step tools)
-2. Runs 4 pre-execution sub-agents **in parallel**: risk assessor, cost estimator, compliance checker, rollback planner
-3. Executes the chain with verified action passing between agents
-4. Validates each step with an **adversarial validator** (checks for scope creep, amount anomalies, sequence violations)
-5. Generates structured audit trail + executive summary
+2. Runs **code-based pre-execution checks** (risk scoring, cost estimation) — instant, no LLM hallucination
+3. Runs **LLM compliance + rollback analysis** for semantic regulatory checks
+4. Executes the chain with verified action passing between agents
+5. Validates each step with a **deterministic validator** (amount match, duplicates, scope creep)
+6. Generates structured audit trail (hash-chained for tamper evidence) + executive summary
 
 24+ preset scenarios across finance, security, HR, compliance, and **rogue agent testing** (demonstrates ApprovalKit blocking malicious actions).
 
@@ -201,7 +202,8 @@ SSE live feed via Redis pub/sub shows approval events as they happen. Pending ap
 | Auth | Auth0 Token Vault, CIBA, FGA, nextjs-auth0 v4, per-agent HMAC |
 | SDK | Python, pip-installable, sync + async, jitter polling |
 | Execution | 30 built-in handlers, all via Auth0 Token Vault |
-| Infrastructure | Docker Compose (8 services), Ollama GPU support |
+| AI Agents | 10 specialized agents, code-based sub-agents, LLM compliance/summary |
+| Infrastructure | Docker Compose (8 services), Ollama GPU support, non-root containers |
 
 ---
 
@@ -245,6 +247,12 @@ This starts all services (PostgreSQL, Redis, Vault, Ollama, API, Worker, Fronten
 19. **Defense-in-Depth Prompt Security** — Security rules repeated across 3 layers (agent prompt, orchestrator, chain context) to prevent LLM instruction drift
 20. **Token Exchange Retry with Backoff** — Exponential backoff (500ms, 1s, 2s) on Token Vault server errors; client errors fail immediately
 21. **Approval Pattern Analysis** — Learned insights from approval history: high rejection rates, amount anomalies, slow approvals, always-approved connections
+22. **Hash-Chained Audit Trail** — Each audit entry includes SHA-256 hash of previous entry, creating tamper-evident chain for SOC2 compliance
+23. **Dead Letter Queue** — Failed Celery tasks go to DLQ after max retries instead of being silently dropped
+24. **Per-Workspace Circuit Breakers** — Isolate tenant failures so one workspace's Auth0 issues don't affect others
+25. **Deep Health Checks** — `/health/deep` verifies DB, Redis, and Ollama connectivity; returns degraded status if any dependency fails
+26. **Non-Root Docker** — API container runs as unprivileged user
+27. **Connection Health Monitoring** — Verify Token Vault token validity per connection
 
 ### Known Limitations
 
@@ -263,7 +271,7 @@ This starts all services (PostgreSQL, Redis, Vault, Ollama, API, Worker, Fronten
 | Approvers | CRUD + Guardian auto-linking + delegation + workspace isolation |
 | Audit Log | Filterable event log with PII masking, binding messages, Token Vault receipts |
 | Connect Agent | Per-agent API key generation, SDK code snippets, live testing |
-| Agents | 8 demo agents (backend-served) + My Agents tab with scenarios |
+| Agents | 10 specialized agents (backend-served) + My Agents tab with scenarios |
 | Setup | Full-page onboarding wizard (Auth0 creds + connections), no sidebar |
 | Settings | Edit existing workspace credentials (sidebar layout) |
 | Compliance | Audit trail with timeline visualization, JSON/CSV export for SOC2 |
