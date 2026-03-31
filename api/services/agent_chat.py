@@ -1127,11 +1127,19 @@ def _execute_tool(agent_id: str, tool_name: str, tool_args: dict, workspace_id: 
         )
         db.add(job)
 
+        # Compute risk score for the approval notification
+        from api.services.rule_engine import compute_risk_score, render_binding_message
+        risk = compute_risk_score(action["params"], rule=matched_rule)
+        binding_msg = render_binding_message(matched_rule.context_template, action["params"])
+        risk_level = risk.get("level", "unknown")
+        if risk_level in ("high", "critical"):
+            binding_msg = f"[{risk_level.upper()} RISK] {binding_msg}"
+
         audit = AuditLog(
             job_id=job_id,
             workspace_id=workspace.id,
             event_type="requested",
-            binding_message=matched_rule.context_template or f"Approve {action['action']}?",
+            binding_message=binding_msg,
         )
         db.add(audit)
         db.commit()
