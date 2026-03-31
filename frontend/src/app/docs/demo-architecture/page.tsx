@@ -121,7 +121,7 @@ export default function DemoArchitecturePage() {
             {[
               { icon: <Brain className="h-5 w-5" />, title: "AI Orchestrator", desc: "LLM plans multi-agent workflows" },
               { icon: <Shield className="h-5 w-5" />, title: "Defense-in-Depth", desc: "3-layer security at every level" },
-              { icon: <Zap className="h-5 w-5" />, title: "7 Sub-Agents", desc: "Risk, cost, compliance, rollback, validator, audit, summary" },
+              { icon: <Zap className="h-5 w-5" />, title: "Hybrid Sub-Agents", desc: "Code-based (risk, cost, validator, audit) + LLM (compliance, summary)" },
             ].map((c) => (
               <Card key={c.title}>
                 <CardContent className="pt-5 pb-4">
