@@ -983,11 +983,37 @@ AGENT_SUGGESTIONS: dict[str, list[str]] = {
 
 # ── Tool Execution (server-side) ──────────────────────────────────────────────
 
+# ── Input Validation (inspired by Claude Code's bashSecurity.ts) ─────────────
+_DANGEROUS_PARAM_PATTERNS = [
+    ("sql_injection", r"(?i)(DROP\s+TABLE|DELETE\s+FROM|INSERT\s+INTO|UPDATE\s+\w+\s+SET|;\s*--)", "SQL injection attempt detected"),
+    ("shell_injection", r"[;&|`$()]", "Shell metacharacter in parameter"),
+    ("path_traversal", r"\.\./", "Path traversal attempt"),
+    ("script_injection", r"(?i)<script", "Script injection attempt"),
+]
+
+def _validate_params(params: dict) -> str | None:
+    """Validate tool parameters for dangerous patterns. Returns error message or None."""
+    import re
+    for key, value in params.items():
+        if not isinstance(value, str):
+            continue
+        for name, pattern, msg in _DANGEROUS_PARAM_PATTERNS:
+            if re.search(pattern, value):
+                logger.warning(f"Input validation BLOCKED: {name} in param '{key}': {value[:100]}")
+                return f"BLOCKED: {msg} in parameter '{key}'"
+    return None
+
+
 def _execute_tool(agent_id: str, tool_name: str, tool_args: dict, workspace_id: str) -> dict:
     """Execute an ApprovalKit action by querying the DB with a sync session.
 
     Uses a separate sync SQLAlchemy engine to avoid async event loop conflicts.
     """
+    # Input validation — check for dangerous patterns before processing
+    validation_error = _validate_params(tool_args)
+    if validation_error:
+        return {"success": False, "error": validation_error, "_hint": "Parameters contained suspicious patterns and were blocked for security."}
+
     action = _map_tool_to_action(agent_id, tool_name, tool_args)
     if not action:
         return {"success": False, "error": f"Unknown tool: {tool_name}"}
