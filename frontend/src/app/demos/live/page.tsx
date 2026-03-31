@@ -415,9 +415,10 @@ export default function LiveThreatDemoPage() {
 
       // ── SUB-AGENT 2: Validator (after each step) ──
       try {
-        const validation = await api.runSubAgent("validator", `STEP: ${step.agentTitle}\n\n${stepResultSummary}`);
+        const validationCtx = `SCENARIO: ${chain.scenario}\nSTEP ${i + 1} of ${chain.steps.length}: ${step.agentTitle}\nORIGINAL REQUEST: ${step.role}\n\nRESULTS:\n${stepResultSummary}`;
+        const validation = await api.runSubAgent("validator", validationCtx);
         addMessage("validator", { role: "agent", text: `✅ Validator: ${validation.analysis}` });
-      } catch {}
+      } catch (e) { console.error("Validator failed:", e); }
 
       setIsTyping(false);
 
@@ -426,20 +427,18 @@ export default function LiveThreatDemoPage() {
       }
     }
 
-    // ── POST-CHAIN SUB-AGENTS ──
-    const allActionsContext = `SCENARIO: ${chain.scenario}\n\nALL ACTIONS:\n${chainContext.join("\n\n")}`;
+    // ── POST-CHAIN SUB-AGENTS (synthesized spec pattern) ──
+    const allActionsContext = `SCENARIO: ${chain.scenario}\nTOTAL STEPS: ${chain.steps.length}\nAGENTS INVOLVED: ${chain.steps.map(s => s.agentTitle).join(", ")}\n\nCOMPLETE ACTION LOG:\n${chainContext.join("\n\n")}`;
 
-    // Audit Reporter
-    try {
-      const audit = await api.runSubAgent("audit_reporter", allActionsContext);
-      addMessage("sub_agents", { role: "agent", text: `📝 Audit Trail:\n${audit.analysis}` });
-    } catch {}
-
-    // Summary Agent
-    try {
-      const summaryResult = await api.runSubAgent("summary", allActionsContext);
-      addMessage("sub_agents", { role: "agent", text: `📋 Executive Summary:\n${summaryResult.analysis}` });
-    } catch {}
+    // Audit + Summary in parallel
+    const [auditResult, summaryResult] = await Promise.allSettled([
+      api.runSubAgent("audit_reporter", allActionsContext),
+      api.runSubAgent("summary", allActionsContext),
+    ]);
+    if (auditResult.status === "fulfilled") addMessage("sub_agents", { role: "agent", text: `📝 Audit Trail:\n${auditResult.value.analysis}` });
+    else console.error("Audit reporter failed:", auditResult.reason);
+    if (summaryResult.status === "fulfilled") addMessage("sub_agents", { role: "agent", text: `📊 Executive Summary:\n${summaryResult.value.analysis}` });
+    else console.error("Summary agent failed:", summaryResult.reason);
 
     setChainRunning(false);
   };
