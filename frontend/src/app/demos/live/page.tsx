@@ -337,7 +337,12 @@ export default function LiveThreatDemoPage() {
     setChainStepIndex(0);
     setChainRunning(true);
     resetSummary();
-    setMessages({});
+    // Keep orchestrator messages (user input + plan), clear agent messages
+    setMessages(prev => {
+      const kept: Record<string, ChatMessage[]> = {};
+      if (prev["orchestrator"]) kept["orchestrator"] = prev["orchestrator"];
+      return kept;
+    });
 
     // ── PRE-EXECUTION SUB-AGENTS ──
     const planDesc = chain.steps.map((s, i) => `${i+1}. ${s.agentTitle} — ${s.role} [tools: ${(s.allowedTools || []).join(", ")}]`).join("\n");

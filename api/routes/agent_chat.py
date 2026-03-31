@@ -132,7 +132,7 @@ async def chat_with_agent_stream(
                 yield f"data: {json.dumps({'type': 'done', 'response': result.get('response', ''), 'session_id': result.get('session_id', '')})}\n\n"
                 return
 
-            client = OpenAI(api_key=api_key or "ollama", base_url=pconfig["base_url"], timeout=60)
+            client = OpenAI(api_key=api_key or "ollama", base_url=pconfig["base_url"], timeout=90)
             model = pconfig["model"]
 
             base_prompt = AGENT_PROMPTS.get(agent_id, f"You are a helpful AI assistant.")
