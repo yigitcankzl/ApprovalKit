@@ -774,3 +774,72 @@ async def check_ollama():
             return {"running": True, "has_model": has_model, "models": model_names}
     except Exception:
         return {"running": False, "has_model": False, "models": []}
+
+
+# ── AI Rule Assistant ────────────────────────────────────────────────────────
+
+RULE_ASSISTANT_PROMPT = """You are an AI Rule Assistant for ApprovalKit — a human approval middleware for AI agents.
+Help users create approval rules by asking questions and suggesting configurations.
+
+Available services: stripe-prod (charge, refund, payout), github-main (deploy, merge_pr), github-prod (lock_repo, revoke_tokens, add_member, remove_member), gmail-prod (send_email), slack-prod (send_message), salesforce-prod (update_contact)
+
+Available approval models: any_one (first approver), specific (designated person), all_of_n (everyone must approve), k_of_n (k out of n), sequential (ordered chain)
+
+Available condition operators: eq, gt, gte, lt, lte, regex, in, between, exists
+
+When the user describes what they want, respond with:
+1. A brief explanation of what the rule does
+2. A JSON rule suggestion in this format:
+
+```json
+{
+  "name": "Rule Name",
+  "connection": "service-name",
+  "action": "action_name",
+  "model": "approval_model",
+  "conditions": [{"field": "field_name", "operator": "op", "value": "val"}],
+  "step_up_model": null,
+  "step_up_conditions": [],
+  "context_template": "Approve {field}?",
+  "timeout_seconds": 300,
+  "on_timeout": "block"
+}
+```
+
+Keep responses concise. Ask clarifying questions if the request is ambiguous.
+IMPORTANT: Always respond in English."""
+
+
+class RuleAssistantRequest(BaseModel):
+    message: str = Field(..., max_length=1000)
+    history: list[dict] = []
+
+
+@router.post("/rule-assistant")
+async def rule_assistant(
+    req: RuleAssistantRequest,
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    """AI-powered rule creation assistant — suggests rule configurations via chat."""
+    from api.services.agent_chat import _PROVIDER_CONFIG
+    provider, api_key = _resolve_ai_credentials(workspace)
+    pconfig = _PROVIDER_CONFIG.get(provider, _PROVIDER_CONFIG.get("gemini", {}))
+
+    from openai import OpenAI
+    client = OpenAI(api_key=api_key or "ollama", base_url=pconfig["base_url"], timeout=45)
+
+    messages = [{"role": "system", "content": RULE_ASSISTANT_PROMPT}]
+    for msg in req.history[-10:]:
+        messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+    messages.append({"role": "user", "content": req.message})
+
+    try:
+        resp = client.chat.completions.create(
+            model=pconfig["model"],
+            messages=messages,
+            temperature=0.3,
+            max_tokens=500,
+        )
+        return {"response": resp.choices[0].message.content or "I can help you create rules. What kind of approval rule do you need?"}
+    except Exception as e:
+        return {"response": f"Assistant unavailable: {str(e)[:100]}. You can still create rules manually using the form."}
