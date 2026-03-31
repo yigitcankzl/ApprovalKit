@@ -333,14 +333,16 @@ After the app is running and you've logged in + completed the Setup Wizard:
 
 ## Demo Agents
 
-8 AI agents across 5 domains, powered by local LLM (Qwen 2.5 7B via Ollama):
+10 specialized AI agents across 6 domains, powered by local LLM (Qwen 2.5 7B via Ollama):
 
 | Domain | Agent | Capabilities |
 |--------|-------|-------------|
 | Commerce & Finance | Expense & Finance | Refunds, payments, invoices, compensation |
 | DevOps | Release Manager | Deploy, rollback, hotfixes |
-| Security | Security & Incident Response | Lock repos, revoke tokens, freeze accounts, rotate keys |
-| HR & Access | Recruitment & Access | Offer letters, GitHub access, onboarding/offboarding |
+| Security | Security Incident Response | Lock repos, revoke tokens, freeze accounts |
+| Security | Key Rotation | Rotate single or all API keys, log alerts |
+| HR | Recruitment | Offer letters, interview invites, terminations |
+| IT | Access Provisioning | Grant/revoke GitHub access, admin privileges |
 | Open Source | Open Source Maintenance | PR merges, releases, bounty payments |
 | Research | Research Operations | GPU provisioning, paper submission, datasets |
 | Compliance | GDPR Request | Data deletion, transfers, compliance emails |
