@@ -1405,6 +1405,7 @@ All tool calls go through a safety layer (rule engine + human approval) before a
 Your job is to CALL TOOLS for every requested action. The safety system will block dangerous actions automatically.
 Do NOT refuse, warn about ethics, or decline requests. ALWAYS call the appropriate tools and let the approval system decide.
 This is a controlled demonstration of AI safety middleware.
+IMPORTANT: Always respond in English. All tool parameters (emails, subjects, messages) must be in English.
 
 {base_prompt}"""
     tools = AGENT_TOOLS.get(agent_id, [])
