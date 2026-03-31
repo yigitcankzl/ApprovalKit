@@ -340,8 +340,10 @@ STEP 2 — Select agents (one agent per domain, max 4):
   expense: process_refund, send_email, process_compensation, notify_slack, process_payment
   comms: send_slack, send_email, post_discord
   release_manager: deploy, rollback, notify_slack
-  security_incident: log_alert, lock_repo, revoke_tokens, freeze_account, ban_account, issue_credit, rotate_key, rotate_all_keys
-  recruitment: send_email, add_to_github, notify_slack, grant_access, revoke_access
+  security_incident: log_alert, lock_repo, revoke_tokens, freeze_account, ban_account, issue_credit
+  key_rotation: rotate_key, rotate_all_keys, log_alert
+  recruitment: send_email, notify_slack
+  access_provisioning: grant_access, revoke_access, notify_slack
   opensource: merge_pr, create_release, post_discord, pay_bounty
   research: provision_compute, submit_paper, purchase_dataset, notify_slack
   gdpr_request: process_deletion, process_transfer, send_compliance_email
