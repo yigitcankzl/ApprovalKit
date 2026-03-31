@@ -204,6 +204,8 @@ chmod +x setup.sh
 
 This starts all services (PostgreSQL, Redis, Vault, Ollama, API, Worker, Frontend), downloads the AI model, and seeds demo data. Open `http://localhost:3000` and start using the demo agents.
 
+> **⏱️ Setup time:** ~5 min for services + 5-30 min for one-time AI model download (4.7 GB). Alternatively, use a free [Groq API key](https://console.groq.com) to skip the download entirely.
+
 **For detailed setup instructions, Auth0 configuration, and using your own tenant, see [SETUP.md](SETUP.md).**
 
 ---
@@ -227,6 +229,11 @@ This starts all services (PostgreSQL, Redis, Vault, Ollama, API, Worker, Fronten
 15. **27+ Token Vault Providers** — Any Auth0 OAuth connection works out of the box
 16. **Per-Step Least Privilege** — Each agent in a chain gets only the tools needed for its specific role (1-2 tools, not the full 15+). Framework-level enforcement, not prompt-level — even prompt injection can't access filtered tools
 17. **Cascading Hallucination Prevention** — Chain context passes only verified tool execution results between agents, not LLM-generated text. Prevents Agent A's hallucination from propagating to Agent B
+
+### Known Limitations
+
+- **MFA + Token Exchange:** Auth0 Token Exchange does not support tenants with MFA enabled on the connected account flow. Workaround: use risk-based MFA rules or disable MFA for service accounts.
+- **Ollama GPU:** Local LLM requires NVIDIA GPU for real-time performance. CPU fallback works but is slower. Alternative: use Groq (free tier) for cloud inference.
 
 ---
 
