@@ -1040,6 +1040,12 @@ function EventCard({ event, onApprove, onReject, shieldOff }: {
           </div>
         </div>
       </div>
+      {/* Contextual tip */}
+      {event.type === "auto_approved" && !shieldOff && <p className="text-[9px] text-green-600/70 dark:text-green-400/50 mt-1.5 ml-6 italic">Below threshold — auto-approved by rule engine</p>}
+      {event.type === "step_up" && <p className="text-[9px] text-amber-600/70 dark:text-amber-400/50 mt-1.5 ml-6 italic">High-value action — approval model escalated automatically</p>}
+      {event.type === "blocked" && <p className="text-[9px] text-orange-600/70 dark:text-orange-400/50 mt-1.5 ml-6 italic">Rule engine blocked this action — agent never had access to credentials</p>}
+      {event.type === "scope_creep" && <p className="text-[9px] text-red-600/70 dark:text-red-400/50 mt-1.5 ml-6 italic">First-time action or 3x amount anomaly detected</p>}
+      {shieldOff && event.type === "auto_approved" && <p className="text-[9px] text-red-600/70 dark:text-red-400/50 mt-1.5 ml-6 italic">Without ApprovalKit, this action executes with zero oversight</p>}
       {(event.type === "pending" || event.type === "step_up") && event.jobId && (
         <div className="flex gap-2 mt-2 ml-6">
           <Button size="sm" variant="outline" onClick={() => onApprove(event.jobId!, event.id)}
