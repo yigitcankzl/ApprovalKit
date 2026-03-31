@@ -1609,6 +1609,7 @@ def _process_openai_compatible(
         # Agentic loop
         all_text_parts = []
         all_actions = []
+        seen_tool_sigs: set = set()
 
         for _round in range(MAX_TOOL_ROUNDS):
             create_kwargs = {
@@ -1644,10 +1645,17 @@ def _process_openai_compatible(
             ]
             messages.append(msg_dict)
 
-            # Execute ALL tool calls from this response (prevents duplicates from re-calling)
+            # Execute ALL tool calls from this response
             import json as _json
             for tc in msg.tool_calls:
                 tool_args = _json.loads(tc.function.arguments) if tc.function.arguments else {}
+
+                # Duplicate prevention
+                sig = f"{tc.function.name}:{_json.dumps(tool_args, sort_keys=True)}"
+                if sig in seen_tool_sigs:
+                    messages.append({"role": "tool", "tool_call_id": tc.id, "content": _json.dumps({"status": "already_executed", "_hint": "Already executed. Do NOT retry."})})
+                    continue
+                seen_tool_sigs.add(sig)
 
                 logger.info(f"Agent {agent_id} calling tool: {tc.function.name}({tool_args})")
 
