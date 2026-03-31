@@ -584,8 +584,17 @@ def process_approval_job(self, job_id: str):
     try:
         run_async(_process_job(job_id))
     except Exception as e:
-        logger.error(f"Error processing job {job_id}: {e}")
-        self.retry(exc=e)
+        logger.error(f"Error processing job {job_id} (attempt {self.request.retries + 1}/3): {e}")
+        try:
+            self.retry(exc=e)
+        except self.MaxRetriesExceededError:
+            # Send to dead letter queue after max retries
+            logger.error(f"Job {job_id} permanently failed — sending to dead letter queue")
+            celery_app.send_task(
+                "api.worker.tasks.process_approval_job",
+                args=[job_id],
+                queue="dead_letter",
+            )
 
 
 async def _cleanup_zombie_jobs():
