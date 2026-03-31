@@ -295,8 +295,8 @@ async def _execute_google(action: str, params: dict, creds: dict) -> dict:
     async with httpx.AsyncClient(timeout=15) as c:
         if action == "send_email":
             import base64
-            to = params.get("to") or params.get("recipient", "")
-            subject = params.get("subject", "")
+            to = (params.get("to") or params.get("recipient", "")).replace("\n", " ").replace("\r", "")
+            subject = (params.get("subject", "")).replace("\n", " ").replace("\r", "")
             body_text = params.get("body") or params.get("message", "")
             raw_msg = f"To: {to}\r\nSubject: {subject}\r\n\r\n{body_text}"
             encoded = base64.urlsafe_b64encode(raw_msg.encode()).decode()

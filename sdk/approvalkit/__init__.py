@@ -152,8 +152,12 @@ class ApprovalKit:
         deadline = time.time() + self.timeout
         while time.time() < deadline:
             ts = str(int(time.time()))
+            # Use same key composition as _sign() for consistency
+            sign_key = self.hmac_secret
+            if self.api_key:
+                sign_key = f"{self.hmac_secret}:{self.api_key}"
             sig = hmac.new(
-                self.hmac_secret.encode(),
+                sign_key.encode(),
                 f"{ts}.".encode(),
                 hashlib.sha256,
             ).hexdigest()
