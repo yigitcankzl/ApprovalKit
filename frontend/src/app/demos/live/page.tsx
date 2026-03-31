@@ -436,10 +436,7 @@ export default function LiveThreatDemoPage() {
             jobId: a.job_id,
           });
 
-          // Start polling for pending actions so UI updates when Guardian approves
-          if (status === "pending" && a.job_id) {
-            pollJob(step.agentId, a.job_id);
-          }
+          // Polling starts after chain completes (see setTimeout below setChainRunning)
         }
       } catch (e: any) {
         addMessage(step.agentId, { role: "system", text: `Error: ${e.message}` });
@@ -485,6 +482,20 @@ export default function LiveThreatDemoPage() {
     else console.error("Summary agent failed:", summaryResult.reason);
 
     setChainRunning(false);
+
+    // Start polling all pending jobs AFTER chain completes (React state is settled)
+    setTimeout(() => {
+      setMessages(prev => {
+        for (const [aid, msgs] of Object.entries(prev)) {
+          for (const m of msgs) {
+            if (m.role === "tool" && m.toolStatus === "pending" && m.jobId) {
+              pollJob(aid, m.jobId);
+            }
+          }
+        }
+        return prev; // Don't modify, just read
+      });
+    }, 500);
   };
 
   const sendMessage = async (text: string) => {
