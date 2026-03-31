@@ -140,6 +140,8 @@ export const api = {
     fetchAPI("/api/v1/demo/agents/orchestrate", { method: "POST", body: JSON.stringify({ message }) }),
   runSubAgent: (role: string, context: string) =>
     fetchAPI("/api/v1/demo/agents/sub-agent", { method: "POST", body: JSON.stringify({ role, context }) }),
+  ruleAssistant: (message: string, history: { role: string; content: string }[] = []) =>
+    fetchAPI("/api/v1/demo/agents/rule-assistant", { method: "POST", body: JSON.stringify({ message, history }) }),
   chatWithAgent: (agentId: string, message: string, agentTitle: string = "", sessionId: string = "", allowedTools?: string[]) =>
     fetchAPI(`/api/v1/demo/agents/${agentId}/chat`, {
       method: "POST",
