@@ -1,5 +1,7 @@
 # Blog Post: Building Token Vault Token Exchange for AI Agent Approval
 
+## Bonus Blog Post
+
 ## The Discovery
 
 When we started building ApprovalKit, we assumed Token Vault was simple: store OAuth tokens, retrieve them when needed. We were wrong.

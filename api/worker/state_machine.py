@@ -19,7 +19,7 @@ VALID_TRANSITIONS = {
     JobState.APPROVED: [],
     JobState.REJECTED: [],
     JobState.BLOCKED: [],
-    JobState.PRE_APPROVED: [],
+    JobState.PRE_APPROVED: [JobState.APPROVED, JobState.BLOCKED],
 }
 
 

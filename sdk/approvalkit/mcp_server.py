@@ -204,6 +204,7 @@ async def list_connections() -> str:
     async with httpx.AsyncClient(timeout=10) as client:
         r = await client.get(f"{BASE_URL}/api/v1/connections", headers={
             "Authorization": f"Bearer {API_KEY}",
+            "X-Signature": f"{ts}.{sig}",
             "Content-Type": "application/json",
         })
         connections = r.json()
@@ -229,6 +230,7 @@ async def list_rules() -> str:
     async with httpx.AsyncClient(timeout=10) as client:
         r = await client.get(f"{BASE_URL}/api/v1/rules", headers={
             "Authorization": f"Bearer {API_KEY}",
+            "X-Signature": f"{ts}.{sig}",
             "Content-Type": "application/json",
         })
         return json.dumps(r.json(), indent=2)
