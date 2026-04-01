@@ -42,6 +42,7 @@ import hashlib
 import hmac
 import logging
 import random
+import secrets
 import inspect
 import json
 import time
@@ -64,7 +65,7 @@ class ApprovalDenied(Exception):
 class ApprovalKit:
     def __init__(
         self,
-        base_url: str = "http://localhost:8000",
+        base_url: str = "",
         api_key: str = "",
         hmac_secret: str = "",
         user_id: str = "agent",
@@ -72,13 +73,14 @@ class ApprovalKit:
         timeout: int = 300,
         http_timeout: int = 10,
     ):
-        self.base_url = base_url.rstrip("/")
-        self.api_key = api_key
-        self.hmac_secret = hmac_secret
+        import os
+        self.base_url = (base_url or os.getenv("APPROVALKIT_BASE_URL", "http://localhost:8000")).rstrip("/")
+        self.api_key = api_key or os.getenv("APPROVALKIT_API_KEY", "")
+        self.hmac_secret = hmac_secret or os.getenv("APPROVALKIT_HMAC_SECRET", "")
         self.user_id = user_id
-        self.poll_interval = poll_interval
-        self.timeout = timeout
-        self.http_timeout = http_timeout
+        self.poll_interval = max(1, min(poll_interval, 120))
+        self.timeout = max(10, min(timeout, 3600))
+        self.http_timeout = max(1, min(http_timeout, 60))
 
 
     # ------------------------------------------------------------------
@@ -173,7 +175,7 @@ class ApprovalKit:
             status = data.get("status", "pending")
             if status in ("approved", "rejected", "timeout", "blocked"):
                 return status, data
-            time.sleep(self.poll_interval + random.uniform(0, 1))
+            time.sleep(self.poll_interval + secrets.randbelow(1000) / 1000.0)
         return "timeout", {}
 
     def _resolve_params(self, fn, params_fn, args, kwargs) -> dict:
