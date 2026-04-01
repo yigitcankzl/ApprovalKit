@@ -1460,6 +1460,7 @@ class TokenVaultService:
                 "success":    False,
                 "skipped":    True,
                 "reason":     "not_connected_via_auth0",
+                "error":      f"Service '{connection}' is not connected. Go to the Connections page and click Connect to authorize via OAuth.",
                 "connection": connection,
                 "action":     action,
                 "params":     params,
