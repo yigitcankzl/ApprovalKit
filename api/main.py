@@ -104,6 +104,12 @@ app.include_router(email_approval.router)
 app.include_router(auth0_logs.router)
 
 
+@app.exception_handler(ValueError)
+async def value_error_handler(request: Request, exc: ValueError):
+    """Return 400 for invalid UUIDs and other value errors instead of 500."""
+    return JSONResponse(status_code=400, content={"detail": str(exc)})
+
+
 @app.get("/")
 async def root():
     return {
