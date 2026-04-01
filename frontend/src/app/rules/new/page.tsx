@@ -494,7 +494,8 @@ function RuleAssistant({ onApplyRule, approverIds }: { onApplyRule: (rule: any) 
       setMessages(prev => [...prev, { role: "assistant", content: `✅ Rule "${rule.name}" saved successfully! Redirecting to rules list...` }]);
       setTimeout(() => router.push("/rules"), 1500);
     } catch (e: any) {
-      setMessages(prev => [...prev, { role: "assistant", content: `❌ Failed to save: ${e.message}` }]);
+      const errMsg = typeof e.message === "string" ? e.message : JSON.stringify(e.message || e);
+      setMessages(prev => [...prev, { role: "assistant", content: `❌ Failed to save: ${errMsg}` }]);
     }
     setSaving(false);
   };
