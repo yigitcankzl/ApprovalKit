@@ -35,6 +35,13 @@ BUDGET_DAILY_TTL = 86400          # 24 hours
 BUDGET_WEEKLY_TTL = 604800        # 7 days
 BUDGET_MONTHLY_TTL = 2678400      # 31 days
 
+# Default budget limits (per agent) — override via BUDGET_DAILY_LIMIT etc. env vars
+DEFAULT_BUDGET_LIMITS = {
+    "daily": 50_000,
+    "weekly": 200_000,
+    "monthly": 500_000,
+}
+
 # Agent rate limiting (per-agent hourly request counter)
 REDIS_KEY_AGENT_RATE = "agent_rate:{agent_id}:{connection}"
 AGENT_RATE_WINDOW_SECONDS = 3600  # 1 hour sliding window

@@ -129,7 +129,8 @@ async def submit_approval_request(
             break
 
     if amount_val and amount_val > 0:
-        budget_limits = {"daily": 50000, "weekly": 200000, "monthly": 500000}  # defaults
+        from api.constants import DEFAULT_BUDGET_LIMITS
+        budget_limits = DEFAULT_BUDGET_LIMITS
         budget_result = await check_budget(
             agent_id=request.user_id,
             amount=amount_val,

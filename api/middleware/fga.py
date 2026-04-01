@@ -9,12 +9,19 @@ When FGA_STORE_ID is not configured, all checks are skipped (dev mode).
 When FGA IS configured and header is missing, the request is DENIED (fail-closed).
 """
 from fastapi import Header, HTTPException, Request
+from loguru import logger
 
 from api.config import get_settings
 from api.services.fga import fga_client
 
 settings = get_settings()
 _fga_configured = bool(settings.FGA_STORE_ID and settings.FGA_API_URL)
+
+# Warn at startup if FGA is partially configured
+if settings.FGA_STORE_ID and not settings.FGA_API_URL:
+    logger.warning("FGA_STORE_ID is set but FGA_API_URL is missing — FGA checks will be skipped")
+elif settings.FGA_API_URL and not settings.FGA_STORE_ID:
+    logger.warning("FGA_API_URL is set but FGA_STORE_ID is missing — FGA checks will be skipped")
 
 
 def _require_fga_user(x_fga_user: str | None) -> str | None:
