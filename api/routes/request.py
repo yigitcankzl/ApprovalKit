@@ -54,6 +54,13 @@ async def submit_approval_request(
     db: AsyncSession = Depends(get_db),
     redis_client: aioredis.Redis = Depends(get_redis),
 ):
+    # Rate limit per agent/workspace to prevent abuse
+    from api.middleware.rate_limit import rate_limiter
+    rate_key = f"request:{workspace.id}:{request.user_id or 'anon'}"
+    allowed = await rate_limiter.check_rate_limit(key=rate_key, max_requests=60, window_seconds=60)
+    if not allowed:
+        raise HTTPException(status_code=429, detail="Rate limit exceeded — too many approval requests. Try again later.")
+
     # Auto-discover agent: ensure every user_id that sends requests
     # is visible in the dashboard, regardless of auth method.
     agent = getattr(raw_request.state, "agent", None)
