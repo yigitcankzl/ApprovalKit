@@ -194,12 +194,15 @@ async def _process_k_of_n(job: ApprovalJob, rule: Rule):
 def _resolve_delegation(approver):
     if (
         approver.delegate_to
-        and approver.delegate
+        and getattr(approver, "delegate", None)
         and approver.delegate_from
         and approver.delegate_until
     ):
         now = datetime.utcnow()
-        if approver.delegate_from <= now <= approver.delegate_until:
+        # Strip timezone info for comparison with utcnow() (naive datetime)
+        dfrom = approver.delegate_from.replace(tzinfo=None) if approver.delegate_from.tzinfo else approver.delegate_from
+        duntil = approver.delegate_until.replace(tzinfo=None) if approver.delegate_until.tzinfo else approver.delegate_until
+        if dfrom <= now <= duntil:
             return approver.delegate
     return approver
 
