@@ -109,10 +109,7 @@ export default function NewRulePage() {
     if (!name.trim()) { setSaveError("Rule name is required."); return; }
     if (!connection) { setSaveError("Service connection is required."); return; }
     if (!action) { setSaveError("Action is required."); return; }
-    if (selectedApproverIds.length === 0) {
-      setSaveError("At least one approver must be selected.");
-      return;
-    }
+    // Approvers are optional — can be added later from the rules page
     setSaving(true);
     try {
       const data = {
@@ -397,7 +394,7 @@ export default function NewRulePage() {
           <FormError message={saveError} />
           <div className="flex justify-end gap-3">
             <Button variant="outline" onClick={() => router.push("/rules")}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving || !name || !connection || !action || selectedApproverIds.length === 0}>
+            <Button onClick={handleSave} disabled={saving || !name || !connection || !action}>
               <Save className="h-4 w-4 mr-2" />
               {saving ? "Saving..." : "Save Rule"}
             </Button>
@@ -425,7 +422,7 @@ export default function NewRulePage() {
       </div>
 
       {/* AI Rule Assistant */}
-      <RuleAssistant onApplyRule={(rule) => {
+      <RuleAssistant approverIds={selectedApproverIds.length > 0 ? selectedApproverIds : approvers.slice(0, 1).map(a => a.id)} onApplyRule={(rule) => {
         if (rule.name) setName(rule.name);
         if (rule.connection) setConnection(rule.connection);
         if (rule.action) setAction(rule.action);
@@ -448,12 +445,16 @@ export default function NewRulePage() {
         if (rule.approval_expiry_seconds) setApprovalExpiry(String(rule.approval_expiry_seconds));
         if (rule.blackout_start) setBlackoutStart(rule.blackout_start);
         if (rule.blackout_end) setBlackoutEnd(rule.blackout_end);
+        // Auto-select first approver if none selected
+        if (selectedApproverIds.length === 0 && approvers.length > 0) {
+          setSelectedApproverIds([approvers[0].id]);
+        }
       }} />
     </div>
   );
 }
 
-function RuleAssistant({ onApplyRule }: { onApplyRule: (rule: any) => void }) {
+function RuleAssistant({ onApplyRule, approverIds }: { onApplyRule: (rule: any) => void; approverIds: string[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
@@ -479,7 +480,7 @@ function RuleAssistant({ onApplyRule }: { onApplyRule: (rule: any) => void }) {
         action: rule.action,
         model: rule.model || "any_one",
         conditions: rule.conditions || [],
-        approver_ids: [],
+        approver_ids: approverIds,
         timeout_seconds: rule.timeout_seconds || 300,
         on_timeout: rule.on_timeout || "block",
         context_template: rule.context_template || "",
