@@ -81,11 +81,14 @@ fi
 step "2/7" "Configuring environment"
 
 # Check if .env exists with real Auth0 credentials
-if [ -f .env ] && grep -q "AUTH0_DOMAIN=dev-" .env 2>/dev/null; then
+if [ -f .env ] && grep -q "AUTH0_DOMAIN=" .env 2>/dev/null && ! grep -q "AUTH0_DOMAIN=your-" .env 2>/dev/null; then
     log ".env exists with Auth0 credentials"
 elif [ -f .env.example ]; then
     cp .env.example .env
-    warn ".env created from example — using demo Auth0 tenant"
+    # Generate HMAC_SECRET automatically
+    HMAC=$(python3 -c "import secrets; print(secrets.token_hex(32))" 2>/dev/null || openssl rand -hex 32)
+    sed -i "s/HMAC_SECRET=generate-a-random-64-char-hex-string/HMAC_SECRET=${HMAC}/" .env
+    warn ".env created from example — edit Auth0 credentials before use"
 else
     err "No .env or .env.example found"
     exit 1
