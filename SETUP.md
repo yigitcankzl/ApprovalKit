@@ -48,7 +48,29 @@ This starts all services with the pre-configured Auth0 tenant. Open `http://loca
 
 ---
 
-## Using Your Own Auth0 Tenant
+## Quick Path for Judges (5-Minute Setup)
+
+If you want to test with your own Auth0 tenant, here's the fast path:
+
+1. **Auth0 Dashboard** — Create 2 apps (M2M + Web), enable Token Vault
+2. **Edit two files** — `.env` and `frontend/.env.local` with your credentials
+3. **Run `./setup.sh`** — starts all services
+4. **Login + Setup Wizard** — enter credentials, click **Test Connection** to verify
+5. **Connect a service** — go to Connections, click Connect on Stripe/Google/GitHub
+
+The Setup Wizard has a **Test Connection** button that checks:
+- Domain reachability
+- M2M credential validity
+- Management API scopes
+- Token Vault connection count
+
+If any check fails, the wizard shows exactly what to fix. You don't need to guess.
+
+> **Minimum viable setup**: Auth0 free tier + 1 M2M app + 1 Web app + Token Vault enabled. No FGA, Guardian, or social connections required for the basic demo.
+
+---
+
+## Using Your Own Auth0 Tenant (Detailed)
 
 If you want to use your own Auth0 account instead of the demo tenant, follow these steps carefully. Every step is critical — missing one will cause silent failures.
 
