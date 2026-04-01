@@ -513,7 +513,7 @@ function RuleAssistant({ onApplyRule }: { onApplyRule: (rule: any) => void }) {
       const rule = extractRule(reply);
       if (rule && (rule.name || rule.connection)) {
         setLastRule(rule);
-        onApplyRule(rule);
+        // Don't auto-apply — user clicks "Apply to Form" or "Save Rule" button
       }
     } catch (e: any) {
       setMessages(prev => [...prev, { role: "assistant", content: `Error: ${e.message}` }]);
