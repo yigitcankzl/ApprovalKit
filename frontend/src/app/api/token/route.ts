@@ -14,7 +14,7 @@ export async function GET() {
       refreshToken: session.tokenSet?.refreshToken || null,
     });
   } catch (e) {
-    console.error("[token] Error:", e);
+    // Error logged server-side only — no sensitive info leaked to client
     return NextResponse.json({ accessToken: null }, { status: 401 });
   }
 }
