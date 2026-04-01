@@ -16,7 +16,7 @@ class RuleCreate(BaseModel):
     action: str = Field(pattern=r"^[a-z][a-z0-9_:]*$")
     conditions: list[ConditionSchema] = Field(default_factory=list)
     model: ApprovalModel
-    approver_ids: list[uuid.UUID] = Field(min_length=1)
+    approver_ids: list[uuid.UUID] = Field(default_factory=list)
     k_value: int | None = None
     timeout_seconds: int = Field(default=300, ge=30, le=3600)
     on_timeout: TimeoutAction = TimeoutAction.BLOCK
