@@ -59,12 +59,14 @@ async def _get_db_session():
     return session_factory()
 
 
-_current_ws_ciba: dict = {}  # DEPRECATED: kept for backward compat, use ws_creds param
+_current_ws_ciba: dict = {}
 
 async def _send_ciba(approver, binding_msg: str, rule: Rule, scope: str = "", job_id: str = "", ws_creds: dict | None = None) -> dict:
-    """Shared CIBA initiate → record → poll pattern. Uses workspace credentials passed as param (thread-safe)."""
+    """Shared CIBA initiate → record → poll pattern. Uses workspace credentials passed as param."""
     actual = _resolve_delegation(approver)
     ws = ws_creds or _current_ws_ciba
+    if not ws.get("domain"):
+        raise ValueError("Workspace CIBA credentials not configured — cannot send push notification")
     ciba_result = await ciba_service.initiate_ciba_request(
         user_id=actual.auth0_user_id,
         binding_message=binding_msg,
