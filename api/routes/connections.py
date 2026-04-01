@@ -32,11 +32,9 @@ from api.services.workspace_config import get_workspace_config, WorkspaceConfig
 
 settings = get_settings()
 
-# No cache — always fetch fresh from Auth0 (each workspace has different tenant)
-_auth0_connections_cache: dict[str, set[str]] = {}
-
-
-_token_vault_status: dict[str, bool] = {}  # service → is_token_vault_enabled
+# Per-workspace cache to prevent cross-tenant data leaks
+_auth0_connections_cache: dict[str, dict[str, str]] = {}  # workspace_id → {service: connection_name}
+_token_vault_status: dict[str, dict[str, bool]] = {}  # workspace_id → {service: bool}
 
 async def _get_auth0_configured_connections(ws_config: WorkspaceConfig, workspace_id: str = "") -> dict[str, str]:
     """Fetch configured social connections from Auth0 Management API.
@@ -89,7 +87,7 @@ async def _get_auth0_configured_connections(ws_config: WorkspaceConfig, workspac
                 return {}
 
             result: dict[str, str] = {}
-            global _token_vault_status
+            ws_tv_status: dict[str, bool] = {}
             for c in conns_resp.json():
                 name = c["name"]
                 strategy = c.get("strategy", "")
@@ -101,7 +99,7 @@ async def _get_auth0_configured_connections(ws_config: WorkspaceConfig, workspac
                 # Try strategy mapping first
                 service = _strategy_to_service.get(strategy)
                 if service:
-                    _token_vault_status[service] = has_tv
+                    ws_tv_status[service] = has_tv
                     result[service] = name
                     if service == "google":
                         result["gmail"] = name
@@ -115,6 +113,8 @@ async def _get_auth0_configured_connections(ws_config: WorkspaceConfig, workspac
                 if matched_service:
                     result[matched_service] = name
 
+            if workspace_id:
+                _token_vault_status[workspace_id] = ws_tv_status
             return result
     except Exception as e:
         logger.warning(f"Failed to fetch Auth0 connections for {domain}: {e}")
@@ -285,7 +285,8 @@ async def list_connections(workspace: Workspace = Depends(get_current_workspace)
         service = c.service.lower()
         d["is_auth0_configured"] = service in auth0_conns
         d["auth0_connection_name"] = auth0_conns.get(service, "")
-        d["is_token_vault_enabled"] = _token_vault_status.get(service, False)
+        ws_tv = _token_vault_status.get(str(workspace.id), {})
+        d["is_token_vault_enabled"] = ws_tv.get(service, False)
         out.append(d)
     return out
 
