@@ -65,15 +65,16 @@ def test_forbidden_constructor_key():
         )
 
 
-def test_user_id_must_start_with_auth0():
-    with pytest.raises(ValidationError):
-        ApprovalRequest(
-            connection="stripe",
-            action="charge",
-            params={},
-            user_id="google|123",
-            idempotency_key="key1",
-        )
+def test_user_id_accepts_any_provider():
+    """user_id accepts any identity provider format (auth0|, google|, etc.)"""
+    req = ApprovalRequest(
+        connection="stripe",
+        action="charge",
+        params={},
+        user_id="google|123",
+        idempotency_key="key1",
+    )
+    assert req.user_id == "google|123"
 
 
 def test_action_allows_colons():
