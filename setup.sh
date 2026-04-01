@@ -94,13 +94,36 @@ else
     exit 1
 fi
 
+# Auto-generate frontend/.env.local from backend .env values
+_sync_frontend_env() {
+    local AUTH0_DOMAIN AUTH0_WEB_CLIENT_ID AUTH0_WEB_CLIENT_SECRET AUTH0_SECRET
+    AUTH0_DOMAIN=$(grep "^AUTH0_DOMAIN=" .env 2>/dev/null | cut -d= -f2-)
+    AUTH0_WEB_CLIENT_ID=$(grep "^AUTH0_WEB_CLIENT_ID=" .env 2>/dev/null | cut -d= -f2-)
+    AUTH0_WEB_CLIENT_SECRET=$(grep "^AUTH0_WEB_CLIENT_SECRET=" .env 2>/dev/null | cut -d= -f2-)
+    AUTH0_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(16))" 2>/dev/null || openssl rand -hex 16)
+
+    cat > frontend/.env.local <<ENVEOF
+NEXT_PUBLIC_API_URL=http://localhost:8000
+AUTH0_SECRET=${AUTH0_SECRET}
+AUTH0_BASE_URL=http://localhost:3000
+AUTH0_DOMAIN=${AUTH0_DOMAIN}
+AUTH0_CLIENT_ID=${AUTH0_WEB_CLIENT_ID}
+AUTH0_CLIENT_SECRET=${AUTH0_WEB_CLIENT_SECRET}
+APP_BASE_URL=http://localhost:3000
+ENVEOF
+}
+
 if [ -f frontend/.env.local ]; then
-    log "frontend/.env.local exists"
-elif [ -f frontend/.env.local.example ]; then
-    cp frontend/.env.local.example frontend/.env.local
-    warn "frontend/.env.local created from example"
+    # Check if it still has placeholder values
+    if grep -q "AUTH0_DOMAIN=your-" frontend/.env.local 2>/dev/null || grep -q "AUTH0_CLIENT_ID=your-" frontend/.env.local 2>/dev/null; then
+        _sync_frontend_env
+        log "frontend/.env.local synced from .env (replaced placeholders)"
+    else
+        log "frontend/.env.local exists"
+    fi
 else
-    warn "frontend/.env.local not found — frontend auth may require setup"
+    _sync_frontend_env
+    log "frontend/.env.local generated from .env"
 fi
 
 # ── 3. GPU Detection ────────────────────────────────────────
