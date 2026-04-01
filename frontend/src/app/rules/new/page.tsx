@@ -430,9 +430,24 @@ export default function NewRulePage() {
         if (rule.connection) setConnection(rule.connection);
         if (rule.action) setAction(rule.action);
         if (rule.model) setModel(rule.model as ApprovalModel);
-        if (rule.conditions) setConditions(rule.conditions);
+        if (rule.conditions) {
+          // Normalize conditions: ensure value is correct type
+          const normalized = rule.conditions.map((c: any) => ({
+            field: c.field || "",
+            operator: c.operator || "eq",
+            value: typeof c.value === "string" && !isNaN(Number(c.value)) ? Number(c.value) : c.value,
+          }));
+          setConditions(normalized);
+        }
         if (rule.context_template) setContextTemplate(rule.context_template);
-        if (rule.timeout_seconds) setTimeoutSeconds(rule.timeout_seconds);
+        if (rule.timeout_seconds) setTimeoutSeconds(Number(rule.timeout_seconds));
+        if (rule.on_timeout) setOnTimeout(rule.on_timeout as TimeoutAction);
+        if (rule.step_up_model) { setStepUpEnabled(true); setStepUpModel(rule.step_up_model as ApprovalModel); }
+        if (rule.step_up_conditions) setStepUpConditions(rule.step_up_conditions);
+        if (rule.max_requests_per_hour) setMaxRequestsPerHour(String(rule.max_requests_per_hour));
+        if (rule.approval_expiry_seconds) setApprovalExpiry(String(rule.approval_expiry_seconds));
+        if (rule.blackout_start) setBlackoutStart(rule.blackout_start);
+        if (rule.blackout_end) setBlackoutEnd(rule.blackout_end);
       }} />
     </div>
   );
