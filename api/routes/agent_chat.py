@@ -818,11 +818,15 @@ When the user describes what they want, respond with:
 }
 ```
 
-IMPORTANT:
+IMPORTANT RULES:
 - Use numeric values for amounts (500 not "500")
 - step_up_conditions should be STRICTER versions of conditions (higher amount, not different field)
 - context_template uses {field_name} placeholders from params
 - Always respond in English
+- Keep explanations to 1-2 sentences MAX. Do NOT write long explanations.
+- The JSON block is the most important part — make it correct and complete
+- If the user says "require CFO" or "require manager", use model "specific" or "all_of_n" — these models route to ASSIGNED APPROVERS (the user adds approvers separately)
+- Do NOT hallucinate fields like "user_role" — stick to the common fields listed above
 IMPORTANT: Always respond in English."""
 
 
