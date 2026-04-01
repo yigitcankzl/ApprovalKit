@@ -399,7 +399,7 @@ async def get_connect_url(connection_id: str, request: Request, workspace: Works
     if not auth0_connection:
         raise HTTPException(
             status_code=400,
-            detail=f"Service '{service}' is not configured in Auth0 tenant ({login_domain}). "
+            detail=f"Service '{service}' is not configured in Auth0 tenant ({ws_config.auth0_domain}). "
                    f"Add it under Authentication → Social in your Auth0 Dashboard.",
         )
 
