@@ -40,23 +40,26 @@ exports.onExecuteCredentialsExchange = async (event, api) => {
     .update(payload)
     .digest('hex');
 
-  try {
-    const response = await fetch(`${apiUrl}/api/v1/auth0-webhook`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Auth0-Signature': signature,
-        'X-Auth0-Action': 'credentials-exchange',
-      },
-      body: payload,
-      signal: AbortSignal.timeout(5000),
-    });
+  const maxRetries = 2;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(`${apiUrl}/api/v1/auth0-webhook`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Auth0-Signature': signature,
+          'X-Auth0-Action': 'credentials-exchange',
+        },
+        body: payload,
+        signal: AbortSignal.timeout(attempt === 0 ? 3000 : 5000),
+      });
 
-    if (!response.ok) {
-      console.log(`ApprovalKit audit failed: HTTP ${response.status}`);
+      if (response.ok) return;
+      if (response.status >= 400 && response.status < 500) break; // Don't retry client errors
+    } catch (error) {
+      if (attempt === maxRetries) {
+        console.log(`ApprovalKit audit failed after ${maxRetries + 1} attempts: ${error.message}`);
+      }
     }
-  } catch (error) {
-    // Non-blocking — token exchange continues
-    console.log(`ApprovalKit audit error: ${error.message}`);
   }
 };

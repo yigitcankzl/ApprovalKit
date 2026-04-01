@@ -37,6 +37,12 @@ exports.onExecutePostLogin = async (event, api) => {
     return;
   }
 
+  const validRoles = ['admin', 'approver', 'viewer', 'agent_owner'];
+  if (!validRoles.includes(role)) {
+    console.log(`ApprovalKit: Invalid role "${role}" — skipping FGA sync`);
+    return;
+  }
+
   const payload = JSON.stringify({
     event_type: 'post_login_fga_sync',
     user_id: event.user.user_id,
@@ -54,24 +60,27 @@ exports.onExecutePostLogin = async (event, api) => {
     .update(payload)
     .digest('hex');
 
-  try {
-    const response = await fetch(`${apiUrl}/api/v1/auth0-webhook`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Auth0-Signature': signature,
-        'X-Auth0-Action': 'post-login',
-      },
-      body: payload,
-      signal: AbortSignal.timeout(5000),
-    });
+  const maxRetries = 2;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(`${apiUrl}/api/v1/auth0-webhook`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Auth0-Signature': signature,
+          'X-Auth0-Action': 'post-login',
+        },
+        body: payload,
+        signal: AbortSignal.timeout(attempt === 0 ? 3000 : 5000),
+      });
 
-    if (!response.ok) {
-      console.log(`ApprovalKit FGA sync failed: HTTP ${response.status}`);
+      if (response.ok) break;
+      if (response.status >= 400 && response.status < 500) break; // Don't retry client errors
+    } catch (error) {
+      if (attempt === maxRetries) {
+        console.log(`ApprovalKit FGA sync failed after ${maxRetries + 1} attempts: ${error.message}`);
+      }
     }
-  } catch (error) {
-    // Non-blocking — login continues even if FGA sync fails
-    console.log(`ApprovalKit FGA sync error: ${error.message}`);
   }
 
   // Add role to ID token custom claim for frontend visibility
