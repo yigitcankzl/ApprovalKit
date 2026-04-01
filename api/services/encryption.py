@@ -47,6 +47,9 @@ def decrypt_secret(value: str | None) -> str | None:
         return value
     try:
         return f.decrypt(value.encode()).decode()
-    except (InvalidToken, Exception):
+    except InvalidToken:
         # Value might be plain text (pre-encryption) — return as-is
+        return value
+    except Exception as e:
+        logger.warning(f"Unexpected decryption error: {type(e).__name__}")
         return value
