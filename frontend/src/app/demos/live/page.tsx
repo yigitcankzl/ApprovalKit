@@ -357,13 +357,13 @@ export default function LiveThreatDemoPage() {
       api.runSubAgent("rollback_planner", planContext),
     ]);
     if (riskResult.status === "fulfilled") addMessage("sub_agents", { role: "agent", text: `🛡️ Risk Assessment:\n${riskResult.value.analysis}` });
-    else { console.error("Risk assessor failed:", riskResult.reason); addMessage("sub_agents", { role: "agent", text: "🛡️ Risk Assessment: Skipped (LLM unavailable)" }); }
+    else { void riskResult.reason; addMessage("sub_agents", { role: "agent", text: "🛡️ Risk Assessment: Skipped (LLM unavailable)" }); }
     if (costResult.status === "fulfilled") addMessage("sub_agents", { role: "agent", text: `💰 Cost Estimate:\n${costResult.value.analysis}` });
-    else { console.error("Cost estimator failed:", costResult.reason); addMessage("sub_agents", { role: "agent", text: "💰 Cost Estimate: Skipped (LLM unavailable)" }); }
+    else { void costResult.reason; addMessage("sub_agents", { role: "agent", text: "💰 Cost Estimate: Skipped (LLM unavailable)" }); }
     if (complianceResult.status === "fulfilled") addMessage("sub_agents", { role: "agent", text: `📜 Compliance Check:\n${complianceResult.value.analysis}` });
-    else { console.error("Compliance checker failed:", complianceResult.reason); addMessage("sub_agents", { role: "agent", text: "📜 Compliance Check: Skipped (LLM unavailable)" }); }
+    else { void complianceResult.reason; addMessage("sub_agents", { role: "agent", text: "📜 Compliance Check: Skipped (LLM unavailable)" }); }
     if (rollbackResult.status === "fulfilled") addMessage("sub_agents", { role: "agent", text: `🔄 Rollback Plan:\n${rollbackResult.value.analysis}` });
-    else { console.error("Rollback planner failed:", rollbackResult.reason); addMessage("sub_agents", { role: "agent", text: "🔄 Rollback Plan: Skipped (LLM unavailable)" }); }
+    else { void rollbackResult.reason; addMessage("sub_agents", { role: "agent", text: "🔄 Rollback Plan: Skipped (LLM unavailable)" }); }
 
     // Parse risk level — if CRITICAL, warn and require confirmation
     if (riskResult.status === "fulfilled") {
@@ -490,7 +490,7 @@ export default function LiveThreatDemoPage() {
           addMessage("sub_agents", { role: "system", text: `Validator FAILED at step ${i + 1}. Chain halted — review required.` });
           addEvent({ agentId: "validator", agentTitle: "Validator", type: "blocked", action: "validation", connection: "workflow", message: `Validator FAILED: ${step.agentTitle} output rejected`, params: {} });
         }
-      } catch (e) { console.error("Validator failed:", e); }
+      } catch (e) { void e; }
 
       setIsTyping(false);
 
@@ -510,9 +510,9 @@ export default function LiveThreatDemoPage() {
       api.runSubAgent("summary", allActionsContext),
     ]);
     if (auditResult.status === "fulfilled") addMessage("sub_agents", { role: "agent", text: `📝 Audit Trail:\n${auditResult.value.analysis}` });
-    else console.error("Audit reporter failed:", auditResult.reason);
+    else void auditResult.reason;
     if (summaryResult.status === "fulfilled") addMessage("sub_agents", { role: "agent", text: `📊 Executive Summary:\n${summaryResult.value.analysis}` });
-    else console.error("Summary agent failed:", summaryResult.reason);
+    else void summaryResult.reason;
 
     setChainRunning(false);
 
@@ -717,7 +717,7 @@ export default function LiveThreatDemoPage() {
   };
 
   const handleApprove = async (jobId: string, eventId: string) => {
-    try { await api.approveJob(jobId); } catch (e) { console.error("Approve failed:", e); }
+    try { await api.approveJob(jobId); } catch (e) { void e; }
     setEvents(prev => prev.map(e => e.id === eventId ? { ...e, type: "approved" as const } : e));
     setSummary(prev => ({ ...prev, pendingApproval: Math.max(0, prev.pendingApproval - 1), autoApproved: prev.autoApproved + 1 }));
     if (selectedAgent) setMessages(prev => ({ ...prev, [selectedAgent.id]: (prev[selectedAgent.id] || []).map(m => m.jobId === jobId ? { ...m, toolStatus: "approved" as const } : m) }));
@@ -725,7 +725,7 @@ export default function LiveThreatDemoPage() {
   const handleReject = async (jobId: string, eventId: string) => {
     const reason = prompt("Rejection reason (optional):") || "Rejected by approver";
     const evt = events.find(e => e.id === eventId); const amt = Number(evt?.params?.amount_usd) || 0;
-    try { await api.rejectJob(jobId, reason); } catch (e) { console.error("Reject failed:", e); }
+    try { await api.rejectJob(jobId, reason); } catch (e) { void e; }
     setEvents(prev => prev.map(e => e.id === eventId ? { ...e, type: "rejected" as const } : e));
     setSummary(prev => ({ ...prev, pendingApproval: Math.max(0, prev.pendingApproval - 1), blocked: prev.blocked + 1, preventedDamage: prev.preventedDamage + amt }));
     if (selectedAgent) setMessages(prev => ({ ...prev, [selectedAgent.id]: (prev[selectedAgent.id] || []).map(m => m.jobId === jobId ? { ...m, toolStatus: "rejected" as const } : m) }));
