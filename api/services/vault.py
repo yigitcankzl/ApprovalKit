@@ -26,10 +26,10 @@ def _get_vault_client() -> hvac.Client | None:
     """Get or create a Vault client. Returns None if Vault is not configured."""
     global _client
 
-    vault_url = getattr(settings, "VAULT_URL", None) or "http://localhost:8200"
-    vault_token = getattr(settings, "VAULT_TOKEN", None) or "approvalkit-dev-token"
+    vault_url = getattr(settings, "VAULT_URL", None)
+    vault_token = getattr(settings, "VAULT_TOKEN", None)
 
-    if not vault_url:
+    if not vault_url or not vault_token:
         return None
 
     if _client and _client.is_authenticated():
