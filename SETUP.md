@@ -53,7 +53,7 @@ This starts all services with the pre-configured Auth0 tenant. Open `http://loca
 If you want to test with your own Auth0 tenant, here's the fast path:
 
 1. **Auth0 Dashboard** — Create 2 apps (M2M + Web), enable Token Vault
-2. **Edit two files** — `.env` and `frontend/.env.local` with your credentials
+2. **Edit `.env`** — paste your Auth0 credentials (setup.sh auto-generates `frontend/.env.local`)
 3. **Run `./setup.sh`** — starts all services
 4. **Login + Setup Wizard** — enter credentials, click **Test Connection** to verify
 5. **Connect a service** — go to Connections, click Connect on Stripe/Google/GitHub
@@ -187,7 +187,7 @@ For each service you want agents to control:
 4. Under **Permissions**, add scope: `repo,workflow`
 5. Toggle **"Token Vault"** ON
 
-> Note: GitHub uses long-lived access tokens (no refresh token). Token Exchange works but falls back to Management API for token retrieval.
+> Note: GitHub uses long-lived access tokens (no refresh token). If the token expires, the user must reconnect via the Connections page.
 
 #### D. Slack
 
@@ -330,19 +330,17 @@ After the app is running and you've logged in + completed the Setup Wizard:
 
 ## Demo Agents
 
-10 specialized AI agents across 6 domains, powered by local LLM (Qwen 2.5 7B via Ollama):
+8 specialized AI agents across 6 domains, powered by local LLM (Qwen 2.5 7B via Ollama):
 
 | Domain | Agent | Capabilities |
 |--------|-------|-------------|
 | Commerce & Finance | Expense & Finance | Refunds, payments, invoices, compensation |
 | DevOps | Release Manager | Deploy, rollback, hotfixes |
 | Security | Security Incident Response | Lock repos, revoke tokens, freeze accounts |
-| Security | Key Rotation | Rotate single or all API keys, log alerts |
 | HR | Recruitment | Offer letters, interview invites, terminations |
-| IT | Access Provisioning | Grant/revoke GitHub access, admin privileges |
+| Compliance | GDPR Request | Data deletion, transfers, compliance emails |
 | Open Source | Open Source Maintenance | PR merges, releases, bounty payments |
 | Research | Research Operations | GPU provisioning, paper submission, datasets |
-| Compliance | GDPR Request | Data deletion, transfers, compliance emails |
 | Communications | Communications | Slack, email, Discord across all domains |
 
 
@@ -383,7 +381,7 @@ Then update `api/services/agent_chat.py`:
 If you don't have a GPU or want faster responses:
 
 1. Get a free API key at [console.groq.com](https://console.groq.com/keys)
-2. In the app: go to any agent's page → API Key section → select Groq → enter key
+2. In the app: go to **Settings** page → AI API Key section → select Groq → enter key
 
 ---
 

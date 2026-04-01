@@ -202,7 +202,7 @@ SSE live feed via Redis pub/sub shows approval events as they happen. Pending ap
 | Auth | Auth0 Token Vault, CIBA, FGA, nextjs-auth0 v4, per-agent HMAC |
 | SDK | Python, pip-installable, sync + async, jitter polling |
 | Execution | 30 built-in handlers, all via Auth0 Token Vault |
-| AI Agents | 10 specialized agents, code-based sub-agents, LLM compliance/summary |
+| AI Agents | 8 specialized agents, code-based sub-agents, LLM compliance/summary |
 | Infrastructure | Docker Compose (8 services), Ollama GPU support, non-root containers |
 
 ---
@@ -271,7 +271,7 @@ This starts all services (PostgreSQL, Redis, Vault, Ollama, API, Worker, Fronten
 | Approvers | CRUD + Guardian auto-linking + delegation + workspace isolation |
 | Audit Log | Filterable event log with PII masking, binding messages, Token Vault receipts |
 | Connect Agent | Per-agent API key generation, SDK code snippets, live testing |
-| Agents | 10 specialized agents (backend-served) + My Agents tab with scenarios |
+| Agents | 8 specialized agents (backend-served) + My Agents tab with scenarios |
 | Setup | Full-page onboarding wizard (Auth0 creds + connections), no sidebar |
 | Settings | Edit existing workspace credentials (sidebar layout) |
 | Compliance | Audit trail with timeline visualization, JSON/CSV export for SOC2 |
