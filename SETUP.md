@@ -80,16 +80,18 @@ If you want to use your own Auth0 account instead of the demo tenant, follow the
 2. Create a new tenant (e.g., `approvalkit-dev`)
 3. Note your **tenant domain**: `your-tenant.us.auth0.com`
 
-### Step 2: Enable Auth0 for AI Agents (Token Vault)
+### Step 2: Enable Token Vault
 
 This is the most important step — without it, Token Exchange won't work.
 
-1. Go to **Auth0 Dashboard → Auth0 for AI Agents** (left sidebar, under "AI")
-   - If you don't see this menu, go to **Settings → Features → Token Vault** and enable it
-2. Enable **Token Vault** for your tenant
-3. Note: Token Vault is separate from regular OAuth — it stores tokens via the **Connected Accounts** flow, not the login flow
+Token Vault is enabled in **two places**:
 
-> **Critical:** Token Exchange (RFC 8693) can ONLY access tokens stored via Connected Accounts (`/me/v1/connected-accounts`). Tokens from standard `/authorize` login are in `identities[]` and cannot be exchanged. This is the #1 source of integration errors.
+1. **Per-application:** Go to **Applications → Your App → Settings → Advanced Settings → Grant Types** → check **"Token Vault"**
+2. **Per-connection:** Go to **Authentication → Social Connections → [Connection] → Advanced** → toggle **"Enable Token Vault"** ON
+
+Both must be enabled for Token Exchange to work. When Token Vault is enabled on a connection, access/refresh tokens are stored in the Token Vault instead of the user's `identities[]` array.
+
+> **Critical:** Token Exchange (RFC 8693) can only access tokens stored in Token Vault. Make sure Token Vault is toggled ON for each social connection you want agents to use (Step 6).
 
 ### Step 3: Create Backend M2M Application
 
@@ -128,7 +130,7 @@ This is the most important step — without it, Token Exchange won't work.
    - `Authorization Code`
    - `Refresh Token`
    - `Client Credentials`
-   - `Token Exchange` (for Token Vault — critical!)
+   - `Token Vault` (labeled "Token Vault" in the dashboard — this is the Token Exchange grant)
 5. **Settings → Advanced Settings → OAuth:**
    - `OIDC Conformant`: **ON** (required for Token Vault)
    - `Trust Token Endpoint IP Header`: **OFF**
@@ -136,10 +138,12 @@ This is the most important step — without it, Token Exchange won't work.
 
 ### Step 5: Set MFA Policy
 
-Token Exchange does NOT support MFA. If MFA is enabled, Token Vault calls will fail silently.
+MFA adds complexity to Token Exchange and may cause silent failures for federated connection exchanges. For the simplest setup:
 
 1. **Security → Multi-factor Authentication**
-2. Set **Policy** to **Never** (or create a rule to skip MFA for Token Exchange)
+2. Set **Policy** to **Never** (recommended for hackathon/demo use)
+
+> If you need MFA in production, it requires additional handling via the Auth0 MFA API. For this demo, disabling MFA avoids token exchange issues.
 
 ### Step 6: Configure Social Connections
 
