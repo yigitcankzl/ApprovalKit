@@ -1170,11 +1170,11 @@ def _execute_tool(agent_id: str, tool_name: str, tool_args: dict, workspace_id: 
 
             from api.services.rule_engine import evaluate_conditions
             matched_rule = None
-            print(f"[RULE DEBUG] Matching: {action['connection']}/{action['action']} params={action['params']}", flush=True)
-            print(f"[RULE DEBUG] Found {len(rules)} candidate rules", flush=True)
+            logger.debug(f"Rule matching: {action['connection']}/{action['action']}")
+            logger.debug(f"Found {len(rules)} candidate rules")
             for rule in rules:
                 result = evaluate_conditions(rule.conditions or [], action["params"])
-                print(f"[RULE DEBUG]   Rule '{rule.name}': conditions={rule.conditions}, match={result}", flush=True)
+                logger.debug(f"  Rule '{rule.name}': match={result}")
                 if result:
                     matched_rule = rule
                     break
@@ -1182,7 +1182,7 @@ def _execute_tool(agent_id: str, tool_name: str, tool_args: dict, workspace_id: 
         # engine is shared pool — do not dispose
 
         if not matched_rule:
-            print(f"[RULE DEBUG] NO MATCH — auto-approving {action['connection']}/{action['action']}", flush=True)
+            logger.debug(f"No rule matched — auto-approving {action['connection']}/{action['action']}")
             # Auto-approved — execute via Token Vault in background
             _fire_token_vault_execution(action["connection"], action["action"], action["params"], workspace_id)
             return {
