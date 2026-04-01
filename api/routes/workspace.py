@@ -193,6 +193,77 @@ async def setup_workspace(body: WorkspaceSetupRequest, request: Request, db: Asy
     )
 
 
+@router.post("/validate-auth0")
+async def validate_auth0_credentials(body: dict):
+    """Public endpoint — test if Auth0 credentials are valid before creating workspace.
+    Returns detailed diagnostics for each check."""
+    domain = body.get("domain", "")
+    m2m_id = body.get("m2m_client_id", "")
+    m2m_secret = body.get("m2m_client_secret", "")
+    web_id = body.get("web_client_id", "")
+
+    checks = []
+
+    # Check 1: Domain reachable
+    if domain:
+        try:
+            async with httpx.AsyncClient(timeout=5) as c:
+                r = await c.get(f"https://{domain}/.well-known/openid-configuration")
+                if r.status_code == 200:
+                    checks.append({"check": "domain_reachable", "ok": True, "detail": f"{domain} is reachable"})
+                else:
+                    checks.append({"check": "domain_reachable", "ok": False, "detail": f"Could not reach {domain} — check the domain name"})
+        except Exception:
+            checks.append({"check": "domain_reachable", "ok": False, "detail": f"Could not connect to {domain}"})
+    else:
+        checks.append({"check": "domain_reachable", "ok": False, "detail": "No domain provided"})
+
+    # Check 2: M2M credentials valid
+    if domain and m2m_id and m2m_secret:
+        try:
+            async with httpx.AsyncClient(timeout=10) as c:
+                r = await c.post(f"https://{domain}/oauth/token", json={
+                    "client_id": m2m_id,
+                    "client_secret": m2m_secret,
+                    "audience": f"https://{domain}/api/v2/",
+                    "grant_type": "client_credentials",
+                })
+                if r.status_code == 200:
+                    checks.append({"check": "m2m_credentials", "ok": True, "detail": "M2M credentials valid"})
+                    # Check 3: Token Vault / connections
+                    token = r.json().get("access_token", "")
+                    conns_r = await c.get(
+                        f"https://{domain}/api/v2/connections",
+                        headers={"Authorization": f"Bearer {token}"},
+                        params={"per_page": "5"},
+                    )
+                    if conns_r.status_code == 200:
+                        conn_list = conns_r.json()
+                        tv_conns = [cn for cn in conn_list if cn.get("options", {}).get("purpose") in ("token_vault", "login_and_token_vault")]
+                        checks.append({"check": "connections", "ok": True, "detail": f"{len(conn_list)} connections found, {len(tv_conns)} with Token Vault enabled"})
+                    elif conns_r.status_code == 403:
+                        checks.append({"check": "connections", "ok": False, "detail": "M2M app needs 'read:connections' scope — add it in API Authorization"})
+                    else:
+                        checks.append({"check": "connections", "ok": False, "detail": f"Could not read connections: HTTP {conns_r.status_code}"})
+                elif r.status_code == 401:
+                    checks.append({"check": "m2m_credentials", "ok": False, "detail": "Invalid M2M Client ID or Secret"})
+                elif r.status_code == 403:
+                    checks.append({"check": "m2m_credentials", "ok": False, "detail": "M2M app not authorized for Management API — authorize it in Auth0 Dashboard"})
+                else:
+                    checks.append({"check": "m2m_credentials", "ok": False, "detail": f"Auth0 returned HTTP {r.status_code}"})
+        except Exception as e:
+            checks.append({"check": "m2m_credentials", "ok": False, "detail": f"Connection error: {e}"})
+
+    # Check 4: Web app exists
+    if domain and web_id:
+        checks.append({"check": "web_client_id", "ok": True, "detail": f"Web Client ID provided: {web_id[:8]}..."})
+    elif not web_id:
+        checks.append({"check": "web_client_id", "ok": False, "detail": "No Web Client ID provided — needed for user login"})
+
+    all_ok = all(c["ok"] for c in checks)
+    return {"valid": all_ok, "checks": checks}
+
+
 @router.get("/tenant-config")
 async def get_tenant_config(domain: str = "", db: AsyncSession = Depends(get_db)):
     """Public endpoint — returns Auth0 client_id for a tenant domain (no secrets).

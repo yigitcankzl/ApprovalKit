@@ -30,6 +30,8 @@ export default function SetupPage() {
   const [checking, setChecking] = useState(true);
   const [tenantDomain, setTenantDomain] = useState("");
   const [tenantClientId, setTenantClientId] = useState("");
+  const [validating, setValidating] = useState(false);
+  const [validationResult, setValidationResult] = useState<{ valid: boolean; checks: { check: string; ok: boolean; detail: string }[] } | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -158,6 +160,10 @@ export default function SetupPage() {
                       Skip this if you used the default tenant.
                     </p>
                     <div className="grid grid-cols-2 gap-2">
+                      <div className="col-span-2">
+                        <label className="text-[10px] text-zinc-500">Auth0 Domain</label>
+                        <input value={tenantDomain} onChange={e => setTenantDomain(e.target.value)} className="w-full mt-0.5 rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1.5 text-xs font-mono" placeholder="your-tenant.us.auth0.com" />
+                      </div>
                       <div>
                         <label className="text-[10px] text-zinc-500">M2M Client ID</label>
                         <input value={m2mClientId} onChange={e => setM2mClientId(e.target.value)} className="w-full mt-0.5 rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1.5 text-xs font-mono" placeholder="n5NycPD..." />
@@ -175,6 +181,45 @@ export default function SetupPage() {
                         <input type="password" value={webClientSecret} onChange={e => setWebClientSecret(e.target.value)} className="w-full mt-0.5 rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1.5 text-xs font-mono" />
                       </div>
                     </div>
+
+                    {/* Test Connection Button */}
+                    <button
+                      type="button"
+                      disabled={validating || !tenantDomain || !m2mClientId}
+                      onClick={async () => {
+                        setValidating(true);
+                        setValidationResult(null);
+                        try {
+                          const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+                          const r = await fetch(`${API_BASE}/api/v1/workspace/validate-auth0`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              domain: tenantDomain,
+                              m2m_client_id: m2mClientId,
+                              m2m_client_secret: m2mClientSecret,
+                              web_client_id: webClientId || tenantClientId,
+                            }),
+                          });
+                          setValidationResult(await r.json());
+                        } catch { setValidationResult({ valid: false, checks: [{ check: "api", ok: false, detail: "Could not reach ApprovalKit API" }] }); }
+                        setValidating(false);
+                      }}
+                      className="w-full text-xs font-medium py-1.5 rounded border border-zinc-300 dark:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-40"
+                    >
+                      {validating ? "Testing..." : "Test Connection"}
+                    </button>
+
+                    {validationResult && (
+                      <div className="space-y-1">
+                        {validationResult.checks.map((c, i) => (
+                          <div key={i} className={`flex items-center gap-2 text-xs ${c.ok ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
+                            <span>{c.ok ? "\u2713" : "\u2717"}</span>
+                            <span>{c.detail}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </details>
