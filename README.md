@@ -212,11 +212,13 @@ SSE live feed via Redis pub/sub shows approval events as they happen. Pending ap
 ```bash
 git clone https://github.com/yigitcankzl/ApprovalKit.git
 cd ApprovalKit
+cp .env.example .env
+# Edit .env with your Auth0 credentials (see SETUP.md)
 chmod +x setup.sh
 ./setup.sh
 ```
 
-This starts all services (PostgreSQL, Redis, Vault, Ollama, API, Worker, Frontend), downloads the AI model, and seeds demo data. Open `http://localhost:3000` and start using the demo agents.
+Edit `.env` with your Auth0 M2M and Web app credentials, then run setup. This starts all services (PostgreSQL, Redis, Vault, Ollama, API, Worker, Frontend), downloads the AI model, and auto-generates `frontend/.env.local`. Open `http://localhost:3000` and start using the demo agents.
 
 > **⏱️ Setup time:** ~5 min for services + 5-30 min for one-time AI model download (4.7 GB). Alternatively, use a free [Groq API key](https://console.groq.com) to skip the download entirely.
 
