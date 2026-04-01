@@ -439,10 +439,49 @@ export default function NewRulePage() {
 }
 
 function RuleAssistant({ onApplyRule }: { onApplyRule: (rule: any) => void }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
   const [loading, setLoading] = useState(false);
+  const [lastRule, setLastRule] = useState<any>(null);
+  const [saving, setSaving] = useState(false);
+
+  const extractRule = (text: string): any | null => {
+    const jsonMatch = text.match(/```json\n?([\s\S]*?)```/);
+    if (jsonMatch) {
+      try { return JSON.parse(jsonMatch[1]); } catch {}
+    }
+    return null;
+  };
+
+  const saveRuleDirect = async (rule: any) => {
+    setSaving(true);
+    try {
+      await api.createRule({
+        name: rule.name || "AI-Generated Rule",
+        connection: rule.connection,
+        action: rule.action,
+        model: rule.model || "any_one",
+        conditions: rule.conditions || [],
+        approver_ids: [],
+        timeout_seconds: rule.timeout_seconds || 300,
+        on_timeout: rule.on_timeout || "block",
+        context_template: rule.context_template || "",
+        step_up_model: rule.step_up_model || null,
+        step_up_conditions: rule.step_up_conditions || [],
+        max_requests_per_hour: rule.max_requests_per_hour || null,
+        approval_expiry_seconds: rule.approval_expiry_seconds || null,
+        blackout_start: rule.blackout_start || null,
+        blackout_end: rule.blackout_end || null,
+      });
+      setMessages(prev => [...prev, { role: "assistant", content: `✅ Rule "${rule.name}" saved successfully! Redirecting to rules list...` }]);
+      setTimeout(() => router.push("/rules"), 1500);
+    } catch (e: any) {
+      setMessages(prev => [...prev, { role: "assistant", content: `❌ Failed to save: ${e.message}` }]);
+    }
+    setSaving(false);
+  };
 
   const send = async () => {
     if (!input.trim() || loading) return;
@@ -456,14 +495,10 @@ function RuleAssistant({ onApplyRule }: { onApplyRule: (rule: any) => void }) {
       const reply = res.response || "Sorry, I could not process that.";
       setMessages(prev => [...prev, { role: "assistant", content: reply }]);
 
-      // Try to extract JSON rule from response
-      const jsonMatch = reply.match(/```json\n?([\s\S]*?)```/);
-      if (jsonMatch) {
-        try {
-          const rule = JSON.parse(jsonMatch[1]);
-          // Auto-apply if valid
-          if (rule.name || rule.connection) onApplyRule(rule);
-        } catch {}
+      const rule = extractRule(reply);
+      if (rule && (rule.name || rule.connection)) {
+        setLastRule(rule);
+        onApplyRule(rule);
       }
     } catch (e: any) {
       setMessages(prev => [...prev, { role: "assistant", content: `Error: ${e.message}` }]);
@@ -514,17 +549,32 @@ function RuleAssistant({ onApplyRule }: { onApplyRule: (rule: any) => void }) {
             </div>
           </div>
         )}
-        {messages.map((msg, i) => (
-          <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-            <div className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${
-              msg.role === "user"
-                ? "bg-purple-600 text-white"
-                : "bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200"
-            }`}>
-              <pre className="whitespace-pre-wrap font-sans text-xs leading-relaxed">{msg.content}</pre>
+        {messages.map((msg, i) => {
+          const rule = msg.role === "assistant" ? extractRule(msg.content) : null;
+          return (
+          <div key={i}>
+            <div className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${
+                msg.role === "user"
+                  ? "bg-purple-600 text-white"
+                  : "bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200"
+              }`}>
+                <pre className="whitespace-pre-wrap font-sans text-xs leading-relaxed">{msg.content}</pre>
+              </div>
             </div>
+            {rule && (
+              <div className="flex gap-2 mt-1.5 ml-1">
+                <button onClick={() => onApplyRule(rule)} className="text-[10px] px-2.5 py-1 rounded-md border border-purple-300 dark:border-purple-700 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/20 font-medium">
+                  Apply to Form
+                </button>
+                <button onClick={() => saveRuleDirect(rule)} disabled={saving} className="text-[10px] px-2.5 py-1 rounded-md bg-purple-600 text-white hover:bg-purple-700 font-medium disabled:opacity-50">
+                  {saving ? "Saving..." : "Save Rule Directly"}
+                </button>
+              </div>
+            )}
           </div>
-        ))}
+          );
+        })}
         {loading && (
           <div className="flex items-center gap-2 text-purple-500 text-xs">
             <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-purple-500" />
