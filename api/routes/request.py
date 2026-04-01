@@ -529,6 +529,13 @@ async def submit_web_decision(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
+    # Prevent double-decision race condition (CIBA worker may have already decided)
+    if job.state in (JobState.APPROVED, JobState.REJECTED, JobState.BLOCKED, JobState.TIMEOUT):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Job already in terminal state: {job.state.value}",
+        )
+
     decision = body.get("decision")
     modified_params = body.get("modified_params")
     note = body.get("note") or "Approved via web dashboard"
