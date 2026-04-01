@@ -295,8 +295,12 @@ async def _execute_google(action: str, params: dict, creds: dict) -> dict:
     async with httpx.AsyncClient(timeout=15) as c:
         if action == "send_email":
             import base64
-            to = (params.get("to") or params.get("recipient", "")).replace("\n", " ").replace("\r", "")
-            subject = (params.get("subject", "")).replace("\n", " ").replace("\r", "")
+            import re
+            to = (params.get("to") or params.get("recipient", ""))
+            to = re.sub(r"[\r\n\x00]", "", to).strip()
+            if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", to):
+                return {"success": False, "error": f"Invalid email address: {to}"}
+            subject = re.sub(r"[\r\n\x00]", "", params.get("subject", "")).strip()
             body_text = params.get("body") or params.get("message", "")
             raw_msg = f"To: {to}\r\nSubject: {subject}\r\n\r\n{body_text}"
             encoded = base64.urlsafe_b64encode(raw_msg.encode()).decode()
@@ -381,8 +385,11 @@ async def _execute_microsoft(action: str, params: dict, creds: dict) -> dict:
 
     async with httpx.AsyncClient(base_url="https://graph.microsoft.com/v1.0", timeout=15) as c:
         if action == "send_email":
-            to = params.get("to") or params.get("recipient", "")
-            subject = params.get("subject", "")
+            import re
+            to = re.sub(r"[\r\n\x00]", "", params.get("to") or params.get("recipient", "")).strip()
+            if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", to):
+                return {"success": False, "error": f"Invalid email address: {to}"}
+            subject = re.sub(r"[\r\n\x00]", "", params.get("subject", "")).strip()
             body = params.get("body") or params.get("message", "")
             r = await c.post("/me/sendMail", headers=headers, json={
                 "message": {

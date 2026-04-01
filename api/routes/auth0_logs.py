@@ -52,10 +52,15 @@ async def receive_auth0_logs(request: Request):
     signature = request.headers.get("Authorization", "")
     if settings.HMAC_SECRET and signature:
         token = signature.replace("Bearer ", "")
-        # Auth0 Log Streams uses a simple bearer token
-        expected = hashlib.sha256(settings.HMAC_SECRET.encode()).hexdigest()[:32]
-        if token != expected:
+        # Auth0 Log Streams uses a simple bearer token — full HMAC comparison
+        expected = hmac.new(
+            settings.HMAC_SECRET.encode(),
+            b"auth0-log-stream",
+            hashlib.sha256,
+        ).hexdigest()
+        if not hmac.compare_digest(token, expected):
             logger.warning("Auth0 Log Streams: invalid bearer token")
+            raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
     try:
         events = json.loads(body)
