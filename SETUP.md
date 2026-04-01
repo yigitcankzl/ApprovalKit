@@ -1,15 +1,17 @@
 # ApprovalKit — Setup Guide
 
-## Quick Start (Demo Mode)
+## Quick Start
 
 ```bash
 git clone https://github.com/yigitcankzl/ApprovalKit.git
 cd ApprovalKit
+cp .env.example .env
+# Edit .env with your Auth0 credentials (see Step 10 below)
 chmod +x setup.sh
 ./setup.sh
 ```
 
-This starts all services with the pre-configured Auth0 tenant. Open `http://localhost:3000`, log in, and start using the demo agents.
+After editing `.env` with your Auth0 credentials, `setup.sh` starts all services. Open `http://localhost:3000`, log in, and start using the demo agents.
 
 ---
 
@@ -116,17 +118,19 @@ Both must be enabled for Token Exchange to work. When Token Vault is enabled on 
 1. **Applications → Create Application → Regular Web Application**
 2. Name: `ApprovalKit Web`
 3. **Settings tab:**
-   - **Allowed Callback URLs:**
+   - **Allowed Callback URLs** (add BOTH lines):
      ```
      http://localhost:3000/api/auth/callback
+     http://localhost:8000/api/v1/connections/oauth/callback
      ```
    - **Allowed Logout URLs:**
      ```
      http://localhost:3000
      ```
-   - **Allowed Web Origins:**
+   - **Allowed Web Origins** (add BOTH lines):
      ```
      http://localhost:3000
+     http://localhost:8000
      ```
 4. **Settings → Advanced Settings → Grant Types**, enable ALL of these:
    - `Authorization Code`
@@ -221,23 +225,14 @@ Auth0 Token Vault supports 30 OAuth providers. For any service:
 
 See [Auth0 Token Vault Integrations](https://auth0.com/ai/docs/intro/integrations) for the full list.
 
-### Step 7: Connected Accounts Redirect URI
+### Step 7: Verify Callback URLs
 
-ApprovalKit uses the Connected Accounts flow to store tokens in Token Vault. The redirect URI for this flow must be whitelisted:
+If you followed Step 4 correctly, your callback URLs are already set. Double-check that your Web App has these URLs whitelisted:
 
-1. **Auth0 Dashboard → Applications → Your Web App → Settings**
-2. Under **Allowed Callback URLs**, add BOTH:
-   ```
-   http://localhost:3000/api/auth/callback
-   http://localhost:8000/api/v1/connections/connected-accounts/callback
-   ```
-3. Under **Allowed Web Origins**, add:
-   ```
-   http://localhost:3000
-   http://localhost:8000
-   ```
+- **Allowed Callback URLs:** `http://localhost:3000/api/auth/callback` (login) and `http://localhost:8000/api/v1/connections/oauth/callback` (service connections)
+- **Allowed Web Origins:** `http://localhost:3000` and `http://localhost:8000`
 
-> The Connected Accounts flow works differently from login. It calls `/me/v1/connected-accounts/connect` to get a `connect_uri`, then the user authorizes the external service, and `/me/v1/connected-accounts/complete` stores the refresh token in Token Vault.
+> The service connection flow redirects through Auth0 OAuth to link external services (Stripe, Google, etc.). The refresh token is stored and later used for Token Exchange.
 
 ### Step 8: Configure FGA (Optional)
 
