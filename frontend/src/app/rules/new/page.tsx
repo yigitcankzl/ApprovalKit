@@ -462,6 +462,7 @@ function RuleAssistant({ onApplyRule, approverIds }: { onApplyRule: (rule: any) 
   const [loading, setLoading] = useState(false);
   const [lastRule, setLastRule] = useState<any>(null);
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   const extractRule = (text: string): any | null => {
     const jsonMatch = text.match(/```json\n?([\s\S]*?)```/);
@@ -491,8 +492,9 @@ function RuleAssistant({ onApplyRule, approverIds }: { onApplyRule: (rule: any) 
         blackout_start: rule.blackout_start || null,
         blackout_end: rule.blackout_end || null,
       });
-      setMessages(prev => [...prev, { role: "assistant", content: `✅ Rule "${rule.name}" saved successfully! Redirecting to rules list...` }]);
-      setTimeout(() => router.push("/rules"), 1500);
+      setSaved(true);
+      setMessages(prev => [...prev, { role: "assistant", content: `✅ Rule "${rule.name}" saved successfully!` }]);
+      setTimeout(() => router.push("/rules"), 2000);
     } catch (e: any) {
       const errMsg = typeof e.message === "string" ? e.message : JSON.stringify(e.message || e);
       setMessages(prev => [...prev, { role: "assistant", content: `❌ Failed to save: ${errMsg}` }]);
@@ -584,8 +586,8 @@ function RuleAssistant({ onApplyRule, approverIds }: { onApplyRule: (rule: any) 
                 <button onClick={() => onApplyRule(rule)} className="text-[10px] px-2.5 py-1 rounded-md border border-purple-300 dark:border-purple-700 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/20 font-medium">
                   Apply to Form
                 </button>
-                <button onClick={() => saveRuleDirect(rule)} disabled={saving} className="text-[10px] px-2.5 py-1 rounded-md bg-purple-600 text-white hover:bg-purple-700 font-medium disabled:opacity-50">
-                  {saving ? "Saving..." : "Save Rule Directly"}
+                <button onClick={() => saveRuleDirect(rule)} disabled={saving || saved} className={`text-[10px] px-2.5 py-1 rounded-md font-medium disabled:opacity-50 ${saved ? "bg-green-600 text-white" : "bg-purple-600 text-white hover:bg-purple-700"}`}>
+                  {saved ? "✓ Saved!" : saving ? "Saving..." : "Save Rule Directly"}
                 </button>
               </div>
             )}
