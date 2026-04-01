@@ -10,7 +10,7 @@ import { ConditionBuilder } from "@/components/rule-builder/condition-builder";
 import { LivePreview } from "@/components/rule-builder/live-preview";
 import { api } from "@/lib/api";
 import type { ApprovalModel, Approver, Condition, TimeoutAction } from "@/types";
-import { Save, Zap, Gauge, Clock, Bot, Send, X, Sparkles, ChevronUp, ChevronDown } from "lucide-react";
+import { Save, Zap, Gauge, Clock, Bot, Send, Sparkles } from "lucide-react";
 import { FormError } from "@/components/ui/form-error";
 import { useSearchParams } from "next/navigation";
 
@@ -401,8 +401,8 @@ export default function NewRulePage() {
           </div>
         </div>
 
-        {/* Live Preview */}
-        <div>
+        {/* Live Preview + AI Assistant */}
+        <div className="space-y-6">
           <LivePreview
             connection={connection}
             action={action}
@@ -418,45 +418,40 @@ export default function NewRulePage() {
             blackoutStart={blackoutStart}
             blackoutEnd={blackoutEnd}
           />
+          <RuleAssistant approverIds={selectedApproverIds.length > 0 ? selectedApproverIds : approvers.slice(0, 1).map(a => a.id)} onApplyRule={(rule) => {
+            if (rule.name) setName(rule.name);
+            if (rule.connection) setConnection(rule.connection);
+            if (rule.action) setAction(rule.action);
+            if (rule.model) setModel(rule.model as ApprovalModel);
+            if (rule.conditions) {
+              const normalized = rule.conditions.map((c: any) => ({
+                field: c.field || "",
+                operator: c.operator || "eq",
+                value: typeof c.value === "string" && !isNaN(Number(c.value)) ? Number(c.value) : c.value,
+              }));
+              setConditions(normalized);
+            }
+            if (rule.context_template) setContextTemplate(rule.context_template);
+            if (rule.timeout_seconds) setTimeoutSeconds(Number(rule.timeout_seconds));
+            if (rule.on_timeout) setOnTimeout(rule.on_timeout as TimeoutAction);
+            if (rule.step_up_model) { setStepUpEnabled(true); setStepUpModel(rule.step_up_model as ApprovalModel); }
+            if (rule.step_up_conditions) setStepUpConditions(rule.step_up_conditions);
+            if (rule.max_requests_per_hour) setMaxRequestsPerHour(String(rule.max_requests_per_hour));
+            if (rule.approval_expiry_seconds) setApprovalExpiry(String(rule.approval_expiry_seconds));
+            if (rule.blackout_start) setBlackoutStart(rule.blackout_start);
+            if (rule.blackout_end) setBlackoutEnd(rule.blackout_end);
+            if (selectedApproverIds.length === 0 && approvers.length > 0) {
+              setSelectedApproverIds([approvers[0].id]);
+            }
+          }} />
         </div>
       </div>
-
-      {/* AI Rule Assistant */}
-      <RuleAssistant approverIds={selectedApproverIds.length > 0 ? selectedApproverIds : approvers.slice(0, 1).map(a => a.id)} onApplyRule={(rule) => {
-        if (rule.name) setName(rule.name);
-        if (rule.connection) setConnection(rule.connection);
-        if (rule.action) setAction(rule.action);
-        if (rule.model) setModel(rule.model as ApprovalModel);
-        if (rule.conditions) {
-          // Normalize conditions: ensure value is correct type
-          const normalized = rule.conditions.map((c: any) => ({
-            field: c.field || "",
-            operator: c.operator || "eq",
-            value: typeof c.value === "string" && !isNaN(Number(c.value)) ? Number(c.value) : c.value,
-          }));
-          setConditions(normalized);
-        }
-        if (rule.context_template) setContextTemplate(rule.context_template);
-        if (rule.timeout_seconds) setTimeoutSeconds(Number(rule.timeout_seconds));
-        if (rule.on_timeout) setOnTimeout(rule.on_timeout as TimeoutAction);
-        if (rule.step_up_model) { setStepUpEnabled(true); setStepUpModel(rule.step_up_model as ApprovalModel); }
-        if (rule.step_up_conditions) setStepUpConditions(rule.step_up_conditions);
-        if (rule.max_requests_per_hour) setMaxRequestsPerHour(String(rule.max_requests_per_hour));
-        if (rule.approval_expiry_seconds) setApprovalExpiry(String(rule.approval_expiry_seconds));
-        if (rule.blackout_start) setBlackoutStart(rule.blackout_start);
-        if (rule.blackout_end) setBlackoutEnd(rule.blackout_end);
-        // Auto-select first approver if none selected
-        if (selectedApproverIds.length === 0 && approvers.length > 0) {
-          setSelectedApproverIds([approvers[0].id]);
-        }
-      }} />
     </div>
   );
 }
 
 function RuleAssistant({ onApplyRule, approverIds }: { onApplyRule: (rule: any) => void; approverIds: string[] }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
   const [loading, setLoading] = useState(false);
@@ -525,31 +520,16 @@ function RuleAssistant({ onApplyRule, approverIds }: { onApplyRule: (rule: any) 
     setLoading(false);
   };
 
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-2xl bg-gradient-to-r from-purple-600 to-blue-500 text-white shadow-lg shadow-purple-500/20 hover:shadow-purple-500/30 transition-all text-sm font-semibold"
-      >
-        <Sparkles className="h-4 w-4" />
-        AI Rule Assistant
-      </button>
-    );
-  }
-
   return (
-    <div className="fixed bottom-6 right-6 z-50 w-96 rounded-2xl border border-purple-200 dark:border-purple-800 bg-white dark:bg-zinc-900 shadow-2xl flex flex-col" style={{ maxHeight: "500px" }}>
+    <div className="rounded-2xl border border-purple-200 dark:border-purple-800 bg-white dark:bg-zinc-900 shadow-sm flex flex-col">
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/30 dark:to-blue-950/30 rounded-t-2xl">
         <Bot className="h-5 w-5 text-purple-600 dark:text-purple-400" />
         <span className="text-sm font-semibold text-purple-800 dark:text-purple-200 flex-1">AI Rule Assistant</span>
-        <button onClick={() => setOpen(false)} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">
-          <X className="h-4 w-4" />
-        </button>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-3" style={{ maxHeight: "350px" }}>
+      <div className="flex-1 overflow-y-auto p-3 space-y-3" style={{ minHeight: "200px", maxHeight: "400px" }}>
         {messages.length === 0 && (
           <div className="text-center py-6 space-y-2">
             <Sparkles className="h-8 w-8 text-purple-300 mx-auto" />

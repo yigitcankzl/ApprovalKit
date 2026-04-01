@@ -480,20 +480,25 @@ def build_escalation_chain(rule: Rule) -> list[dict]:
 
 
 def render_binding_message(template: str | None, params: dict) -> str:
+    import re
     if not template:
         # Generate a readable default message
         amt = params.get("amount_usd") or params.get("amount")
         if amt:
-            return f"Approve ${amt} action?"
-        return f"Approve action?"
-    result = template
-    for key, value in params.items():
-        # Sanitize value to prevent prompt injection in binding messages
-        safe_value = str(value)[:200].replace("\n", " ").replace("\r", "")
-        # Support both {key} and {{key}} placeholder formats
-        result = result.replace(f"{{{{{key}}}}}", safe_value)
-        result = result.replace(f"{{{key}}}", safe_value)
-    return result
+            result = f"Approve {amt} action"
+        else:
+            result = "Approve action"
+    else:
+        result = template
+        for key, value in params.items():
+            # Sanitize value to prevent prompt injection in binding messages
+            safe_value = str(value)[:200].replace("\n", " ").replace("\r", "")
+            # Support both {key} and {{key}} placeholder formats
+            result = result.replace(f"{{{{{key}}}}}", safe_value)
+            result = result.replace(f"{{{key}}}", safe_value)
+    # CIBA binding_message only allows alphanumerics, whitespace and +-_.,:#
+    result = re.sub(r"[^\w\s+\-_.,:#]", "", result)
+    return result[:150]
 
 
 async def check_agent_rate_limit(
