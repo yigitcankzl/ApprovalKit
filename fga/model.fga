@@ -9,6 +9,30 @@ type workspace
     define approver: [user]
     define agent_owner: [user]
     define viewer: [user]
+    define member: admin or approver or agent_owner or viewer
+
+type agent
+  relations
+    define workspace: [workspace]
+    define owner: [user]
+    define can_invoke: owner or admin from workspace
+    define can_manage: owner or admin from workspace
+
+type connection
+  relations
+    define workspace: [workspace]
+    define can_use: admin from workspace or agent_owner from workspace
+    define can_manage: admin from workspace
+
+type approval
+  relations
+    define workspace: [workspace]
+    define requester: [user]
+    define approver: [user]
+    define can_decide: approver or admin from workspace
+    define can_view: requester or approver or admin from workspace or viewer from workspace
+    define delegate: [user]
+    define can_decide_delegated: delegate or can_decide
 
 type audit_log
   relations
