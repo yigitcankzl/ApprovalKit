@@ -402,7 +402,7 @@ export default function NewRulePage() {
         </div>
 
         {/* Live Preview + AI Assistant */}
-        <div className="space-y-6">
+        <div className="space-y-6 sticky top-8 self-start">
           <LivePreview
             connection={connection}
             action={action}
