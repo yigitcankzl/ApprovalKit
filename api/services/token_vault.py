@@ -1267,7 +1267,16 @@ class TokenVaultService:
                         pass
                     return None
                 elif r.status_code == 403:
-                    logger.warning(f"Token Vault Token Exchange: 403 Forbidden for {connection_name} — {r.text}")
+                    error_body = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+                    if error_body.get("error") == "mfa_required":
+                        logger.warning(f"Token Vault Token Exchange: MFA required for {connection_name} — user must reconnect with MFA disabled")
+                        try:
+                            import asyncio
+                            asyncio.get_event_loop().create_task(self._mark_connection_expired(connection_name))
+                        except Exception:
+                            pass
+                    else:
+                        logger.warning(f"Token Vault Token Exchange: 403 Forbidden for {connection_name} — {r.text}")
                     return None
                 else:
                     if r.status_code >= 500:
