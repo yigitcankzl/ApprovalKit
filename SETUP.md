@@ -87,9 +87,11 @@ This is the most important step — without it, Token Exchange won't work.
 Token Vault is enabled in **two places**:
 
 1. **Per-application:** Go to **Applications → Your App → Settings → Advanced Settings → Grant Types** → check **"Token Vault"**
-2. **Per-connection:** Go to **Authentication → Social Connections → [Connection] → Advanced** → toggle **"Enable Token Vault"** ON
+2. **Per-connection:** Go to **Authentication → Social Connections → [Connection] → Advanced** → under **Purpose**, enable **"Connected Accounts for Token Vault"**
 
-Both must be enabled for Token Exchange to work. When Token Vault is enabled on a connection, access/refresh tokens are stored in the Token Vault instead of the user's `identities[]` array.
+Both must be enabled for Token Exchange to work. When Token Vault is enabled on a connection, access/refresh tokens are managed by Token Vault.
+
+> **Note:** On some free-tier tenants, Token Vault may require manual enablement. If you don't see the Token Vault grant type in your app settings, submit a support ticket at [Auth0 Support](https://support.auth0.com) or check the [community thread](https://community.auth0.com/t/request-to-enable-token-vault-early-access-for-hackathon-tenant/198372).
 
 > **Critical:** Token Exchange (RFC 8693) can only access tokens stored in Token Vault. Make sure Token Vault is toggled ON for each social connection you want agents to use (Step 6).
 
@@ -138,12 +140,12 @@ Both must be enabled for Token Exchange to work. When Token Vault is enabled on 
 
 ### Step 5: Set MFA Policy
 
-MFA adds complexity to Token Exchange and may cause silent failures for federated connection exchanges. For the simplest setup:
+Auth0 docs explicitly state: MFA policy must be set to **Never** for Token Vault to retrieve tokens. If MFA is set to "Always", Token Exchange will fail with `mfa_required` errors.
 
 1. **Security → Multi-factor Authentication**
-2. Set **Policy** to **Never** (recommended for hackathon/demo use)
+2. Set **Policy** to **Never**
 
-> If you need MFA in production, it requires additional handling via the Auth0 MFA API. For this demo, disabling MFA avoids token exchange issues.
+> This applies to the Token Exchange flow specifically. CIBA (push notification approvals) uses a separate MFA mechanism via Guardian and is not affected by this setting.
 
 ### Step 6: Configure Social Connections
 
@@ -155,7 +157,7 @@ For each service you want agents to control:
 2. Set redirect URI: `https://YOUR_AUTH0_DOMAIN/login/callback`
 3. Auth0: **Authentication → Social → Create Connection → Stripe**
 4. Enter Stripe Client ID + Secret
-5. **Important:** Toggle **"Token Vault"** ON for this connection
+5. **Important:** Under **Purpose**, enable **"Connected Accounts for Token Vault"** for this connection
 6. Under **Permissions**, add scopes: `read_write`
 
 #### B. Google (Gmail, Calendar, Drive, Sheets)
@@ -181,7 +183,7 @@ For each service you want agents to control:
    - Go to connection settings → Advanced
    - Add upstream parameter: `access_type` = `offline`
    - Without this, Google won't return a refresh token and Token Exchange will fail
-7. Toggle **"Token Vault"** ON
+7. Under **Purpose**, enable **"Connected Accounts for Token Vault"**
 
 #### C. GitHub
 
@@ -189,7 +191,7 @@ For each service you want agents to control:
 2. Authorization callback URL: `https://YOUR_AUTH0_DOMAIN/login/callback`
 3. Auth0: **Authentication → Social → GitHub** → enter Client ID + Secret
 4. Under **Permissions**, add scope: `repo,workflow`
-5. Toggle **"Token Vault"** ON
+5. Under **Purpose**, enable **"Connected Accounts for Token Vault"**
 
 > Note: GitHub uses long-lived access tokens (no refresh token). If the token expires, the user must reconnect via the Connections page.
 
@@ -204,7 +206,7 @@ For each service you want agents to control:
    - Token URL: `https://slack.com/api/oauth.v2.access`
    - Scope: `chat:write channels:read`
    - Enter Client ID + Client Secret from Slack app
-6. Toggle **"Token Vault"** ON
+6. Under **Purpose**, enable **"Connected Accounts for Token Vault"**
 
 #### E. Other Services (Discord, PayPal, Figma, etc.)
 
@@ -214,7 +216,7 @@ Auth0 Token Vault supports 30 OAuth providers. For any service:
 2. Set redirect URI to `https://YOUR_AUTH0_DOMAIN/login/callback`
 3. Auth0: **Authentication → Social → Create Connection**
 4. Enter Client ID + Secret
-5. Toggle **"Token Vault"** ON
+5. Under **Purpose**, enable **"Connected Accounts for Token Vault"**
 6. Ensure the connection requests `offline_access` or equivalent for refresh tokens
 
 See [Auth0 Token Vault Integrations](https://auth0.com/ai/docs/intro/integrations) for the full list.
@@ -251,12 +253,16 @@ Fine-Grained Authorization adds role-based access control (admin/approver/viewer
 
 For push notification approvals to mobile phones (instead of web dashboard):
 
-1. Auth0 Dashboard → **Security → Multi-factor Auth → Push via Auth0 Guardian**
-2. Enable Guardian push notifications
-3. Each approver needs to:
+> **Note:** CIBA may require an Essentials plan or the Auth0 for AI Agents add-on. On free-tier tenants, CIBA might not be available. Without CIBA, approvals happen via the web dashboard — all other features work normally.
+
+1. **Applications → Your Web App → Settings → Advanced → Grant Types** → enable **"Client-Initiated Backchannel Authentication (CIBA)"**
+2. **Applications → Your Web App → Settings** → scroll to **CIBA section** → configure notification channels
+3. Auth0 Dashboard → **Security → Multi-factor Auth → Push via Auth0 Guardian** → enable
+4. Each approver needs to:
    - Download **Auth0 Guardian** app ([iOS](https://apps.apple.com/app/auth0-guardian/id1093447833) / [Android](https://play.google.com/store/apps/details?id=com.auth0.guardian))
+   - Enroll in MFA via the Guardian app
    - Link their Auth0 account via the ApprovalKit Approvers page → "Link Guardian"
-4. CIBA push notifications are sent when an approval is pending — approver taps Approve/Deny on their phone
+5. CIBA push notifications are sent when an approval is pending — approver taps Approve/Deny on their phone
 
 > Without Guardian, approvals happen via the web dashboard (ApprovalKit Approve/Reject buttons). Guardian adds mobile push notifications as an additional channel.
 
@@ -393,6 +399,7 @@ If you don't have a GPU or want faster responses:
 
 | Problem | Solution |
 |---------|----------|
+| Token Vault grant type not visible | Submit support ticket at [Auth0 Support](https://support.auth0.com) to enable Token Vault on your tenant |
 | `port already in use` | `docker compose down` then retry, or change ports in docker-compose.yml |
 | Login redirect fails | Check Auth0 callback URLs match your hostname |
 | "No workspace found" | Complete the Setup Wizard at `/setup` after logging in |
