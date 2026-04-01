@@ -326,7 +326,7 @@ async def oauth_callback(
         try:
             query = query.where(ServiceConnection.workspace_id == uuid.UUID(workspace_id))
         except ValueError:
-            pass
+            return RedirectResponse(url=f"{settings.FRONTEND_URL}/connections?error=invalid_workspace")
     result = await db.execute(query)
     conn = result.scalar_one_or_none()
     if not conn:
@@ -533,7 +533,7 @@ async def connected_accounts_callback(
         try:
             query = query.where(ServiceConnection.workspace_id == uuid.UUID(workspace_id))
         except ValueError:
-            pass
+            return RedirectResponse(url=f"{settings.FRONTEND_URL}/connections?error=invalid_workspace")
     result = await db.execute(query)
     conn = result.scalar_one_or_none()
     if not conn:

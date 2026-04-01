@@ -32,7 +32,7 @@ class RateLimiter:
         results = await pipe.execute()
 
         current_count = results[2]
-        return current_count <= max_requests
+        return current_count < max_requests
 
     async def check_ciba_quota(self) -> dict:
         r = await self.get_redis()

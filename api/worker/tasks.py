@@ -144,12 +144,16 @@ async def _process_k_of_n(job: ApprovalJob, rule: Rule):
     window = rule.quorum_window or rule.timeout_seconds
 
     # --- send all CIBA requests in parallel ---
+    ws = _current_ws_ciba
     async def _initiate(ra):
         actual = _resolve_delegation(ra.approver)
         try:
             result = await ciba_service.initiate_ciba_request(
                 user_id=actual.auth0_user_id,
                 binding_message=binding_msg,
+                domain=ws.get("domain", ""),
+                client_id=ws.get("client_id", ""),
+                client_secret=ws.get("client_secret", ""),
             )
             await rate_limiter.record_ciba_request()
             return actual, result.get("auth_req_id")
@@ -570,9 +574,13 @@ async def _process_escalation(job: ApprovalJob, rule: Rule, session):
         return {"status": "blocked"}
 
     binding_msg = render_binding_message(rule.context_template, job.params)
+    ws = _current_ws_ciba
     ciba_result = await ciba_service.initiate_ciba_request(
         user_id=escalation_approver.auth0_user_id,
         binding_message=f"[ESCALATION] {binding_msg}",
+        domain=ws.get("domain", ""),
+        client_id=ws.get("client_id", ""),
+        client_secret=ws.get("client_secret", ""),
     )
     await rate_limiter.record_ciba_request()
 

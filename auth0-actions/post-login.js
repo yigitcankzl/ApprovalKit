@@ -75,7 +75,8 @@ exports.onExecutePostLogin = async (event, api) => {
       });
 
       if (response.ok) break;
-      if (response.status >= 400 && response.status < 500) break; // Don't retry client errors
+      if (response.status === 429) continue; // Retry rate-limited requests
+      if (response.status >= 400 && response.status < 500) break; // Don't retry other client errors
     } catch (error) {
       if (attempt === maxRetries) {
         console.log(`ApprovalKit FGA sync failed after ${maxRetries + 1} attempts: ${error.message}`);

@@ -1,5 +1,6 @@
 """Webhook notification service — fire-and-forget HTTP callbacks on approval events."""
 
+import asyncio
 import hashlib
 import hmac
 import json
@@ -51,6 +52,8 @@ async def send_webhook(
                 logger.warning(f"Webhook {url} returned {r.status_code} (attempt {attempt + 1})")
         except Exception as e:
             logger.warning(f"Webhook {url} failed (attempt {attempt + 1}): {e}")
+        if attempt < WEBHOOK_MAX_RETRIES - 1:
+            await asyncio.sleep(min(2 ** attempt, 10))
 
     logger.error(f"Webhook exhausted retries: {event} → {url}")
     return False

@@ -55,7 +55,8 @@ exports.onExecuteCredentialsExchange = async (event, api) => {
       });
 
       if (response.ok) return;
-      if (response.status >= 400 && response.status < 500) break; // Don't retry client errors
+      if (response.status === 429) continue; // Retry rate-limited requests
+      if (response.status >= 400 && response.status < 500) break; // Don't retry other client errors
     } catch (error) {
       if (attempt === maxRetries) {
         console.log(`ApprovalKit audit failed after ${maxRetries + 1} attempts: ${error.message}`);

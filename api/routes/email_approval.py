@@ -122,15 +122,17 @@ async def approve_via_token(
     # Publish SSE event
     try:
         r = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
-        await r.publish("approval_events", json.dumps({
-            "type": body.decision + "d",
-            "job_id": job_id,
-            "connection": job.connection,
-            "action": job.action,
-            "workspace_id": str(job.workspace_id),
-            "timestamp": datetime.utcnow().isoformat(),
-        }))
-        await r.aclose()
+        try:
+            await r.publish("approval_events", json.dumps({
+                "type": body.decision + "d",
+                "job_id": job_id,
+                "connection": job.connection,
+                "action": job.action,
+                "workspace_id": str(job.workspace_id),
+                "timestamp": datetime.utcnow().isoformat(),
+            }))
+        finally:
+            await r.aclose()
     except Exception:
         pass  # SSE is best-effort
 
