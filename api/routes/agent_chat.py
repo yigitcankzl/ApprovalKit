@@ -787,6 +787,17 @@ Available approval models: any_one (first approver), specific (designated person
 
 Available condition operators: eq, gt, gte, lt, lte, regex, in, between, exists
 
+Common condition fields:
+- amount, amount_usd (numeric) — for financial thresholds
+- env (string) — "production", "staging"
+- recipient_count (numeric) — for bulk operations
+- type (string) — action category
+- channel (string) — Slack channel name
+
+Step-up authentication: When a HIGHER threshold is reached, the approval model escalates.
+Example: base rule triggers at $100 (any_one), step-up at $5000 (all_of_n).
+step_up_conditions must use the SAME fields as conditions but with HIGHER thresholds.
+
 When the user describes what they want, respond with:
 1. A brief explanation of what the rule does
 2. A JSON rule suggestion in this format:
@@ -797,16 +808,21 @@ When the user describes what they want, respond with:
   "connection": "service-name",
   "action": "action_name",
   "model": "approval_model",
-  "conditions": [{"field": "field_name", "operator": "op", "value": "val"}],
-  "step_up_model": null,
-  "step_up_conditions": [],
-  "context_template": "Approve {field}?",
+  "conditions": [{"field": "amount_usd", "operator": "gte", "value": 100}],
+  "step_up_model": "all_of_n",
+  "step_up_conditions": [{"field": "amount_usd", "operator": "gte", "value": 5000}],
+  "context_template": "Approve {action} of ${amount_usd}?",
   "timeout_seconds": 300,
-  "on_timeout": "block"
+  "on_timeout": "block",
+  "max_requests_per_hour": 20
 }
 ```
 
-Keep responses concise. Ask clarifying questions if the request is ambiguous.
+IMPORTANT:
+- Use numeric values for amounts (500 not "500")
+- step_up_conditions should be STRICTER versions of conditions (higher amount, not different field)
+- context_template uses {field_name} placeholders from params
+- Always respond in English
 IMPORTANT: Always respond in English."""
 
 
