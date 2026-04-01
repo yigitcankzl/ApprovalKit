@@ -31,7 +31,7 @@ export default function ApprovePage() {
   const [tokenInfo, setTokenInfo] = useState<TokenInfo | null>(null);
   const [jobStatus, setJobStatus] = useState<JobStatus | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [result, setResult] = useState<{ decision: string; success: boolean } | null>(null);
+  const [result, setResult] = useState<{ decision: string; success: boolean; execution?: { success?: boolean; skipped?: boolean; reason?: string; error?: string } } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -82,7 +82,8 @@ export default function ApprovePage() {
       });
 
       if (resp.ok) {
-        setResult({ decision, success: true });
+        const data = await resp.json().catch(() => ({}));
+        setResult({ decision, success: true, execution: data.execution || undefined });
       } else {
         const err = await resp.json().catch(() => ({ detail: "Request failed" }));
         setResult({ decision, success: false });
@@ -145,10 +146,21 @@ export default function ApprovePage() {
                     {result.decision === "approve" ? "Approved" : "Rejected"}
                   </h2>
                   <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                    {result.decision === "approve"
-                      ? "The action has been approved and will be executed via Token Vault."
-                      : "The action has been rejected. The agent has been notified."}
+                    {result.decision === "reject"
+                      ? "The action has been rejected. The agent has been notified."
+                      : result.execution?.success
+                        ? "Approved and executed successfully via Token Vault."
+                        : result.execution?.skipped
+                          ? `Approved, but execution skipped: ${result.execution.reason || "service not connected"}.`
+                          : result.execution?.error
+                            ? `Approved, but execution failed: ${result.execution.error}.`
+                            : "The action has been approved and will be executed via Token Vault."}
                   </p>
+                  {result.decision === "approve" && result.execution && !result.execution.success && !result.execution.skipped && result.execution.error && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                      The agent will be notified. You may need to reconnect the service in the Connections page.
+                    </p>
+                  )}
                 </>
               ) : (
                 <>
