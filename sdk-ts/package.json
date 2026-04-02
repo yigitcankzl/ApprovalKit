@@ -1,0 +1,16 @@
+{
+  "name": "approvalkit-sdk",
+  "version": "0.1.0",
+  "description": "Human approval middleware for AI agents — TypeScript/JavaScript SDK",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "keywords": ["ai", "agents", "approval", "middleware", "auth0", "mcp"],
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}
