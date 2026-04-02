@@ -16,25 +16,26 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Create enum types
-    approval_model = sa.Enum("any_one", "specific", "all_of_n", "k_of_n", "sequential", name="approval_model")
-    timeout_action = sa.Enum("block", "escalate", name="timeout_action")
+    # Create enum types via raw SQL (asyncpg checkfirst is unreliable)
+    op.execute("DO $$ BEGIN CREATE TYPE approval_model AS ENUM ('any_one', 'specific', 'all_of_n', 'k_of_n', 'sequential'); EXCEPTION WHEN duplicate_object THEN NULL; END $$")
+    op.execute("DO $$ BEGIN CREATE TYPE timeout_action AS ENUM ('block', 'escalate'); EXCEPTION WHEN duplicate_object THEN NULL; END $$")
+    op.execute("DO $$ BEGIN CREATE TYPE job_state AS ENUM ('pending', 'ciba_sent', 'waiting_approval', 'partially_approved', 'approved', 'rejected', 'timeout', 'escalated', 'blocked', 'pre_approved'); EXCEPTION WHEN duplicate_object THEN NULL; END $$")
+    op.execute("DO $$ BEGIN CREATE TYPE audit_event AS ENUM ('requested', 'ciba_sent', 'approved', 'rejected', 'timeout', 'escalated', 'blocked', 'pre_approved', 'partial_approved', 'scope_creep', 'revoked'); EXCEPTION WHEN duplicate_object THEN NULL; END $$")
+
+    # Reference enums without auto-creating them
+    approval_model = sa.Enum("any_one", "specific", "all_of_n", "k_of_n", "sequential", name="approval_model", create_type=False)
+    timeout_action = sa.Enum("block", "escalate", name="timeout_action", create_type=False)
     job_state = sa.Enum(
         "pending", "ciba_sent", "waiting_approval", "partially_approved",
         "approved", "rejected", "timeout", "escalated", "blocked", "pre_approved",
-        name="job_state",
+        name="job_state", create_type=False,
     )
     audit_event = sa.Enum(
         "requested", "ciba_sent", "approved", "rejected", "timeout",
         "escalated", "blocked", "pre_approved", "partial_approved",
         "scope_creep", "revoked",
-        name="audit_event",
+        name="audit_event", create_type=False,
     )
-
-    approval_model.create(op.get_bind(), checkfirst=True)
-    timeout_action.create(op.get_bind(), checkfirst=True)
-    job_state.create(op.get_bind(), checkfirst=True)
-    audit_event.create(op.get_bind(), checkfirst=True)
 
     # Workspaces
     op.create_table(

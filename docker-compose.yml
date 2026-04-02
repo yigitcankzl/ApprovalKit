@@ -67,10 +67,22 @@ services:
       context: .
       dockerfile: Dockerfile.api
     command: >
-      sh -c "cd /app/api &&
-             PYTHONPATH=/app alembic upgrade head ||
-             (echo 'Schema exists — stamping head' &&
-              PYTHONPATH=/app alembic stamp head)"
+      sh -c "cd /app && PYTHONPATH=/app python -B -c \"
+      import asyncio, os
+      from sqlalchemy.ext.asyncio import create_async_engine
+      from api.database import Base
+      from api.models.workspace import Workspace
+      from api.models.connection import ServiceConnection
+      from api.models.approver import Approver
+      from api.models.rule import Rule, RuleApprover
+      from api.models.approval_job import ApprovalJob, AuditLog
+      async def main():
+          engine = create_async_engine(os.environ['DATABASE_URL'])
+          async with engine.begin() as conn:
+              await conn.run_sync(Base.metadata.create_all)
+          await engine.dispose()
+      asyncio.run(main())
+      \" && cd /app/api && PYTHONPATH=/app python -B -m alembic stamp head"
     env_file: .env
     depends_on:
       postgres:
