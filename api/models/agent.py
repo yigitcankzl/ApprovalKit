@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, Boolean, DateTime, Text, ForeignKey
+from sqlalchemy import String, Boolean, DateTime, Integer, Text, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -20,6 +20,9 @@ class RegisteredAgent(Base):
     allowed_connections: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     is_active: Mapped[bool | None] = mapped_column(nullable=True, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    # Feature 8: Trust Score (0–100, starts at 100)
+    trust_score: Mapped[int] = mapped_column(Integer, default=100)
+    trust_history: Mapped[list | None] = mapped_column(JSONB, default=list)
 
     scenarios: Mapped[list["AgentScenario"]] = relationship(
         "AgentScenario", back_populates="agent", cascade="all, delete-orphan", lazy="selectin"
