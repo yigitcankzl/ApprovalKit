@@ -44,6 +44,11 @@ async def lifespan(app: FastAPI):
     logger.info("ApprovalKit API starting up")
     from api.services.fga import fga_client
     fga_client._warn_if_misconfigured()
+    # Run schema migrations (idempotent ADD COLUMN IF NOT EXISTS)
+    from api.database import async_session
+    from api.migrations import run_migrations
+    async with async_session() as migration_session:
+        await run_migrations(migration_session)
     yield
     logger.info("ApprovalKit API shutting down")
     from api.middleware.rate_limit import rate_limiter
