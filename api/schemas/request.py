@@ -34,3 +34,9 @@ class JobStatusResponse(BaseModel):
     final_params: dict | None = None
     completed_at: str | None = None
     execution_receipt: dict | None = None
+    # Feature 4: Denial feedback
+    rejection_reason: str | None = None
+    retry_allowed: bool = True
+    # Feature 7: Risk score
+    risk_score: int = 0
+    risk_level: str = "low"
