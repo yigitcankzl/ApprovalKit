@@ -56,10 +56,16 @@ _log = logging.getLogger("approvalkit")
 
 class ApprovalDenied(Exception):
     """Raised when an approval request is rejected, timed out, or blocked."""
-    def __init__(self, status: str, job_id: str | None = None):
+    def __init__(self, status: str, job_id: str | None = None, reason: str | None = None):
         self.status = status
         self.job_id = job_id
-        super().__init__(f"Approval {status}" + (f" (job={job_id})" if job_id else ""))
+        self.reason = reason  # Feature 4: human-provided rejection reason
+        msg = f"Approval {status}"
+        if job_id:
+            msg += f" (job={job_id})"
+        if reason:
+            msg += f": {reason}"
+        super().__init__(msg)
 
 
 class ApprovalKit:
@@ -176,7 +182,7 @@ class ApprovalKit:
             if status in ("approved", "rejected", "timeout", "blocked"):
                 return status, data
             time.sleep(self.poll_interval + secrets.randbelow(1000) / 1000.0)
-        return "timeout", {}
+        return "timeout", {"rejection_reason": None}
 
     def _resolve_params(self, fn, params_fn, args, kwargs) -> dict:
         if params_fn:
@@ -217,7 +223,10 @@ class ApprovalKit:
             return {"status": "approved", "final_params": final_params}
 
         _log.info(f"{status} — action NOT executed.")
-        raise ApprovalDenied(status, job_id=job_id)
+        reason = data.get("rejection_reason")
+        if reason:
+            _log.info(f"Reason: {reason}")
+        raise ApprovalDenied(status, job_id=job_id, reason=reason)
 
     # ------------------------------------------------------------------
     # Sync public API
