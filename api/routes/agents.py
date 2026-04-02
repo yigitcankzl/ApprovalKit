@@ -50,6 +50,8 @@ class AgentIn(BaseModel):
 
 
 def _agent_to_dict(agent: RegisteredAgent, include_key: bool = False) -> dict:
+    trust_score = getattr(agent, "trust_score", 100) or 100
+    trust_level = "high" if trust_score >= 80 else "medium" if trust_score >= 50 else "low"
     d = {
         "id": str(agent.id),
         "name": agent.name,
@@ -60,6 +62,9 @@ def _agent_to_dict(agent: RegisteredAgent, include_key: bool = False) -> dict:
         "has_api_key": bool(agent.api_key),
         "api_key_preview": f"{agent.api_key[:8]}...{agent.api_key[-4:]}" if agent.api_key else None,
         "created_at": agent.created_at.isoformat(),
+        "trust_score": trust_score,
+        "trust_level": trust_level,
+        "trust_history": getattr(agent, "trust_history", []) or [],
         "scenarios": [
             {
                 "id": str(s.id),
@@ -74,6 +79,29 @@ def _agent_to_dict(agent: RegisteredAgent, include_key: bool = False) -> dict:
     if include_key and agent.api_key:
         d["api_key"] = agent.api_key
     return d
+
+
+async def _update_trust_score(agent_user_id: str, workspace_id, decision: str, db: AsyncSession):
+    """Update trust score after an approval decision. Feature 8."""
+    from datetime import datetime as dt
+    result = await db.execute(
+        select(RegisteredAgent).where(
+            RegisteredAgent.workspace_id == workspace_id,
+            RegisteredAgent.name == agent_user_id,
+        )
+    )
+    agent = result.scalar_one_or_none()
+    if not agent:
+        return
+    current = getattr(agent, "trust_score", 100) or 100
+    delta = -5 if decision == "reject" else 2 if decision == "approve" else 0
+    new_score = max(0, min(100, current + delta))
+    history = list(getattr(agent, "trust_history", []) or [])
+    history.append({"decision": decision, "delta": delta, "ts": dt.utcnow().isoformat(), "score": new_score})
+    history = history[-50:]  # keep last 50 events
+    agent.trust_score = new_score
+    agent.trust_history = history
+    await db.commit()
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -439,3 +467,62 @@ async def bootstrap_agent(
         result["api_key"] = agent_api_key
         result["hmac_secret"] = "Use your workspace HMAC secret"
     return result
+
+
+# ── Budget Tracker (Feature 13: BATS) ────────────────────────────────────────
+
+@router.get("/budgets")
+async def get_agent_budgets(
+    ws: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return current budget usage for all agents in the workspace. Feature 13 (BATS)."""
+    import redis.asyncio as aioredis
+    from api.config import get_settings
+    from api.constants import (
+        REDIS_KEY_BUDGET_DAILY, REDIS_KEY_BUDGET_WEEKLY, REDIS_KEY_BUDGET_MONTHLY,
+        DEFAULT_BUDGET_LIMITS,
+    )
+    settings = get_settings()
+
+    result = await db.execute(
+        select(RegisteredAgent)
+        .where(RegisteredAgent.workspace_id == ws.id, RegisteredAgent.is_active.is_(True))
+        .order_by(RegisteredAgent.created_at.desc())
+    )
+    agents = result.scalars().all()
+
+    r = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+    try:
+        budgets = []
+        for agent in agents:
+            aid = agent.name  # budget keyed by user_id / agent name
+            daily_raw = await r.get(REDIS_KEY_BUDGET_DAILY.format(agent_id=aid))
+            weekly_raw = await r.get(REDIS_KEY_BUDGET_WEEKLY.format(agent_id=aid))
+            monthly_raw = await r.get(REDIS_KEY_BUDGET_MONTHLY.format(agent_id=aid))
+            daily_spent = float(daily_raw or 0)
+            weekly_spent = float(weekly_raw or 0)
+            monthly_spent = float(monthly_raw or 0)
+            limits = DEFAULT_BUDGET_LIMITS
+            budgets.append({
+                "agent_id": str(agent.id),
+                "agent_name": agent.name,
+                "daily": {
+                    "spent": daily_spent,
+                    "limit": limits["daily"],
+                    "pct": round(daily_spent / limits["daily"] * 100, 1),
+                },
+                "weekly": {
+                    "spent": weekly_spent,
+                    "limit": limits["weekly"],
+                    "pct": round(weekly_spent / limits["weekly"] * 100, 1),
+                },
+                "monthly": {
+                    "spent": monthly_spent,
+                    "limit": limits["monthly"],
+                    "pct": round(monthly_spent / limits["monthly"] * 100, 1),
+                },
+            })
+    finally:
+        await r.aclose()
+    return budgets
