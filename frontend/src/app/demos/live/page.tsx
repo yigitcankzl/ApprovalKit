@@ -12,7 +12,7 @@ import {
   Play, Server, Shield, ShieldAlert, ShieldCheck, ShieldOff,
   Users, Zap, AlertTriangle, XCircle, Clock, Lock,
   ThumbsUp, ThumbsDown, Activity, Send, RotateCcw,
-  Wrench, Sparkles, Link2, PanelRightClose, PanelRightOpen, ChevronRight,
+  Wrench, Sparkles, Link2, PanelRightClose, PanelRightOpen, ChevronRight, Pencil,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -716,8 +716,8 @@ export default function LiveThreatDemoPage() {
     }, 2000);
   };
 
-  const handleApprove = async (jobId: string, eventId: string) => {
-    try { await api.approveJob(jobId); } catch (e) { void e; }
+  const handleApprove = async (jobId: string, eventId: string, modifiedParams?: Record<string, unknown>) => {
+    try { await api.submitDecision(jobId, { decision: "approve", modified_params: modifiedParams }); } catch (e) { void e; }
     setEvents(prev => prev.map(e => e.id === eventId ? { ...e, type: "approved" as const } : e));
     setSummary(prev => ({ ...prev, pendingApproval: Math.max(0, prev.pendingApproval - 1), autoApproved: prev.autoApproved + 1 }));
     if (selectedAgent) setMessages(prev => ({ ...prev, [selectedAgent.id]: (prev[selectedAgent.id] || []).map(m => m.jobId === jobId ? { ...m, toolStatus: "approved" as const } : m) }));
@@ -1244,8 +1244,10 @@ function ChatBubble({ message, shieldOff }: { message: ChatMessage; shieldOff?: 
 // ── Event Card ────────────────────────────────────────────────────────────
 
 function EventCard({ event, onApprove, onReject, shieldOff }: {
-  event: ShieldEvent; onApprove: (j: string, e: string) => void; onReject: (j: string, e: string) => void; shieldOff?: boolean;
+  event: ShieldEvent; onApprove: (j: string, e: string, mp?: Record<string, unknown>) => void; onReject: (j: string, e: string) => void; shieldOff?: boolean;
 }) {
+  const [editingParams, setEditingParams] = useState(false);
+  const [editedVals, setEditedVals] = useState<Record<string, string>>({});
   const cfgs: Record<string, { icon: React.ElementType; color: string; border: string; bg: string; label: string }> = {
     auto_approved:   { icon: shieldOff ? AlertTriangle : CheckCircle2, color: shieldOff ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400", border: shieldOff ? "border-red-200/60 dark:border-red-900/40" : "border-green-200/60 dark:border-green-900/40", bg: shieldOff ? "bg-red-50/60 dark:bg-red-950/10" : "bg-green-50/60 dark:bg-green-950/10", label: shieldOff ? "NO REVIEW" : "AUTO-APPROVED" },
     pending:         { icon: Clock, color: "text-amber-600 dark:text-amber-400", border: "border-amber-200/60 dark:border-amber-900/40", bg: "bg-amber-50/60 dark:bg-amber-950/10", label: "PENDING" },
@@ -1282,15 +1284,47 @@ function EventCard({ event, onApprove, onReject, shieldOff }: {
       {event.type === "scope_creep" && <p className="text-[9px] text-red-600/70 dark:text-red-400/50 mt-1.5 ml-6 italic">First-time action or 3x amount anomaly detected</p>}
       {shieldOff && event.type === "auto_approved" && <p className="text-[9px] text-red-600/70 dark:text-red-400/50 mt-1.5 ml-6 italic">Without ApprovalKit, this action executes with zero oversight</p>}
       {(event.type === "pending" || event.type === "step_up") && event.jobId && (
-        <div className="flex gap-2 mt-2 ml-6">
-          <Button size="sm" variant="outline" onClick={() => onApprove(event.jobId!, event.id)}
-            className="h-7 text-xs rounded-lg border-green-300 dark:border-green-800 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/20">
-            <ThumbsUp className="h-3 w-3 mr-1" /> Approve
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => onReject(event.jobId!, event.id)}
-            className="h-7 text-xs rounded-lg border-red-300 dark:border-red-800 text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20">
-            <ThumbsDown className="h-3 w-3 mr-1" /> Reject
-          </Button>
+        <div className="mt-2 ml-6 space-y-2">
+          {editingParams && event.params && (
+            <div className="rounded-lg bg-white/80 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 p-2 space-y-1.5">
+              {Object.entries(event.params).map(([k, v]) => (
+                <div key={k} className="flex items-center gap-2">
+                  <span className="text-[10px] text-zinc-500 font-mono w-20 truncate">{k}</span>
+                  <input
+                    defaultValue={typeof v === "string" ? v : JSON.stringify(v)}
+                    onChange={(e) => setEditedVals(prev => ({ ...prev, [k]: e.target.value }))}
+                    className="flex-1 text-[11px] font-mono px-1.5 py-0.5 rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => {
+              if (editingParams && Object.keys(editedVals).length > 0) {
+                const mp: Record<string, unknown> = { ...event.params };
+                for (const [k, v] of Object.entries(editedVals)) {
+                  const n = Number(v); mp[k] = !isNaN(n) && v.trim() !== "" ? n : v;
+                }
+                onApprove(event.jobId!, event.id, mp);
+              } else {
+                onApprove(event.jobId!, event.id);
+              }
+            }}
+              className="h-7 text-xs rounded-lg border-green-300 dark:border-green-800 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/20">
+              <ThumbsUp className="h-3 w-3 mr-1" /> {editingParams ? "Approve Modified" : "Approve"}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => onReject(event.jobId!, event.id)}
+              className="h-7 text-xs rounded-lg border-red-300 dark:border-red-800 text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20">
+              <ThumbsDown className="h-3 w-3 mr-1" /> Reject
+            </Button>
+            {event.params && Object.keys(event.params).length > 0 && !editingParams && (
+              <Button size="sm" variant="ghost" onClick={() => setEditingParams(true)}
+                className="h-7 text-xs rounded-lg text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/20">
+                <Pencil className="h-3 w-3 mr-1" /> Modify
+              </Button>
+            )}
+          </div>
         </div>
       )}
     </div>

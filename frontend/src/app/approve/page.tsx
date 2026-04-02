@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Shield, CheckCircle, XCircle, Clock, AlertTriangle, Loader2 } from "lucide-react";
+import { Shield, CheckCircle, XCircle, Clock, AlertTriangle, Loader2, Pencil } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -34,6 +34,11 @@ export default function ApprovePage() {
   const [result, setResult] = useState<{ decision: string; success: boolean; execution?: { success?: boolean; skipped?: boolean; reason?: string; error?: string } } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Param editing state
+  const [editing, setEditing] = useState(false);
+  const [editedParams, setEditedParams] = useState<Record<string, string>>({});
+  const [rejectReason, setRejectReason] = useState("");
+
   useEffect(() => {
     if (!token) {
       setError("No approval token provided");
@@ -41,7 +46,6 @@ export default function ApprovePage() {
       return;
     }
 
-    // Verify token
     fetch(`${API_BASE}/api/v1/approve/verify/${encodeURIComponent(token)}`)
       .then((r) => r.json())
       .then(async (info: TokenInfo) => {
@@ -52,12 +56,19 @@ export default function ApprovePage() {
           return;
         }
 
-        // Fetch job status
         try {
           const statusResp = await fetch(`${API_BASE}/api/v1/test-status/${info.job_id}`);
           if (statusResp.ok) {
             const status = await statusResp.json();
             setJobStatus(status);
+            // Initialize editable params
+            if (status.params) {
+              const stringified: Record<string, string> = {};
+              for (const [k, v] of Object.entries(status.params)) {
+                stringified[k] = typeof v === "string" ? v : JSON.stringify(v);
+              }
+              setEditedParams(stringified);
+            }
           }
         } catch {
           // Job status fetch is best-effort
@@ -74,11 +85,35 @@ export default function ApprovePage() {
     if (!tokenInfo?.job_id) return;
     setSubmitting(true);
 
+    // Build modified params if edited
+    let modified_params: Record<string, unknown> | undefined;
+    if (decision === "approve" && editing && jobStatus?.params) {
+      modified_params = {};
+      for (const [k, v] of Object.entries(editedParams)) {
+        // Try to parse as number or JSON, fall back to string
+        const num = Number(v);
+        if (!isNaN(num) && v.trim() !== "") {
+          modified_params[k] = num;
+        } else {
+          try { modified_params[k] = JSON.parse(v); } catch { modified_params[k] = v; }
+        }
+      }
+      // Check if actually changed
+      const unchanged = Object.entries(modified_params).every(
+        ([k, v]) => JSON.stringify(v) === JSON.stringify(jobStatus.params[k])
+      );
+      if (unchanged) modified_params = undefined;
+    }
+
     try {
+      const body: Record<string, unknown> = { decision };
+      if (modified_params) body.modified_params = modified_params;
+      if (decision === "reject" && rejectReason) body.note = rejectReason;
+
       const resp = await fetch(`${API_BASE}/api/v1/jobs/${tokenInfo.job_id}/decision`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ decision }),
+        body: JSON.stringify(body),
       });
 
       if (resp.ok) {
@@ -90,7 +125,7 @@ export default function ApprovePage() {
         setError(err.detail || "Failed to submit decision");
       }
     } catch {
-      setResult({ decision: decision, success: false });
+      setResult({ decision, success: false });
       setError("Network error — please try again");
     } finally {
       setSubmitting(false);
@@ -103,6 +138,8 @@ export default function ApprovePage() {
       handleDecision(presetDecision);
     }
   }, [presetDecision, tokenInfo, result, submitting]);
+
+  const hasParams = jobStatus?.params && Object.keys(jobStatus.params).length > 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-zinc-900 flex items-center justify-center p-4">
@@ -201,19 +238,67 @@ export default function ApprovePage() {
                         {jobStatus.action}
                       </p>
                     </div>
-                    {jobStatus.params && Object.keys(jobStatus.params).length > 0 && (
+
+                    {/* Parameters — editable or read-only */}
+                    {hasParams && (
                       <div>
-                        <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                          Parameters
-                        </label>
-                        <div className="mt-1 rounded-lg bg-zinc-50 dark:bg-zinc-800 p-3 text-xs font-mono text-zinc-700 dark:text-zinc-300 max-h-32 overflow-auto">
-                          {Object.entries(jobStatus.params).map(([key, value]) => (
-                            <div key={key}>
-                              <span className="text-zinc-500">{key}:</span>{" "}
-                              <span>{JSON.stringify(value)}</span>
-                            </div>
-                          ))}
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                            Parameters
+                          </label>
+                          {!editing && (
+                            <button
+                              onClick={() => setEditing(true)}
+                              className="inline-flex items-center gap-1 text-[10px] font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+                            >
+                              <Pencil className="h-3 w-3" />
+                              Modify
+                            </button>
+                          )}
                         </div>
+
+                        {editing ? (
+                          <div className="mt-2 space-y-2">
+                            {Object.entries(editedParams).map(([key, value]) => (
+                              <div key={key}>
+                                <label className="text-[10px] text-zinc-500 dark:text-zinc-400 font-mono">{key}</label>
+                                <input
+                                  value={value}
+                                  onChange={(e) => setEditedParams((prev) => ({ ...prev, [key]: e.target.value }))}
+                                  className="w-full mt-0.5 rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-2.5 py-1.5 text-xs font-mono text-zinc-900 dark:text-zinc-100 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none"
+                                />
+                                {JSON.stringify(jobStatus.params[key]) !== (isNaN(Number(value)) ? JSON.stringify(value) : value) && (
+                                  <span className="text-[9px] text-amber-500 mt-0.5 block">
+                                    Changed from: {JSON.stringify(jobStatus.params[key])}
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                            <button
+                              onClick={() => {
+                                setEditing(false);
+                                // Reset to original
+                                const orig: Record<string, string> = {};
+                                for (const [k, v] of Object.entries(jobStatus.params)) {
+                                  orig[k] = typeof v === "string" ? v : JSON.stringify(v);
+                                }
+                                setEditedParams(orig);
+                              }}
+                              className="text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+                            >
+                              Cancel editing
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="mt-1 rounded-lg bg-zinc-50 dark:bg-zinc-800 p-3 text-xs font-mono text-zinc-700 dark:text-zinc-300 max-h-32 overflow-auto">
+                            {Object.entries(jobStatus.params).map(([key, value]) => (
+                              <div key={key}>
+                                <span className="text-zinc-500">{key}:</span>{" "}
+                                <span>{JSON.stringify(value)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -232,6 +317,24 @@ export default function ApprovePage() {
                   Approving as <strong className="text-zinc-700 dark:text-zinc-300">{tokenInfo.approver_email}</strong>
                 </div>
               )}
+
+              {/* Editing indicator */}
+              {editing && (
+                <div className="px-6 py-2 bg-amber-50 dark:bg-amber-950/30 text-xs text-amber-700 dark:text-amber-400 flex items-center gap-2">
+                  <Pencil className="h-3 w-3" />
+                  You are modifying parameters. The agent will execute with your changes.
+                </div>
+              )}
+
+              {/* Reject reason (optional) */}
+              <div className="px-6 pt-3">
+                <input
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder="Reason for rejection (optional)"
+                  className="w-full rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-xs text-zinc-700 dark:text-zinc-300 placeholder:text-zinc-400 dark:placeholder:text-zinc-600 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none"
+                />
+              </div>
 
               {/* Action Buttons */}
               <div className="p-6 flex gap-3">
@@ -253,7 +356,7 @@ export default function ApprovePage() {
                   ) : (
                     <CheckCircle className="h-4 w-4" />
                   )}
-                  Approve
+                  {editing ? "Approve with Changes" : "Approve"}
                 </button>
               </div>
             </>
