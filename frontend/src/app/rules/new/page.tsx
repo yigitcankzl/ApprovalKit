@@ -101,6 +101,8 @@ export default function NewRulePage() {
   const [maxRequestsPerHour, setMaxRequestsPerHour] = useState<string>("");
   const [approvalExpiry, setApprovalExpiry] = useState<string>("");
   const [triggerRules, setTriggerRules] = useState<string>("");
+  // Feature 7: risk-based auto-approve threshold
+  const [riskAutoApproveThreshold, setRiskAutoApproveThreshold] = useState<string>("");
 
   const availableActions = actions[connection] || [];
 
@@ -135,6 +137,7 @@ export default function NewRulePage() {
         max_requests_per_hour: maxRequestsPerHour ? parseInt(maxRequestsPerHour) : null,
         approval_expiry_seconds: approvalExpiry ? parseInt(approvalExpiry) : null,
         trigger_rules: triggerRules ? JSON.parse(triggerRules) : null,
+        risk_auto_approve_threshold: riskAutoApproveThreshold ? parseInt(riskAutoApproveThreshold) : null,
       };
       await api.createRule(data);
       router.push("/rules");
@@ -356,6 +359,29 @@ export default function NewRulePage() {
                   <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Max requests per hour</label>
                   <Input type="number" min={1} max={10000} value={maxRequestsPerHour} onChange={(e) => setMaxRequestsPerHour(e.target.value)} placeholder="Unlimited" className="mt-1 w-40" />
                   <p className="text-xs text-zinc-400 mt-1">Per-agent hourly limit for this connection. Leave empty for unlimited.</p>
+                </div>
+              </div>
+
+              {/* ─── Feature 7: Risk-based Auto-approve ─── */}
+              <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 mb-3 flex items-center gap-1">
+                  <Sparkles className="h-3.5 w-3.5" /> Risk-based Auto-approve
+                </p>
+                <div>
+                  <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Auto-approve threshold (0–100)</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={riskAutoApproveThreshold}
+                    onChange={(e) => setRiskAutoApproveThreshold(e.target.value)}
+                    placeholder="Disabled"
+                    className="mt-1 w-40"
+                  />
+                  <p className="text-xs text-zinc-400 mt-1">
+                    Requests with risk score ≤ this value are auto-approved without human review.
+                    0 = only zero-risk auto-approved, 100 = all auto-approved, empty = disabled.
+                  </p>
                 </div>
               </div>
 

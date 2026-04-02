@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
 import { api } from "@/lib/api";
 import type { AuditEntry } from "@/types";
+import { Download } from "lucide-react";
 
 const eventBadge: Record<string, "success" | "danger" | "warning" | "info" | "default"> = {
   approved: "success",
@@ -67,26 +68,51 @@ export default function AuditPage() {
             FGA-controlled -- approvers see own history only, admins see everything
           </p>
         </div>
-        <div className="flex flex-col items-end gap-1.5">
-          <span className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
-            Filter by event
-          </span>
-          <Select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            className="w-52 rounded-lg border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 shadow-sm text-sm font-medium"
-          >
-            <option value="">All events</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-            <option value="blocked">Blocked</option>
-            <option value="escalated">Escalated</option>
-            <option value="timeout">Timed Out</option>
-            <option value="scope_creep">Scope Creep</option>
-            <option value="pre_approved">Pre-approved</option>
-            <option value="partial_approved">Partial</option>
-            <option value="step_up">Step-up</option>
-          </Select>
+        <div className="flex items-end gap-3">
+          <div className="flex flex-col items-end gap-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
+              Filter by event
+            </span>
+            <Select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="w-52 rounded-lg border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 shadow-sm text-sm font-medium"
+            >
+              <option value="">All events</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+              <option value="blocked">Blocked</option>
+              <option value="escalated">Escalated</option>
+              <option value="timeout">Timed Out</option>
+              <option value="scope_creep">Scope Creep</option>
+              <option value="pre_approved">Pre-approved</option>
+              <option value="partial_approved">Partial</option>
+              <option value="step_up">Step-up</option>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
+              Export
+            </span>
+            <div className="flex gap-2">
+              <a
+                href="/api/v1/audit/export?fmt=json"
+                download="approvalkit-audit.json"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+              >
+                <Download className="h-3.5 w-3.5" />
+                AIUC-1 JSON
+              </a>
+              <a
+                href="/api/v1/audit/export?fmt=csv"
+                download="approvalkit-audit.csv"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+              >
+                <Download className="h-3.5 w-3.5" />
+                CSV
+              </a>
+            </div>
+          </div>
         </div>
       </div>
 
