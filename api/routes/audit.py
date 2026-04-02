@@ -317,6 +317,99 @@ async def revoke_connection(connection_id: str, workspace: Workspace = Depends(g
     return {"status": "revoked", "connection_id": connection_id}
 
 
+@router.get("/audit/export")
+async def export_audit_log(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    from_date: str | None = Query(default=None, alias="from"),
+    to_date: str | None = Query(default=None, alias="to"),
+    fmt: str = Query(default="json"),
+):
+    """
+    AIUC-1 compliant audit export.
+    Returns a structured JSON audit trail suitable for compliance reports.
+    Query params: from=ISO8601, to=ISO8601, fmt=json|csv
+    """
+    from datetime import datetime as dt
+    from fastapi.responses import StreamingResponse as SR
+    import csv, io
+
+    since = dt.fromisoformat(from_date) if from_date else dt.utcnow() - timedelta(days=90)
+    until = dt.fromisoformat(to_date) if to_date else dt.utcnow()
+
+    result = await db.execute(
+        select(ApprovalJob)
+        .where(
+            ApprovalJob.workspace_id == workspace.id,
+            ApprovalJob.created_at >= since,
+            ApprovalJob.created_at <= until,
+        )
+        .order_by(ApprovalJob.created_at.asc())
+        .limit(5000)
+    )
+    jobs = result.scalars().all()
+
+    total = len(jobs)
+    approved = sum(1 for j in jobs if j.state == JobState.APPROVED)
+    rejected = sum(1 for j in jobs if j.state == JobState.REJECTED)
+    auto_approved = sum(1 for j in jobs if j.state == JobState.PRE_APPROVED)
+    latencies = [
+        (j.completed_at - j.created_at).total_seconds()
+        for j in jobs
+        if j.completed_at and j.created_at and j.state in (JobState.APPROVED, JobState.REJECTED)
+    ]
+    avg_latency = round(sum(latencies) / len(latencies), 1) if latencies else 0
+
+    events = [
+        {
+            "timestamp": j.created_at.isoformat(),
+            "job_id": str(j.id),
+            "agent_id": j.agent_user_id,
+            "connection": j.connection,
+            "action": j.action,
+            "decision": j.state.value,
+            "risk_score": getattr(j, "risk_score", 0) or 0,
+            "risk_level": getattr(j, "risk_level", "low") or "low",
+            "rejection_reason": getattr(j, "rejection_reason", None),
+            "params_modified": j.final_params is not None,
+            "completed_at": j.completed_at.isoformat() if j.completed_at else None,
+        }
+        for j in jobs
+    ]
+
+    if fmt == "csv":
+        output = io.StringIO()
+        writer = csv.DictWriter(output, fieldnames=list(events[0].keys()) if events else [
+            "timestamp", "job_id", "agent_id", "connection", "action", "decision",
+            "risk_score", "risk_level", "rejection_reason", "params_modified", "completed_at",
+        ])
+        writer.writeheader()
+        writer.writerows(events)
+        csv_bytes = output.getvalue().encode()
+        return SR(
+            iter([csv_bytes]),
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename=approvalkit-audit-{since.date()}-{until.date()}.csv"},
+        )
+
+    payload = {
+        "aiuc_version": "1.0-draft",
+        "export_timestamp": dt.utcnow().isoformat(),
+        "export_period": {"from": since.isoformat(), "to": until.isoformat()},
+        "workspace_id": str(workspace.id),
+        "summary": {
+            "total_requests": total,
+            "auto_approved": auto_approved,
+            "human_approved": approved,
+            "rejected": rejected,
+            "pending_or_other": total - approved - rejected - auto_approved,
+            "average_latency_seconds": avg_latency,
+        },
+        "events": events,
+    }
+    return payload
+
+
 @router.get("/audit/patterns")
 async def get_approval_patterns(
     workspace: Workspace = Depends(get_current_workspace),
