@@ -214,10 +214,52 @@ async def submit_approval_request(
         )
         return response
 
+    # Compute risk score before creating job (Feature 7)
+    risk = compute_risk_score(request.params, scope_creep=scope_creep, rule=rule)
+    risk_score_val = risk.get("score", 0)
+    risk_level_val = risk.get("level", "low")
+
+    # Risk-based auto-approve: if rule has threshold and score is low enough
+    if (
+        rule.risk_auto_approve_threshold is not None
+        and risk_score_val <= rule.risk_auto_approve_threshold
+    ):
+        job = ApprovalJob(
+            id=uuid.uuid4(),
+            idempotency_key=request.idempotency_key,
+            workspace_id=workspace.id,
+            rule_id=rule.id,
+            connection=request.connection,
+            action=request.action,
+            params=request.params,
+            agent_user_id=request.user_id,
+            state=JobState.PRE_APPROVED,
+            required_count=1,
+            completed_at=datetime.utcnow(),
+            risk_score=risk_score_val,
+            risk_level=risk_level_val,
+        )
+        db.add(job)
+        db.add(AuditLog(
+            job_id=job.id, workspace_id=workspace.id,
+            event_type=AuditEventType.PRE_APPROVED,
+            note=f"Risk auto-approve: score={risk_score_val} <= threshold={rule.risk_auto_approve_threshold}",
+        ))
+        await db.commit()
+        response_data = {
+            "job_id": str(job.id),
+            "status": "pre_approved",
+            "message": f"Risk score {risk_score_val} is below auto-approve threshold",
+            "risk": risk,
+        }
+        await redis_client.setex(REDIS_KEY_IDEMPOTENCY.format(key=idem_key), 86400, json.dumps(response_data))
+        return ApprovalResponse(**response_data)
+
     # Create approval job (shared helper)
     job = await _create_pending_job(
         workspace, rule, request.connection, request.action, request.params,
         request.user_id, request.idempotency_key, db, redis_client,
+        risk_score=risk_score_val, risk_level=risk_level_val,
     )
 
     # Scope creep audit (only for SDK requests, not test)
@@ -238,9 +280,6 @@ async def submit_approval_request(
 
     await increment_cooldown(rule, redis_client)
 
-    # Compute risk score
-    risk = compute_risk_score(request.params, scope_creep=scope_creep, rule=rule)
-
     response_data = {
         "job_id": str(job.id),
         "status": "pending",
@@ -257,6 +296,7 @@ async def _create_pending_job(
     workspace: Workspace, rule, connection: str, action: str,
     params: dict, user_id: str, idempotency_key: str,
     db: AsyncSession, redis_client: aioredis.Redis,
+    risk_score: int = 0, risk_level: str = "low",
 ) -> ApprovalJob:
     """Shared: create ApprovalJob, audit log, enqueue Celery task, publish SSE."""
     required = get_required_approval_count(rule)
@@ -272,6 +312,8 @@ async def _create_pending_job(
         state=JobState.PENDING,
         required_count=required,
         expires_at=datetime.utcnow() + timedelta(seconds=rule.timeout_seconds),
+        risk_score=risk_score,
+        risk_level=risk_level,
     )
     db.add(job)
     audit = AuditLog(
@@ -466,6 +508,10 @@ async def get_job_status(
         final_params=job.final_params,
         completed_at=job.completed_at.isoformat() if job.completed_at else None,
         execution_receipt=execution_receipt,
+        rejection_reason=getattr(job, "rejection_reason", None),
+        retry_allowed=job.state not in (JobState.BLOCKED,),
+        risk_score=getattr(job, "risk_score", 0) or 0,
+        risk_level=getattr(job, "risk_level", "low") or "low",
     )
 
 
@@ -508,6 +554,8 @@ async def get_pending_jobs(workspace: Workspace = Depends(get_current_workspace)
             "state": j.state.value,
             "created_at": j.created_at.isoformat(),
             "binding_message": binding_map.get(str(j.id)),
+            "risk_score": getattr(j, "risk_score", 0) or 0,
+            "risk_level": getattr(j, "risk_level", "low") or "low",
         }
         for j in jobs
     ]
@@ -579,6 +627,9 @@ async def submit_web_decision(
     elif decision == "reject":
         job.state = JobState.REJECTED
         job.completed_at = datetime.utcnow()
+        # Feature 4: store rejection reason for agent feedback
+        if note and note != "Approved via web dashboard":
+            job.rejection_reason = note
         event_type = AuditEventType.REJECTED
     else:
         raise HTTPException(status_code=422, detail="decision must be 'approve' or 'reject'")
@@ -614,6 +665,13 @@ async def submit_web_decision(
             workspace_id=str(job.workspace_id),
             db=db,
         )
+
+    # Feature 8: update agent trust score
+    try:
+        from api.routes.agents import _update_trust_score
+        await _update_trust_score(job.agent_user_id, job.workspace_id, decision, db)
+    except Exception:
+        pass  # trust score update is best-effort
 
     return {"status": decision + "d", "job_id": job_id, "execution": execution_result}
 
