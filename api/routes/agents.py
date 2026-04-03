@@ -469,6 +469,82 @@ async def bootstrap_agent(
     return result
 
 
+# ── Agent Activity Timeline ──────────────────────────────────────────────────
+
+@router.get("/{agent_id}/timeline")
+async def get_agent_timeline(
+    agent_id: str,
+    ws: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    limit: int = 50,
+):
+    """Return chronological activity timeline for a specific agent.
+
+    Each entry includes: timestamp, connection, action, decision, risk score,
+    duration (if completed), and any notes.
+    """
+    from datetime import datetime as dt
+    from sqlalchemy import select, or_
+
+    agent = await _get_agent_for_workspace(agent_id, ws, db)
+
+    # Get all jobs for this agent
+    result = await db.execute(
+        select(ApprovalJob)
+        .where(
+            ApprovalJob.workspace_id == ws.id,
+            ApprovalJob.agent_user_id == agent.name,
+        )
+        .order_by(ApprovalJob.created_at.desc())
+        .limit(limit)
+    )
+    jobs = result.scalars().all()
+
+    timeline = []
+    for j in jobs:
+        duration = None
+        if j.completed_at and j.created_at:
+            duration = round((j.completed_at - j.created_at).total_seconds(), 1)
+
+        timeline.append({
+            "job_id": str(j.id),
+            "timestamp": j.created_at.isoformat(),
+            "connection": j.connection,
+            "action": j.action,
+            "state": j.state.value,
+            "risk_score": getattr(j, "risk_score", 0) or 0,
+            "risk_level": getattr(j, "risk_level", "low") or "low",
+            "duration_seconds": duration,
+            "completed_at": j.completed_at.isoformat() if j.completed_at else None,
+            "params": j.params,
+            "rejection_reason": getattr(j, "rejection_reason", None),
+        })
+
+    # Compute stats
+    total = len(timeline)
+    approved = sum(1 for t in timeline if t["state"] in ("approved", "pre_approved"))
+    rejected = sum(1 for t in timeline if t["state"] == "rejected")
+    avg_risk = round(sum(t["risk_score"] for t in timeline) / total, 1) if total > 0 else 0
+    durations = [t["duration_seconds"] for t in timeline if t["duration_seconds"] is not None]
+    avg_duration = round(sum(durations) / len(durations), 1) if durations else 0
+
+    return {
+        "agent_id": str(agent.id),
+        "agent_name": agent.name,
+        "trust_score": getattr(agent, "trust_score", 100) or 100,
+        "timeline": timeline,
+        "stats": {
+            "total": total,
+            "approved": approved,
+            "rejected": rejected,
+            "blocked": sum(1 for t in timeline if t["state"] == "blocked"),
+            "avg_risk_score": avg_risk,
+            "avg_duration_seconds": avg_duration,
+            "approval_rate": round(approved / total * 100, 1) if total > 0 else 0,
+        },
+    }
+
+
 # ── Budget Tracker (Feature 13: BATS) ────────────────────────────────────────
 
 @router.get("/budgets")

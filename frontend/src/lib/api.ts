@@ -192,6 +192,8 @@ export const api = {
     fetchAPI(`/api/v1/agents/${agentId}/scenarios/${scenarioId}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteScenario: (agentId: string, scenarioId: string) =>
     fetchAPI(`/api/v1/agents/${agentId}/scenarios/${scenarioId}`, { method: "DELETE" }),
+  getAgentTimeline: (agentId: string, limit?: number) =>
+    fetchAPI(`/api/v1/agents/${agentId}/timeline${limit ? `?limit=${limit}` : ""}`),
   regenerateAgentKey: (agentId: string) =>
     fetchAPI(`/api/v1/agents/${agentId}/regenerate-key`, { method: "POST" }),
   revokeAgent: (agentId: string) =>
