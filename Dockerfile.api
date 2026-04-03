@@ -14,6 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY api/ ./api/
 COPY scripts/ ./scripts/
 COPY tests/ ./tests/
+COPY sdk/ ./sdk/
 
 # Non-root user for security
 RUN adduser --disabled-password --gecos "" appuser
