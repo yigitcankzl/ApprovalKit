@@ -375,7 +375,7 @@ async def _create_pending_job(
 class TestRequest(ApprovalRequest):
     """Same as ApprovalRequest but with defaults for dashboard testing."""
     user_id: str = "dashboard-test"
-    idempotency_key: str = ""
+    idempotency_key: str = "test-default"
 
 
 @router.post("/test-request", status_code=202)
@@ -611,11 +611,12 @@ async def submit_web_decision(
     allowed = await rate_limiter.check_rate_limit(key=f"decision:{job_id}", max_requests=5, window_seconds=60)
     if not allowed:
         raise HTTPException(status_code=429, detail="Too many decisions for this job. Try again later.")
+    # Use SELECT FOR UPDATE to prevent race condition between concurrent decisions
     result = await db.execute(
         select(ApprovalJob).where(
             ApprovalJob.id == uuid.UUID(job_id),
             ApprovalJob.workspace_id == workspace.id,
-        )
+        ).with_for_update()
     )
     job = result.scalar_one_or_none()
     if not job:
