@@ -392,8 +392,15 @@ async def orchestrate(
     provider, api_key = _resolve_ai_credentials(workspace)
 
     pconfig = _PROVIDER_CONFIG.get(provider, _PROVIDER_CONFIG.get("gemini", {}))
+
+    # Fallback to Ollama if provider is not OpenAI-compatible (e.g. Gemini native)
     if pconfig.get("type") != "openai":
-        raise HTTPException(400, "Orchestrator requires OpenAI-compatible provider")
+        ollama_cfg = _PROVIDER_CONFIG.get("ollama", {})
+        if ollama_cfg:
+            pconfig = ollama_cfg
+            api_key = "ollama"
+        else:
+            raise HTTPException(400, "Orchestrator requires OpenAI-compatible provider")
 
     from openai import OpenAI
     client = OpenAI(api_key=api_key or "ollama", base_url=pconfig["base_url"], timeout=60)
