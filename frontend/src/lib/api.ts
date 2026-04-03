@@ -106,6 +106,7 @@ export const api = {
 
   // Consent
   getConsent: () => fetchAPI("/api/v1/consent"),
+  getPermissionMap: () => fetchAPI("/api/v1/consent/permission-map"),
 
   // Compliance
   getComplianceStats: (days?: number) => fetchAPI(`/api/v1/audit/compliance-stats${days ? `?days=${days}` : ""}`),
