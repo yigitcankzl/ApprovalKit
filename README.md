@@ -164,7 +164,31 @@ Each organization stores its own Auth0 and FGA credentials in the database (encr
 
 ### Real-time Dashboard
 
-SSE live feed via Redis pub/sub shows approval events as they happen. Pending approvals panel, CIBA quota tracking, security status monitoring.
+SSE live feed via Redis pub/sub shows approval events as they happen. Pending approvals panel with live countdown timers, CIBA quota tracking, risk distribution visualization, and security status monitoring.
+
+### Time-Boxed Approvals
+
+Approved actions expire if not executed within a configurable window (`approval_expiry_seconds`). The dashboard shows live countdown timers on each pending job, with pulse animation for urgent items (<2 min remaining).
+
+### Risk Score Visualization
+
+Every request gets a 0-100 risk score based on amount, scope creep signals, approval model complexity, and step-up eligibility. The dashboard displays risk distribution (low/medium/high/critical) with per-connection breakdown.
+
+### Per-Rule Budget Limits
+
+Rules can define `budget_limits` (daily/weekly/monthly) to cap spending per approval flow. Combined with `allowed_days` (weekday restrictions) for scheduled approval windows.
+
+### Permission Map
+
+A dedicated view shows which agents can access which services, with OAuth scopes, approval models, and 7-day usage statistics per agent per connection. Trust scores are displayed per agent.
+
+### Re-Authorization
+
+After `reauth_every_n` consecutive approvals for the same agent+connection+action, a fresh human approval is forced — preventing rubber-stamping of repeated sensitive operations.
+
+### Agent Activity Timeline
+
+Each agent has a chronological activity timeline showing every request with risk scores, durations, approval rates, and rejection reasons.
 
 ---
 
@@ -202,7 +226,7 @@ SSE live feed via Redis pub/sub shows approval events as they happen. Pending ap
 | Auth | Auth0 Token Vault, CIBA, FGA, nextjs-auth0 v4, per-agent HMAC |
 | SDK | Python, pip-installable, sync + async, jitter polling |
 | Execution | 30 built-in handlers, all via Auth0 Token Vault |
-| AI Agents | 8 specialized agents, code-based sub-agents, LLM compliance/summary |
+| AI Agents | 10 specialized agents, code-based sub-agents, LLM compliance/summary |
 | Infrastructure | Docker Compose (8 services), Ollama GPU support, non-root containers |
 
 ---
@@ -255,6 +279,12 @@ Edit `.env` with your Auth0 M2M and Web app credentials, then run setup. This st
 25. **Deep Health Checks** — `/health/deep` verifies DB, Redis, and Ollama connectivity; returns degraded status if any dependency fails
 26. **Non-Root Docker** — API container runs as unprivileged user
 27. **Connection Health Monitoring** — Verify Token Vault token validity per connection
+28. **Time-Boxed Approvals** — Approved actions expire if not executed within configurable window
+29. **Per-Rule Budget Limits** — Daily/weekly/monthly spending caps per approval rule
+30. **Scheduled Approval Windows** — Restrict approvals to specific days of the week
+31. **Re-Authorization Enforcement** — Force fresh approval after N consecutive auto-approves
+32. **Risk Score Visualization** — Real-time risk distribution dashboard with per-connection breakdown
+33. **Permission Map** — Agent-to-service permission matrix with scope and usage visibility
 
 ### Known Limitations
 
@@ -273,7 +303,7 @@ Edit `.env` with your Auth0 M2M and Web app credentials, then run setup. This st
 | Approvers | CRUD + Guardian auto-linking + delegation + workspace isolation |
 | Audit Log | Filterable event log with PII masking, binding messages, Token Vault receipts |
 | Connect Agent | Per-agent API key generation, SDK code snippets, live testing |
-| Agents | 8 specialized agents (backend-served) + My Agents tab with scenarios |
+| Agents | 10 specialized agents (backend-served) + My Agents tab with scenarios |
 | Setup | Full-page onboarding wizard (Auth0 creds + connections), no sidebar |
 | Settings | Edit existing workspace credentials (sidebar layout) |
 | Compliance | Audit trail with timeline visualization, JSON/CSV export for SOC2 |
