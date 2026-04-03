@@ -705,6 +705,17 @@ async def submit_web_decision(
             workspace_id=str(job.workspace_id),
             db=db,
         )
+        # Record per-rule budget spending
+        if rule and getattr(rule, "budget_limits", None):
+            spend_params = modified_params or job.final_params or job.params
+            for k in ("amount", "amount_usd", "total"):
+                raw = spend_params.get(k)
+                if raw is not None:
+                    try:
+                        await record_rule_spending(rule, float(raw), redis_client)
+                    except Exception:
+                        pass
+                    break
 
     # Update agent trust score
     try:

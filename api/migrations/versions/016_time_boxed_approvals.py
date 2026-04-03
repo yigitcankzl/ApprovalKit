@@ -5,6 +5,7 @@ Create Date: 2026-04-03
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import JSONB
 
 revision = "016"
 down_revision = "015"
@@ -20,10 +21,10 @@ def upgrade():
         op.add_column("rules", sa.Column("risk_auto_approve_threshold", sa.Integer, nullable=True))
     except Exception:
         pass
-    # Budget: per-rule daily/weekly/monthly spending limits (JSON)
-    op.add_column("rules", sa.Column("budget_limits", sa.JSON, nullable=True))
+    # Budget: per-rule daily/weekly/monthly spending limits (JSONB)
+    op.add_column("rules", sa.Column("budget_limits", JSONB, nullable=True))
     # Scheduled approval windows: allow approvals only in these time ranges
-    op.add_column("rules", sa.Column("allowed_days", sa.JSON, nullable=True))
+    op.add_column("rules", sa.Column("allowed_days", JSONB, nullable=True))
 
 
 def downgrade():

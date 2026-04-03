@@ -487,6 +487,9 @@ async def _process_job(job_id: str):
                             _settings = get_settings()
                             _r = aioredis.from_url(_settings.REDIS_URL, decode_responses=True)
                             await record_spending(job.agent_user_id, spend_amount, _r)
+                            # Also record per-rule spending for rule-level budget limits
+                            from api.services.rule_engine import record_rule_spending
+                            await record_rule_spending(rule, spend_amount, _r)
                             await _r.aclose()
                         except Exception as e:
                             logger.warning(f"Budget record failed: {e}")

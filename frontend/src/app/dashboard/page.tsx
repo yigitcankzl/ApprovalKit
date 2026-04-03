@@ -10,7 +10,7 @@ import type { DashboardStats } from "@/types";
 import {
   CheckCircle2, XCircle, ShieldOff, Clock, KeyRound, Users,
   Activity, AlertTriangle, Radio, ShieldCheck, Gauge, CircleDot,
-  TrendingUp, Zap, ArrowRight, BarChart3, Mail, Link2, Copy,
+  TrendingUp, Zap, ArrowRight, BarChart3, Mail,
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";

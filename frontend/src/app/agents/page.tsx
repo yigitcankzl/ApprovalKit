@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import {
   Bot, CheckCircle2, XCircle, Loader2, Plus, Trash2, RefreshCw, Play,
   Copy, Check, Eye, EyeOff, ChevronRight, ChevronDown, Plug, Code2,
-  Clock, Activity, TrendingUp, AlertTriangle, BarChart3,
+  Clock, Activity,
 } from "lucide-react";
 import { api } from "@/lib/api";
 
