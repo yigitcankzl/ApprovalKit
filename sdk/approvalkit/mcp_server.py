@@ -81,7 +81,17 @@ async def _api_call(method: str, path: str, body: dict | None = None) -> dict:
             r = await client.get(f"{BASE_URL}{path}", headers=_headers(ts, sig))
         else:
             r = await client.post(f"{BASE_URL}{path}", content=body_str, headers=_headers(ts, sig))
-        return r.json()
+        if r.status_code >= 400:
+            try:
+                err = r.json()
+                detail = err.get("detail", f"HTTP {r.status_code}")
+            except (ValueError, KeyError):
+                detail = f"HTTP {r.status_code}"
+            return {"error": True, "status_code": r.status_code, "detail": detail}
+        try:
+            return r.json()
+        except ValueError:
+            return {"error": True, "detail": "Invalid JSON response"}
 
 
 @mcp.tool()
