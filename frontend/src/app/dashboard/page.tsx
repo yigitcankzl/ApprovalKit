@@ -10,7 +10,7 @@ import type { DashboardStats } from "@/types";
 import {
   CheckCircle2, XCircle, ShieldOff, Clock, KeyRound, Users,
   Activity, AlertTriangle, Radio, ShieldCheck, Gauge, CircleDot,
-  TrendingUp, Zap, ArrowRight,
+  TrendingUp, Zap, ArrowRight, BarChart3,
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -63,6 +63,7 @@ export default function DashboardPage() {
   const [error, setError]       = useState<string | null>(null);
   const [patterns, setPatterns] = useState<any[]>([]);
   const [pendingJobs, setPendingJobs] = useState<any[]>([]);
+  const [riskDist, setRiskDist] = useState<any>(null);
   const [now, setNow]           = useState(Date.now());
 
   // Redirect to login if not authenticated
@@ -89,6 +90,9 @@ export default function DashboardPage() {
         .catch(() => {}),
       api.getPendingJobs()
         .then((jobs: any[]) => { if (ctrl.active) setPendingJobs(Array.isArray(jobs) ? jobs : []); })
+        .catch(() => {}),
+      api.getRiskDistribution(7)
+        .then((data: any) => { if (ctrl.active) setRiskDist(data); })
         .catch(() => {}),
     ])
       .catch((err) => { if (ctrl.active) setError(err.message || "Failed to load"); })
@@ -403,8 +407,8 @@ export default function DashboardPage() {
       {/* Bottom panels */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
-        {/* Live Activity Feed — takes up more space */}
-        <section className="lg:col-span-5">
+        {/* Live Activity Feed */}
+        <section className="lg:col-span-4">
           <Card className="w-full border-zinc-200/80 dark:border-zinc-800/80">
             <CardHeader className="pb-0">
               <div className="flex items-center justify-between">
@@ -463,7 +467,7 @@ export default function DashboardPage() {
         </section>
 
         {/* Security Status */}
-        <section className="lg:col-span-4">
+        <section className="lg:col-span-2">
           <Card className="w-full border-zinc-200/80 dark:border-zinc-800/80">
             <CardHeader className="pb-0">
               <div className="flex items-center justify-between">
@@ -501,6 +505,63 @@ export default function DashboardPage() {
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+        </section>
+
+        {/* Risk Distribution */}
+        <section className="lg:col-span-3">
+          <Card className="w-full border-zinc-200/80 dark:border-zinc-800/80">
+            <CardHeader className="pb-0">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <BarChart3 className="h-4 w-4 text-rose-500" />
+                  Risk Distribution
+                </CardTitle>
+                {riskDist && (
+                  <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500">
+                    avg {riskDist.avg_score}
+                  </span>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="pt-4">
+              {riskDist && riskDist.total > 0 ? (
+                <div className="space-y-3">
+                  {(["low", "medium", "high", "critical"] as const).map((level) => {
+                    const count = riskDist.distribution[level] || 0;
+                    const pct = riskDist.total > 0 ? Math.round((count / riskDist.total) * 100) : 0;
+                    const barColor = level === "critical" ? "bg-red-500" : level === "high" ? "bg-orange-500" : level === "medium" ? "bg-yellow-500" : "bg-green-500";
+                    const labelColor = level === "critical" ? "text-red-600 dark:text-red-400" : level === "high" ? "text-orange-600 dark:text-orange-400" : level === "medium" ? "text-yellow-600 dark:text-yellow-400" : "text-green-600 dark:text-green-400";
+                    return (
+                      <div key={level}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className={`text-[11px] font-semibold capitalize ${labelColor}`}>{level}</span>
+                          <span className="text-[10px] text-zinc-400 tabular-nums">{count} ({pct}%)</span>
+                        </div>
+                        <div className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-full h-1.5">
+                          <div className={`h-1.5 rounded-full transition-all duration-500 ${barColor}`} style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {/* Top risky connections */}
+                  {Object.entries(riskDist.by_connection || {})
+                    .sort((a: any, b: any) => b[1].avg_risk - a[1].avg_risk)
+                    .slice(0, 3)
+                    .map(([conn, data]: any) => (
+                      <div key={conn} className="flex items-center justify-between text-[10px] text-zinc-500 dark:text-zinc-400 pt-1">
+                        <span className="truncate">{conn}</span>
+                        <span className="tabular-nums">avg {data.avg_risk} / max {data.max_risk}</span>
+                      </div>
+                    ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-zinc-400 dark:text-zinc-500">
+                  <BarChart3 className="h-6 w-6 mb-2 opacity-40" />
+                  <p className="text-xs">No risk data yet</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </section>

@@ -110,6 +110,7 @@ export const api = {
   // Compliance
   getComplianceStats: (days?: number) => fetchAPI(`/api/v1/audit/compliance-stats${days ? `?days=${days}` : ""}`),
   getApprovalPatterns: (days?: number) => fetchAPI(`/api/v1/audit/patterns${days ? `?days=${days}` : ""}`),
+  getRiskDistribution: (days?: number) => fetchAPI(`/api/v1/audit/risk-distribution${days ? `?days=${days}` : ""}`),
   exportCompliance: (params?: { format?: string; days?: number; connection?: string }) => {
     const search = new URLSearchParams();
     if (params?.format) search.set("format", params.format);

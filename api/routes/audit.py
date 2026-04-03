@@ -144,6 +144,9 @@ async def get_audit_log(
             "modified_params": log.modified_params,
             "note": log.note,
             "created_at": log.created_at.isoformat(),
+            "risk_score": getattr(log.job, "risk_score", 0) or 0 if log.job else 0,
+            "risk_level": getattr(log.job, "risk_level", "low") or "low" if log.job else "low",
+            "agent_user_id": log.job.agent_user_id if log.job else None,
         }
         for log in logs
     ]
@@ -408,6 +411,51 @@ async def export_audit_log(
         "events": events,
     }
     return payload
+
+
+@router.get("/audit/risk-distribution")
+async def get_risk_distribution(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    days: int = Query(default=7, le=365),
+):
+    """Risk score distribution for dashboard visualization."""
+    since = datetime.utcnow() - timedelta(days=days)
+    result = await db.execute(
+        select(ApprovalJob)
+        .where(ApprovalJob.workspace_id == workspace.id, ApprovalJob.created_at >= since)
+    )
+    jobs = result.scalars().all()
+
+    buckets = {"low": 0, "medium": 0, "high": 0, "critical": 0}
+    scores = []
+    by_connection: dict[str, dict] = {}
+    for j in jobs:
+        level = getattr(j, "risk_level", "low") or "low"
+        score = getattr(j, "risk_score", 0) or 0
+        buckets[level] = buckets.get(level, 0) + 1
+        scores.append(score)
+
+        conn = j.connection
+        if conn not in by_connection:
+            by_connection[conn] = {"total": 0, "avg_risk": 0, "max_risk": 0, "scores": []}
+        by_connection[conn]["total"] += 1
+        by_connection[conn]["scores"].append(score)
+
+    for conn, data in by_connection.items():
+        data["avg_risk"] = round(sum(data["scores"]) / len(data["scores"]), 1) if data["scores"] else 0
+        data["max_risk"] = max(data["scores"]) if data["scores"] else 0
+        del data["scores"]
+
+    avg_score = round(sum(scores) / len(scores), 1) if scores else 0
+
+    return {
+        "distribution": buckets,
+        "total": len(jobs),
+        "avg_score": avg_score,
+        "by_connection": by_connection,
+        "period_days": days,
+    }
 
 
 @router.get("/audit/patterns")
