@@ -49,6 +49,10 @@ AGENT_RATE_WINDOW_SECONDS = 3600  # 1 hour sliding window
 # Approval expiry (approved but not executed within window → void)
 DEFAULT_APPROVAL_EXPIRY_SECONDS = 1800  # 30 minutes
 
+# Re-authorization: consecutive approval counter per agent+connection+action
+REDIS_KEY_REAUTH_COUNTER = "reauth:{agent_id}:{connection}:{action}"
+REAUTH_COUNTER_TTL = 86400  # 24 hours — resets daily
+
 # Webhook
 WEBHOOK_TIMEOUT_SECONDS = 10
 WEBHOOK_MAX_RETRIES = 3

@@ -34,6 +34,9 @@ from api.services.rule_engine import (
     record_spending,
     check_rule_budget,
     record_rule_spending,
+    check_reauth_required,
+    increment_reauth_counter,
+    reset_reauth_counter,
 )
 
 router = APIRouter(prefix="/api/v1", tags=["approval"])
@@ -197,8 +200,12 @@ async def submit_approval_request(
     if not await check_cooldown(rule, redis_client):
         raise HTTPException(status_code=403, detail="Action blocked: cooldown limit exceeded")
 
-    # Pre-approval check
-    if await check_pre_approval(rule, request.params, redis_client):
+    # Re-authorization check: if consecutive approvals exceed threshold, force fresh approval
+    reauth = await check_reauth_required(rule, request.user_id, request.connection, request.action, redis_client)
+    reauth_forced = reauth["required"]
+
+    # Pre-approval check (skip if re-auth is forced)
+    if not reauth_forced and await check_pre_approval(rule, request.params, redis_client):
         job = ApprovalJob(
             id=uuid.uuid4(),
             idempotency_key=request.idempotency_key,
@@ -235,9 +242,10 @@ async def submit_approval_request(
     risk_score_val = risk.get("score", 0)
     risk_level_val = risk.get("level", "low")
 
-    # Risk-based auto-approve: if rule has threshold and score is low enough
+    # Risk-based auto-approve: if rule has threshold and score is low enough (skip if re-auth forced)
     if (
-        rule.risk_auto_approve_threshold is not None
+        not reauth_forced
+        and rule.risk_auto_approve_threshold is not None
         and risk_score_val <= rule.risk_auto_approve_threshold
     ):
         job = ApprovalJob(
@@ -296,10 +304,19 @@ async def submit_approval_request(
 
     await increment_cooldown(rule, redis_client)
 
+    # If re-auth was forced, add note to audit
+    if reauth_forced:
+        db.add(AuditLog(
+            job_id=job.id, workspace_id=workspace.id,
+            event_type=AuditEventType.STEP_UP,
+            note=f"Re-authorization required: {reauth['consecutive']} consecutive approvals (threshold: {reauth['threshold']})",
+        ))
+        await db.commit()
+
     response_data = {
         "job_id": str(job.id),
         "status": "pending",
-        "message": "Approval requested — CIBA notification sent",
+        "message": "Re-authorization required" if reauth_forced else "Approval requested — CIBA notification sent",
         "risk": risk,
     }
     await redis_client.setex(REDIS_KEY_IDEMPOTENCY.format(key=idem_key), 86400, json.dumps(response_data))
@@ -689,12 +706,21 @@ async def submit_web_decision(
             db=db,
         )
 
-    # Feature 8: update agent trust score
+    # Update agent trust score
     try:
         from api.routes.agents import _update_trust_score
         await _update_trust_score(job.agent_user_id, job.workspace_id, decision, db)
     except Exception:
         pass  # trust score update is best-effort
+
+    # Update re-auth counter: increment on approve, reset on reject
+    try:
+        if decision == "approve":
+            await increment_reauth_counter(job.agent_user_id, job.connection, job.action, redis_client)
+        else:
+            await reset_reauth_counter(job.agent_user_id, job.connection, job.action, redis_client)
+    except Exception:
+        pass  # re-auth counter is best-effort
 
     return {"status": decision + "d", "job_id": job_id, "execution": execution_result}
 

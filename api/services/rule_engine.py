@@ -14,6 +14,7 @@ from api.constants import (
     REDIS_KEY_BUDGET_DAILY, REDIS_KEY_BUDGET_WEEKLY, REDIS_KEY_BUDGET_MONTHLY,
     BUDGET_DAILY_TTL, BUDGET_WEEKLY_TTL, BUDGET_MONTHLY_TTL,
     REDIS_KEY_AGENT_RATE, AGENT_RATE_WINDOW_SECONDS,
+    REDIS_KEY_REAUTH_COUNTER, REAUTH_COUNTER_TTL,
 )
 
 OPERATORS = {
@@ -166,6 +167,50 @@ async def check_rule_budget(
             return {"allowed": False, "exceeded": period, "spent": spent}
 
     return {"allowed": True, "exceeded": None, "spent": spent}
+
+
+async def check_reauth_required(
+    rule: "Rule", agent_id: str, connection: str, action: str,
+    redis_client: aioredis.Redis,
+) -> dict:
+    """Check if the agent needs re-authorization after N consecutive approvals.
+
+    Returns {"required": bool, "consecutive": int, "threshold": int}.
+    """
+    threshold = getattr(rule, "reauth_every_n", None)
+    if not threshold or threshold <= 0:
+        return {"required": False, "consecutive": 0, "threshold": 0}
+
+    key = REDIS_KEY_REAUTH_COUNTER.format(agent_id=agent_id, connection=connection, action=action)
+    raw = await redis_client.get(key)
+    consecutive = int(raw) if raw else 0
+
+    return {
+        "required": consecutive >= threshold,
+        "consecutive": consecutive,
+        "threshold": threshold,
+    }
+
+
+async def increment_reauth_counter(
+    agent_id: str, connection: str, action: str,
+    redis_client: aioredis.Redis,
+):
+    """Increment the consecutive approval counter for re-auth tracking."""
+    key = REDIS_KEY_REAUTH_COUNTER.format(agent_id=agent_id, connection=connection, action=action)
+    pipe = redis_client.pipeline()
+    pipe.incr(key)
+    pipe.expire(key, REAUTH_COUNTER_TTL)
+    await pipe.execute()
+
+
+async def reset_reauth_counter(
+    agent_id: str, connection: str, action: str,
+    redis_client: aioredis.Redis,
+):
+    """Reset the consecutive counter (after a rejection or manual re-auth)."""
+    key = REDIS_KEY_REAUTH_COUNTER.format(agent_id=agent_id, connection=connection, action=action)
+    await redis_client.delete(key)
 
 
 async def record_rule_spending(
