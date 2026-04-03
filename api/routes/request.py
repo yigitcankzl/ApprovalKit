@@ -22,6 +22,7 @@ from api.schemas.request import ApprovalRequest, ApprovalResponse, JobStatusResp
 from api.services.rule_engine import (
     find_matching_rule,
     is_in_blackout,
+    is_outside_allowed_days,
     check_cooldown,
     check_pre_approval,
     check_scope_creep,
@@ -31,6 +32,8 @@ from api.services.rule_engine import (
     compute_risk_score,
     check_budget,
     record_spending,
+    check_rule_budget,
+    record_rule_spending,
 )
 
 router = APIRouter(prefix="/api/v1", tags=["approval"])
@@ -176,6 +179,19 @@ async def submit_approval_request(
     # Blackout check
     if is_in_blackout(rule):
         raise HTTPException(status_code=403, detail="Action blocked: blackout window active")
+
+    # Allowed days check (scheduled approvals)
+    if is_outside_allowed_days(rule):
+        raise HTTPException(status_code=403, detail="Action blocked: not an allowed day of week for this rule")
+
+    # Per-rule budget check
+    if amount_val and amount_val > 0 and getattr(rule, "budget_limits", None):
+        rule_budget = await check_rule_budget(rule, amount_val, redis_client)
+        if not rule_budget["allowed"]:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Rule budget exceeded: {rule_budget['exceeded']} limit reached for rule '{rule.name}'",
+            )
 
     # Cooldown check
     if not await check_cooldown(rule, redis_client):

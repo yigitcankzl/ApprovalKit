@@ -131,6 +131,63 @@ def is_in_blackout(rule: Rule) -> bool:
         return now >= start or now <= end
 
 
+def is_outside_allowed_days(rule: Rule) -> bool:
+    """Check if today is outside the rule's allowed days of week.
+    allowed_days is a list of ints [0=Mon..6=Sun]. None = all days allowed."""
+    allowed = getattr(rule, "allowed_days", None)
+    if not allowed:
+        return False
+    today = datetime.utcnow().weekday()  # 0=Mon..6=Sun
+    return today not in allowed
+
+
+async def check_rule_budget(
+    rule: "Rule", amount: float, redis_client: aioredis.Redis,
+) -> dict:
+    """Check per-rule budget limits. Returns {"allowed": bool, "exceeded": str|None, "spent": dict}."""
+    limits = getattr(rule, "budget_limits", None)
+    if not limits or not isinstance(limits, dict):
+        return {"allowed": True, "exceeded": None, "spent": {}}
+
+    rule_id = str(rule.id)
+    periods = {
+        "daily": (f"rulebudget:daily:{rule_id}", BUDGET_DAILY_TTL),
+        "weekly": (f"rulebudget:weekly:{rule_id}", BUDGET_WEEKLY_TTL),
+        "monthly": (f"rulebudget:monthly:{rule_id}", BUDGET_MONTHLY_TTL),
+    }
+    spent: dict[str, float] = {}
+    for period, (key, _ttl) in periods.items():
+        raw = await redis_client.get(key)
+        spent[period] = float(raw) if raw else 0.0
+
+    for period in ("daily", "weekly", "monthly"):
+        limit = limits.get(period)
+        if limit is not None and (spent[period] + amount) > limit:
+            return {"allowed": False, "exceeded": period, "spent": spent}
+
+    return {"allowed": True, "exceeded": None, "spent": spent}
+
+
+async def record_rule_spending(
+    rule: "Rule", amount: float, redis_client: aioredis.Redis,
+):
+    """Increment per-rule spending counters after approval."""
+    limits = getattr(rule, "budget_limits", None)
+    if not limits:
+        return
+    rule_id = str(rule.id)
+    periods = {
+        "daily": (f"rulebudget:daily:{rule_id}", BUDGET_DAILY_TTL),
+        "weekly": (f"rulebudget:weekly:{rule_id}", BUDGET_WEEKLY_TTL),
+        "monthly": (f"rulebudget:monthly:{rule_id}", BUDGET_MONTHLY_TTL),
+    }
+    pipe = redis_client.pipeline()
+    for _period, (key, ttl) in periods.items():
+        pipe.incrbyfloat(key, amount)
+        pipe.expire(key, ttl)
+    await pipe.execute()
+
+
 def check_time_window(rule: Rule) -> dict:
     """Check if current time is within the rule's allowed approval window.
 

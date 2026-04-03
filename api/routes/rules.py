@@ -58,6 +58,10 @@ def _rule_to_response(rule: Rule) -> dict:
         "approval_expiry_seconds": rule.approval_expiry_seconds,
         "trigger_rules": rule.trigger_rules,
         "on_approve_actions": rule.on_approve_actions,
+        "risk_auto_approve_threshold": getattr(rule, "risk_auto_approve_threshold", None),
+        "reauth_every_n": getattr(rule, "reauth_every_n", None),
+        "budget_limits": getattr(rule, "budget_limits", None),
+        "allowed_days": getattr(rule, "allowed_days", None),
         "created_at": rule.created_at.isoformat(),
         "updated_at": rule.updated_at.isoformat(),
     }
@@ -96,6 +100,10 @@ async def create_rule(
         approval_expiry_seconds=data.approval_expiry_seconds,
         trigger_rules=data.trigger_rules,
         on_approve_actions=data.on_approve_actions,
+        risk_auto_approve_threshold=data.risk_auto_approve_threshold,
+        reauth_every_n=data.reauth_every_n,
+        budget_limits=data.budget_limits,
+        allowed_days=data.allowed_days,
     )
     db.add(rule)
     await db.flush()

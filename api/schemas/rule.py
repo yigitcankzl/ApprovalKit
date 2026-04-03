@@ -36,6 +36,10 @@ class RuleCreate(BaseModel):
     approval_expiry_seconds: int | None = Field(default=None, ge=60, le=86400)
     trigger_rules: list[dict] | None = None  # [{"connection": ..., "action": ..., "params": {...}}]
     on_approve_actions: list[dict] | None = None  # [{"connection": ..., "action": ..., "params": {...}}]
+    risk_auto_approve_threshold: int | None = Field(default=None, ge=0, le=100)
+    reauth_every_n: int | None = Field(default=None, ge=1, le=1000)
+    budget_limits: dict | None = None  # {"daily": 5000, "weekly": 20000, "monthly": 50000}
+    allowed_days: list[int] | None = None  # [0=Mon..6=Sun]
 
 
 class RuleUpdate(BaseModel):
@@ -63,6 +67,10 @@ class RuleUpdate(BaseModel):
     approval_expiry_seconds: int | None = None
     trigger_rules: list[dict] | None = None
     on_approve_actions: list[dict] | None = None
+    risk_auto_approve_threshold: int | None = None
+    reauth_every_n: int | None = None
+    budget_limits: dict | None = None
+    allowed_days: list[int] | None = None
 
 
 class RuleResponse(BaseModel):
@@ -93,6 +101,10 @@ class RuleResponse(BaseModel):
     approval_expiry_seconds: int | None = None
     trigger_rules: list[dict] | None = None
     on_approve_actions: list[dict] | None = None
+    risk_auto_approve_threshold: int | None = None
+    reauth_every_n: int | None = None
+    budget_limits: dict | None = None
+    allowed_days: list[int] | None = None
     created_at: str
     updated_at: str
 
