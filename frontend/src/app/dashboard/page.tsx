@@ -10,7 +10,7 @@ import type { DashboardStats } from "@/types";
 import {
   CheckCircle2, XCircle, ShieldOff, Clock, KeyRound, Users,
   Activity, AlertTriangle, Radio, ShieldCheck, Gauge, CircleDot,
-  TrendingUp, Zap, ArrowRight, BarChart3,
+  TrendingUp, Zap, ArrowRight, BarChart3, Mail, Link2, Copy,
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -65,6 +65,7 @@ export default function DashboardPage() {
   const [pendingJobs, setPendingJobs] = useState<any[]>([]);
   const [riskDist, setRiskDist] = useState<any>(null);
   const [now, setNow]           = useState(Date.now());
+  const [copiedLink, setCopiedLink] = useState<string | null>(null);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -395,6 +396,53 @@ export default function DashboardPage() {
                       <Badge variant={job.state === "ciba_sent" ? "info" : "default"} className="text-[10px]">
                         {job.state.replace(/_/g, " ")}
                       </Badge>
+                      {/* Quick actions */}
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            api.generateApprovalLink(job.job_id).then((res: any) => {
+                              navigator.clipboard.writeText(res.approve_url);
+                              setCopiedLink(job.job_id);
+                              setTimeout(() => setCopiedLink(null), 2000);
+                            }).catch(() => {});
+                          }}
+                          title="Copy email approval link"
+                          className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                        >
+                          {copiedLink === job.job_id ? (
+                            <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+                          ) : (
+                            <Mail className="h-3.5 w-3.5 text-zinc-400" />
+                          )}
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            api.approveJob(job.job_id).then(() => {
+                              setPendingJobs(prev => prev.filter(j => j.job_id !== job.job_id));
+                              loadStats();
+                            }).catch(() => {});
+                          }}
+                          title="Quick approve"
+                          className="p-1 rounded hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            api.rejectJob(job.job_id).then(() => {
+                              setPendingJobs(prev => prev.filter(j => j.job_id !== job.job_id));
+                              loadStats();
+                            }).catch(() => {});
+                          }}
+                          title="Quick reject"
+                          className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                        >
+                          <XCircle className="h-3.5 w-3.5 text-red-400" />
+                        </button>
+                      </div>
                     </div>
                   );
                 })}

@@ -104,6 +104,20 @@ export const api = {
   rejectJob: (jobId: string, reason?: string) =>
     fetchAPI(`/api/v1/jobs/${jobId}/decision`, { method: "POST", body: JSON.stringify({ decision: "reject", note: reason || "Rejected" }) }),
 
+  // Email Approval
+  generateApprovalLink: (jobId: string, approverEmail?: string, expiresIn?: number) =>
+    fetchAPI("/api/v1/approve/generate-link", {
+      method: "POST",
+      body: JSON.stringify({ job_id: jobId, approver_email: approverEmail || "approver@company.com", expires_in: expiresIn || 3600 }),
+    }),
+
+  // Batch Decision
+  batchDecision: (jobIds: string[], decision: "approve" | "reject", note?: string) =>
+    fetchAPI("/api/v1/jobs/batch-decision", {
+      method: "POST",
+      body: JSON.stringify({ job_ids: jobIds, decision, note: note || "Batch decision" }),
+    }),
+
   // Consent
   getConsent: () => fetchAPI("/api/v1/consent"),
   getPermissionMap: () => fetchAPI("/api/v1/consent/permission-map"),
