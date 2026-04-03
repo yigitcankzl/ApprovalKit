@@ -14,7 +14,7 @@ Decrypted at runtime, never exposed to the frontend after initial save.
 import json
 import logging
 import httpx
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
