@@ -188,19 +188,19 @@ function ApproversContent() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Name</label>
+                <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Name</label>
                 <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Alice Smith" className="mt-1" />
               </div>
               <div>
-                <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Email</label>
+                <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Email</label>
                 <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="alice@company.com" className="mt-1" />
               </div>
               <div>
-                <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Blackout Start</label>
+                <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Blackout Start</label>
                 <Input type="time" value={form.blackout_start} onChange={(e) => setForm({ ...form, blackout_start: e.target.value })} className="mt-1" />
               </div>
               <div>
-                <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Blackout End</label>
+                <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Blackout End</label>
                 <Input type="time" value={form.blackout_end} onChange={(e) => setForm({ ...form, blackout_end: e.target.value })} className="mt-1" />
               </div>
             </div>
@@ -256,7 +256,7 @@ function ApproversList({ approvers, expandedId, setExpandedId, approverName, han
               <CardContent className="py-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center font-bold text-zinc-700 dark:text-zinc-300 dark:text-zinc-600 text-sm">
+                    <div className="w-10 h-10 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center font-bold text-zinc-700 dark:text-zinc-300 text-sm">
                       {a.name.charAt(0).toUpperCase()}
                     </div>
                     <div>
@@ -342,7 +342,7 @@ function ApproversList({ approvers, expandedId, setExpandedId, approverName, han
                       </div>
                     ) : (
                       <div className="space-y-3">
-                        <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600">Set Delegation</p>
+                        <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Set Delegation</p>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                           <div>
                             <label className="text-xs text-zinc-500 dark:text-zinc-400">Delegate To</label>
