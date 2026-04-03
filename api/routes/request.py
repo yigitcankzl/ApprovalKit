@@ -512,6 +512,8 @@ async def get_job_status(
         retry_allowed=job.state not in (JobState.BLOCKED,),
         risk_score=getattr(job, "risk_score", 0) or 0,
         risk_level=getattr(job, "risk_level", "low") or "low",
+        approval_expires_at=job.approval_expires_at.isoformat() if getattr(job, "approval_expires_at", None) else None,
+        expires_at=job.expires_at.isoformat() if job.expires_at else None,
     )
 
 
@@ -553,6 +555,8 @@ async def get_pending_jobs(workspace: Workspace = Depends(get_current_workspace)
             "params": j.params,
             "state": j.state.value,
             "created_at": j.created_at.isoformat(),
+            "expires_at": j.expires_at.isoformat() if j.expires_at else None,
+            "approval_expires_at": j.approval_expires_at.isoformat() if getattr(j, "approval_expires_at", None) else None,
             "binding_message": binding_map.get(str(j.id)),
             "risk_score": getattr(j, "risk_score", 0) or 0,
             "risk_level": getattr(j, "risk_level", "low") or "low",
@@ -623,6 +627,9 @@ async def submit_web_decision(
         job.approvals_count = (job.approvals_count or 0) + 1
         if modified_params:
             job.final_params = modified_params
+        # Time-boxed: set approval execution deadline
+        if rule and rule.approval_expiry_seconds:
+            job.approval_expires_at = datetime.utcnow() + timedelta(seconds=rule.approval_expiry_seconds)
         event_type = AuditEventType.APPROVED
     elif decision == "reject":
         job.state = JobState.REJECTED

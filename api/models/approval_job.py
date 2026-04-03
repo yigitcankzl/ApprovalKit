@@ -56,10 +56,12 @@ class ApprovalJob(Base):
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
-    # Feature 7: risk score stored at job creation
+    # Time-boxed: deadline for executing an approved action (approval_expiry_seconds)
+    approval_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Risk score stored at job creation
     risk_score: Mapped[int] = mapped_column(Integer, default=0)
     risk_level: Mapped[str] = mapped_column(String(20), default="low")
-    # Feature 4: rejection reason from approver
+    # Rejection reason from approver
     rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     rule = relationship("Rule", lazy="selectin")
