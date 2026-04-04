@@ -10,7 +10,7 @@ import type { DashboardStats } from "@/types";
 import {
   CheckCircle2, XCircle, ShieldOff, Clock, KeyRound, Users,
   Activity, AlertTriangle, Radio, ShieldCheck, Gauge, CircleDot,
-  TrendingUp, Zap, ArrowRight,
+  TrendingUp, Zap, ArrowRight, BarChart3, Mail,
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -62,6 +62,10 @@ export default function DashboardPage() {
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState<string | null>(null);
   const [patterns, setPatterns] = useState<any[]>([]);
+  const [pendingJobs, setPendingJobs] = useState<any[]>([]);
+  const [riskDist, setRiskDist] = useState<any>(null);
+  const [now, setNow]           = useState(Date.now());
+  const [copiedLink, setCopiedLink] = useState<string | null>(null);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -85,12 +89,21 @@ export default function DashboardPage() {
       api.getApprovalPatterns(30)
         .then((data: any) => { if (ctrl.active) setPatterns(data.patterns || []); })
         .catch(() => {}),
+      api.getPendingJobs()
+        .then((jobs: any[]) => { if (ctrl.active) setPendingJobs(Array.isArray(jobs) ? jobs : []); })
+        .catch(() => {}),
+      api.getRiskDistribution(7)
+        .then((data: any) => { if (ctrl.active) setRiskDist(data); })
+        .catch(() => {}),
     ])
       .catch((err) => { if (ctrl.active) setError(err.message || "Failed to load"); })
       .finally(() => { if (ctrl.active) setLoading(false); });
 
+    // Refresh pending jobs on stat reload
+    const refreshPending = () => api.getPendingJobs().then(setPendingJobs).catch(() => {});
+
     // Auto-refresh stats only — do not replace Live Activity (SSE + initial hydrate)
-    const refreshInterval = setInterval(() => { loadStats(); }, 30000);
+    const refreshInterval = setInterval(() => { loadStats(); refreshPending(); }, 30000);
 
     // SSE subscription with exponential backoff reconnection
     let es: EventSource | null = null;
@@ -121,12 +134,16 @@ export default function DashboardPage() {
     }
     connectSSE();
 
+    // Tick every second for countdown timers
+    const tickInterval = setInterval(() => setNow(Date.now()), 1000);
+
     return () => {
       ctrl.active = false;
       cancelled = true;
       es?.close();
       if (reconnectTimer) clearTimeout(reconnectTimer);
       clearInterval(refreshInterval);
+      clearInterval(tickInterval);
     };
   }, [authLoading, user]);
 
@@ -316,11 +333,130 @@ export default function DashboardPage() {
         </section>
       )}
 
+      {/* Pending Approvals with Time-Boxed Countdown */}
+      {pendingJobs.length > 0 && (
+        <section>
+          <Card className="border-zinc-200/80 dark:border-zinc-800/80">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Clock className="h-4 w-4 text-amber-500" />
+                  Pending Approvals
+                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">{pendingJobs.length}</span>
+                </CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {pendingJobs.map((job: any) => {
+                  const expiresAt = job.expires_at ? new Date(job.expires_at).getTime() : null;
+                  const remainingSec = expiresAt ? Math.max(0, Math.floor((expiresAt - now) / 1000)) : null;
+                  const isExpired = remainingSec !== null && remainingSec <= 0;
+                  const isUrgent = remainingSec !== null && remainingSec > 0 && remainingSec < 120;
+                  const riskColor = job.risk_level === "critical" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                    : job.risk_level === "high" ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
+                    : job.risk_level === "medium" ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+                    : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400";
+                  const formatTime = (s: number) => {
+                    const m = Math.floor(s / 60);
+                    const sec = s % 60;
+                    return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+                  };
+                  return (
+                    <div
+                      key={job.job_id}
+                      className={`flex items-center gap-3 rounded-lg px-3 py-2.5 border transition-colors ${
+                        isExpired ? "border-red-300 dark:border-red-800 bg-red-50/50 dark:bg-red-950/10"
+                        : isUrgent ? "border-amber-300 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/10 animate-pulse"
+                        : "border-zinc-200/60 dark:border-zinc-800/60 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                      }`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                          <code className="bg-zinc-100 dark:bg-zinc-800 rounded px-1.5 py-0.5 text-[11px]">
+                            {job.connection}:{job.action}
+                          </code>
+                        </p>
+                        {job.binding_message && (
+                          <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-0.5 truncate">{job.binding_message}</p>
+                        )}
+                      </div>
+                      {/* Risk Score Badge */}
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${riskColor}`}>
+                        Risk {job.risk_score}
+                      </span>
+                      {/* Countdown Timer */}
+                      {remainingSec !== null && (
+                        <span className={`text-[11px] font-mono tabular-nums min-w-[60px] text-right ${
+                          isExpired ? "text-red-500 font-bold" : isUrgent ? "text-amber-600 dark:text-amber-400 font-bold" : "text-zinc-500 dark:text-zinc-400"
+                        }`}>
+                          {isExpired ? "Expired" : formatTime(remainingSec)}
+                        </span>
+                      )}
+                      <Badge variant={job.state === "ciba_sent" ? "info" : "default"} className="text-[10px]">
+                        {job.state.replace(/_/g, " ")}
+                      </Badge>
+                      {/* Quick actions */}
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            api.generateApprovalLink(job.job_id).then((res: any) => {
+                              navigator.clipboard.writeText(res.approve_url);
+                              setCopiedLink(job.job_id);
+                              setTimeout(() => setCopiedLink(null), 2000);
+                            }).catch(() => {});
+                          }}
+                          title="Copy email approval link"
+                          className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                        >
+                          {copiedLink === job.job_id ? (
+                            <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+                          ) : (
+                            <Mail className="h-3.5 w-3.5 text-zinc-400" />
+                          )}
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            api.approveJob(job.job_id).then(() => {
+                              setPendingJobs(prev => prev.filter(j => j.job_id !== job.job_id));
+                              loadStats();
+                            }).catch(() => {});
+                          }}
+                          title="Quick approve"
+                          className="p-1 rounded hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            api.rejectJob(job.job_id).then(() => {
+                              setPendingJobs(prev => prev.filter(j => j.job_id !== job.job_id));
+                              loadStats();
+                            }).catch(() => {});
+                          }}
+                          title="Quick reject"
+                          className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                        >
+                          <XCircle className="h-3.5 w-3.5 text-red-400" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+      )}
+
       {/* Bottom panels */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
-        {/* Live Activity Feed — takes up more space */}
-        <section className="lg:col-span-5">
+        {/* Live Activity Feed */}
+        <section className="lg:col-span-4">
           <Card className="w-full border-zinc-200/80 dark:border-zinc-800/80">
             <CardHeader className="pb-0">
               <div className="flex items-center justify-between">
@@ -379,7 +515,7 @@ export default function DashboardPage() {
         </section>
 
         {/* Security Status */}
-        <section className="lg:col-span-4">
+        <section className="lg:col-span-2">
           <Card className="w-full border-zinc-200/80 dark:border-zinc-800/80">
             <CardHeader className="pb-0">
               <div className="flex items-center justify-between">
@@ -417,6 +553,63 @@ export default function DashboardPage() {
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+        </section>
+
+        {/* Risk Distribution */}
+        <section className="lg:col-span-3">
+          <Card className="w-full border-zinc-200/80 dark:border-zinc-800/80">
+            <CardHeader className="pb-0">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <BarChart3 className="h-4 w-4 text-rose-500" />
+                  Risk Distribution
+                </CardTitle>
+                {riskDist && (
+                  <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500">
+                    avg {riskDist.avg_score}
+                  </span>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="pt-4">
+              {riskDist && riskDist.total > 0 ? (
+                <div className="space-y-3">
+                  {(["low", "medium", "high", "critical"] as const).map((level) => {
+                    const count = riskDist.distribution[level] || 0;
+                    const pct = riskDist.total > 0 ? Math.round((count / riskDist.total) * 100) : 0;
+                    const barColor = level === "critical" ? "bg-red-500" : level === "high" ? "bg-orange-500" : level === "medium" ? "bg-yellow-500" : "bg-green-500";
+                    const labelColor = level === "critical" ? "text-red-600 dark:text-red-400" : level === "high" ? "text-orange-600 dark:text-orange-400" : level === "medium" ? "text-yellow-600 dark:text-yellow-400" : "text-green-600 dark:text-green-400";
+                    return (
+                      <div key={level}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className={`text-[11px] font-semibold capitalize ${labelColor}`}>{level}</span>
+                          <span className="text-[10px] text-zinc-400 tabular-nums">{count} ({pct}%)</span>
+                        </div>
+                        <div className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-full h-1.5">
+                          <div className={`h-1.5 rounded-full transition-all duration-500 ${barColor}`} style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {/* Top risky connections */}
+                  {Object.entries(riskDist.by_connection || {})
+                    .sort((a: any, b: any) => b[1].avg_risk - a[1].avg_risk)
+                    .slice(0, 3)
+                    .map(([conn, data]: any) => (
+                      <div key={conn} className="flex items-center justify-between text-[10px] text-zinc-500 dark:text-zinc-400 pt-1">
+                        <span className="truncate">{conn}</span>
+                        <span className="tabular-nums">avg {data.avg_risk} / max {data.max_risk}</span>
+                      </div>
+                    ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-zinc-400 dark:text-zinc-500">
+                  <BarChart3 className="h-6 w-6 mb-2 opacity-40" />
+                  <p className="text-xs">No risk data yet</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </section>

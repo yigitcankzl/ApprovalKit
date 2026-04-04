@@ -87,7 +87,7 @@ async def approve_via_token(
 
     job_id = token_data["job_id"]
     result = await db.execute(
-        select(ApprovalJob).where(ApprovalJob.id == uuid.UUID(job_id))
+        select(ApprovalJob).where(ApprovalJob.id == uuid.UUID(job_id)).with_for_update()
     )
     job = result.scalar_one_or_none()
     if not job:

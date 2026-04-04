@@ -14,6 +14,7 @@ from api.constants import (
     REDIS_KEY_BUDGET_DAILY, REDIS_KEY_BUDGET_WEEKLY, REDIS_KEY_BUDGET_MONTHLY,
     BUDGET_DAILY_TTL, BUDGET_WEEKLY_TTL, BUDGET_MONTHLY_TTL,
     REDIS_KEY_AGENT_RATE, AGENT_RATE_WINDOW_SECONDS,
+    REDIS_KEY_REAUTH_COUNTER, REAUTH_COUNTER_TTL,
 )
 
 OPERATORS = {
@@ -129,6 +130,107 @@ def is_in_blackout(rule: Rule) -> bool:
         return start <= now <= end
     else:
         return now >= start or now <= end
+
+
+def is_outside_allowed_days(rule: Rule) -> bool:
+    """Check if today is outside the rule's allowed days of week.
+    allowed_days is a list of ints [0=Mon..6=Sun]. None = all days allowed."""
+    allowed = getattr(rule, "allowed_days", None)
+    if not allowed:
+        return False
+    today = datetime.utcnow().weekday()  # 0=Mon..6=Sun
+    return today not in allowed
+
+
+async def check_rule_budget(
+    rule: "Rule", amount: float, redis_client: aioredis.Redis,
+) -> dict:
+    """Check per-rule budget limits. Returns {"allowed": bool, "exceeded": str|None, "spent": dict}."""
+    limits = getattr(rule, "budget_limits", None)
+    if not limits or not isinstance(limits, dict):
+        return {"allowed": True, "exceeded": None, "spent": {}}
+
+    rule_id = str(rule.id)
+    periods = {
+        "daily": (f"rulebudget:daily:{rule_id}", BUDGET_DAILY_TTL),
+        "weekly": (f"rulebudget:weekly:{rule_id}", BUDGET_WEEKLY_TTL),
+        "monthly": (f"rulebudget:monthly:{rule_id}", BUDGET_MONTHLY_TTL),
+    }
+    spent: dict[str, float] = {}
+    for period, (key, _ttl) in periods.items():
+        raw = await redis_client.get(key)
+        spent[period] = float(raw) if raw else 0.0
+
+    for period in ("daily", "weekly", "monthly"):
+        limit = limits.get(period)
+        if limit is not None and (spent[period] + amount) > limit:
+            return {"allowed": False, "exceeded": period, "spent": spent}
+
+    return {"allowed": True, "exceeded": None, "spent": spent}
+
+
+async def check_reauth_required(
+    rule: "Rule", agent_id: str, connection: str, action: str,
+    redis_client: aioredis.Redis,
+) -> dict:
+    """Check if the agent needs re-authorization after N consecutive approvals.
+
+    Returns {"required": bool, "consecutive": int, "threshold": int}.
+    """
+    threshold = getattr(rule, "reauth_every_n", None)
+    if not threshold or threshold <= 0:
+        return {"required": False, "consecutive": 0, "threshold": 0}
+
+    key = REDIS_KEY_REAUTH_COUNTER.format(agent_id=agent_id, connection=connection, action=action)
+    raw = await redis_client.get(key)
+    consecutive = int(raw) if raw else 0
+
+    return {
+        "required": consecutive >= threshold,
+        "consecutive": consecutive,
+        "threshold": threshold,
+    }
+
+
+async def increment_reauth_counter(
+    agent_id: str, connection: str, action: str,
+    redis_client: aioredis.Redis,
+):
+    """Increment the consecutive approval counter for re-auth tracking."""
+    key = REDIS_KEY_REAUTH_COUNTER.format(agent_id=agent_id, connection=connection, action=action)
+    pipe = redis_client.pipeline()
+    pipe.incr(key)
+    pipe.expire(key, REAUTH_COUNTER_TTL)
+    await pipe.execute()
+
+
+async def reset_reauth_counter(
+    agent_id: str, connection: str, action: str,
+    redis_client: aioredis.Redis,
+):
+    """Reset the consecutive counter (after a rejection or manual re-auth)."""
+    key = REDIS_KEY_REAUTH_COUNTER.format(agent_id=agent_id, connection=connection, action=action)
+    await redis_client.delete(key)
+
+
+async def record_rule_spending(
+    rule: "Rule", amount: float, redis_client: aioredis.Redis,
+):
+    """Increment per-rule spending counters after approval."""
+    limits = getattr(rule, "budget_limits", None)
+    if not limits:
+        return
+    rule_id = str(rule.id)
+    periods = {
+        "daily": (f"rulebudget:daily:{rule_id}", BUDGET_DAILY_TTL),
+        "weekly": (f"rulebudget:weekly:{rule_id}", BUDGET_WEEKLY_TTL),
+        "monthly": (f"rulebudget:monthly:{rule_id}", BUDGET_MONTHLY_TTL),
+    }
+    pipe = redis_client.pipeline()
+    for _period, (key, ttl) in periods.items():
+        pipe.incrbyfloat(key, amount)
+        pipe.expire(key, ttl)
+    await pipe.execute()
 
 
 def check_time_window(rule: Rule) -> dict:

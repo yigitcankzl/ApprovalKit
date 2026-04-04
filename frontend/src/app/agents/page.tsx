@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import {
   Bot, CheckCircle2, XCircle, Loader2, Plus, Trash2, RefreshCw, Play,
   Copy, Check, Eye, EyeOff, ChevronRight, ChevronDown, Plug, Code2,
+  Clock, Activity,
 } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -278,8 +279,20 @@ kit = ApprovalKit(
 kit.gate("your-connection", "your-action", {"key": "value"})`;
 
   const [showHowTo, setShowHowTo] = useState(false);
+  const [timeline, setTimeline] = useState<any>(null);
+  const [timelineLoading, setTimelineLoading] = useState(false);
 
   const active = agents.find((a) => a.id === activeId);
+
+  // Load timeline when active agent changes
+  useEffect(() => {
+    if (!activeId) { setTimeline(null); return; }
+    setTimelineLoading(true);
+    api.getAgentTimeline(activeId, 30)
+      .then(setTimeline)
+      .catch(() => setTimeline(null))
+      .finally(() => setTimelineLoading(false));
+  }, [activeId]);
 
   if (loading) {
     return (
@@ -450,6 +463,114 @@ kit.gate("your-connection", "your-action", {"key": "value"})`;
                   <p className="text-xs mt-1">Use <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded">kit.gate()</code> to trigger approvals from your code.</p>
                 </div>
               )}
+
+              {/* Agent Activity Timeline */}
+              <Card className="mt-6">
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Activity className="h-4 w-4 text-indigo-500" />
+                    Activity Timeline
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {timelineLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-5 w-5 animate-spin text-zinc-400" />
+                    </div>
+                  ) : !timeline || !timeline.timeline || timeline.timeline.length === 0 ? (
+                    <div className="text-center py-8 text-zinc-400">
+                      <Clock className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                      <p className="text-sm">No activity yet</p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Stats Summary */}
+                      <div className="grid grid-cols-4 gap-3 mb-4">
+                        <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800/50 p-2.5 text-center">
+                          <p className="text-lg font-bold text-zinc-900 dark:text-zinc-100">{timeline.stats.total}</p>
+                          <p className="text-[10px] text-zinc-400">Total</p>
+                        </div>
+                        <div className="rounded-lg bg-green-50 dark:bg-green-950/20 p-2.5 text-center">
+                          <p className="text-lg font-bold text-green-600 dark:text-green-400">{timeline.stats.approval_rate}%</p>
+                          <p className="text-[10px] text-zinc-400">Approval Rate</p>
+                        </div>
+                        <div className="rounded-lg bg-blue-50 dark:bg-blue-950/20 p-2.5 text-center">
+                          <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{timeline.stats.avg_risk_score}</p>
+                          <p className="text-[10px] text-zinc-400">Avg Risk</p>
+                        </div>
+                        <div className="rounded-lg bg-purple-50 dark:bg-purple-950/20 p-2.5 text-center">
+                          <p className="text-lg font-bold text-purple-600 dark:text-purple-400">
+                            {timeline.stats.avg_duration_seconds > 60
+                              ? `${Math.round(timeline.stats.avg_duration_seconds / 60)}m`
+                              : `${timeline.stats.avg_duration_seconds}s`}
+                          </p>
+                          <p className="text-[10px] text-zinc-400">Avg Duration</p>
+                        </div>
+                      </div>
+
+                      {/* Timeline entries */}
+                      <div className="relative pl-6 space-y-0">
+                        {/* Vertical line */}
+                        <div className="absolute left-[9px] top-2 bottom-2 w-px bg-zinc-200 dark:bg-zinc-700" />
+
+                        {timeline.timeline.map((entry: any, i: number) => {
+                          const stateColor = entry.state === "approved" || entry.state === "pre_approved" ? "bg-green-500"
+                            : entry.state === "rejected" ? "bg-red-500"
+                            : entry.state === "blocked" ? "bg-orange-500"
+                            : entry.state === "timeout" ? "bg-yellow-500"
+                            : "bg-blue-500";
+                          const riskColor = entry.risk_level === "critical" ? "text-red-500"
+                            : entry.risk_level === "high" ? "text-orange-500"
+                            : entry.risk_level === "medium" ? "text-yellow-500"
+                            : "text-green-500";
+
+                          return (
+                            <div key={entry.job_id} className="relative flex items-start gap-3 pb-3">
+                              {/* Dot on timeline */}
+                              <div className={`absolute left-[-18px] top-1.5 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-zinc-900 ${stateColor}`} />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <code className="text-[10px] bg-zinc-100 dark:bg-zinc-800 rounded px-1.5 py-0.5 text-zinc-600 dark:text-zinc-400">
+                                    {entry.connection}:{entry.action}
+                                  </code>
+                                  <Badge variant={
+                                    entry.state === "approved" || entry.state === "pre_approved" ? "success"
+                                    : entry.state === "rejected" ? "danger"
+                                    : entry.state === "blocked" ? "warning"
+                                    : "default"
+                                  } className="text-[9px]">
+                                    {entry.state.replace(/_/g, " ")}
+                                  </Badge>
+                                  <span className={`text-[10px] font-mono ${riskColor}`}>
+                                    Risk {entry.risk_score}
+                                  </span>
+                                  {entry.duration_seconds !== null && (
+                                    <span className="text-[10px] text-zinc-400">
+                                      {entry.duration_seconds > 60
+                                        ? `${Math.round(entry.duration_seconds / 60)}m`
+                                        : `${entry.duration_seconds}s`}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <span className="text-[10px] text-zinc-400">
+                                    {new Date(entry.timestamp).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                  </span>
+                                  {entry.rejection_reason && (
+                                    <span className="text-[10px] text-red-400 truncate max-w-xs">
+                                      {entry.rejection_reason}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
             </div>
           )}
         </div>

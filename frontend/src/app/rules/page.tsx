@@ -80,10 +80,11 @@ interface ConsentData {
 }
 
 export default function RulesPage() {
-  const [tab, setTab] = useState<"rules" | "consent">("rules");
+  const [tab, setTab] = useState<"rules" | "consent" | "permissions">("rules");
   const [rules, setRules] = useState<Rule[]>([]);
   const [approvers, setApprovers] = useState<Approver[]>([]);
   const [consent, setConsent] = useState<ConsentData | null>(null);
+  const [permissionMap, setPermissionMap] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [templates, setTemplates] = useState<any[]>([]);
@@ -95,8 +96,9 @@ export default function RulesPage() {
       api.getApprovers().catch(() => []),
       api.getConsent().catch(() => null),
       fetch("/api/v1/rules/templates").then(r => r.ok ? r.json() : { templates: [] }).catch(() => ({ templates: [] })),
+      api.getPermissionMap().catch(() => null),
     ])
-      .then(([r, a, c, t]) => { setRules(r); setApprovers(a); setConsent(c); setTemplates(t.templates || []); })
+      .then(([r, a, c, t, pm]) => { setRules(r); setApprovers(a); setConsent(c); setTemplates(t.templates || []); setPermissionMap(pm); })
       .catch((err) => setError(err.message || "Failed to load rules"))
       .finally(() => setLoading(false));
   }, []);
@@ -154,6 +156,18 @@ export default function RulesPage() {
           Consent & Permissions
           {consent && <span className="ml-1.5 text-xs bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded-full">{consent.services.length}</span>}
         </button>
+        <button
+          onClick={() => setTab("permissions")}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            tab === "permissions"
+              ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400"
+              : "border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
+          }`}
+        >
+          <Eye className="h-4 w-4 inline mr-1.5" />
+          Permission Map
+          {permissionMap && <span className="ml-1.5 text-xs bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded-full">{permissionMap.total_agents}</span>}
+        </button>
       </div>
 
       {tab === "rules" ? (
@@ -171,13 +185,15 @@ export default function RulesPage() {
           error={error}
           onRefresh={() => { api.getRules().then(setRules); }}
         />
-      ) : (
+      ) : tab === "consent" ? (
         <ConsentTab
           consent={consent}
           loading={loading}
           error={error}
           onRefresh={() => { api.getConsent().then((c: ConsentData) => setConsent(c)).catch(() => {}); }}
         />
+      ) : (
+        <PermissionMapTab data={permissionMap} loading={loading} />
       )}
     </div>
   );
@@ -830,6 +846,184 @@ function RuleCard({ rule, approverMap, onDelete }: { rule: Rule; approverMap: Re
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+
+/* ─── Permission Map Tab ─── */
+function PermissionMapTab({ data, loading }: { data: any; loading: boolean }) {
+  const [expandedAgent, setExpandedAgent] = useState<string | null>(null);
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-40">
+      <Loader2 className="h-6 w-6 animate-spin text-zinc-400" />
+    </div>
+  );
+
+  if (!data || !data.agents || data.agents.length === 0) return (
+    <Card>
+      <CardContent className="py-12 text-center">
+        <Eye className="h-12 w-12 text-zinc-300 dark:text-zinc-600 mx-auto mb-4" />
+        <p className="text-zinc-500 dark:text-zinc-400 text-lg font-medium">No agents registered</p>
+        <p className="text-zinc-400 dark:text-zinc-500 text-sm mt-1">
+          Register agents in the Connect Agent page to see their permission map here.
+        </p>
+      </CardContent>
+    </Card>
+  );
+
+  return (
+    <div className="space-y-6">
+      {/* Summary */}
+      <div className="grid grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950/30">
+                <Activity className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{data.total_agents}</p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">Active Agents</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-green-50 dark:bg-green-950/30">
+                <KeyRound className="h-5 w-5 text-green-600 dark:text-green-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{data.total_connections}</p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">Connected Services</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-purple-50 dark:bg-purple-950/30">
+                <Shield className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{data.total_rules}</p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">Active Rules</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Agent Permission Cards */}
+      {data.agents.map((agent: any) => {
+        const isExpanded = expandedAgent === agent.agent_id;
+        const trustColor = agent.trust_level === "high" ? "text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/30"
+          : agent.trust_level === "medium" ? "text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-950/30"
+          : "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30";
+
+        return (
+          <Card key={agent.agent_id} className="overflow-hidden">
+            <div
+              className="flex items-center justify-between px-6 py-4 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
+              onClick={() => setExpandedAgent(isExpanded ? null : agent.agent_id)}
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm">
+                  {agent.agent_name.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{agent.agent_name}</p>
+                  {agent.description && (
+                    <p className="text-[11px] text-zinc-400 dark:text-zinc-500 truncate max-w-md">{agent.description}</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${trustColor}`}>
+                  Trust {agent.trust_score}
+                </span>
+                <span className="text-xs text-zinc-400">{agent.total_connections} services</span>
+                {isExpanded ? <ChevronUp className="h-4 w-4 text-zinc-400" /> : <ChevronDown className="h-4 w-4 text-zinc-400" />}
+              </div>
+            </div>
+
+            {isExpanded && (
+              <div className="border-t border-zinc-200 dark:border-zinc-800 px-6 py-4 space-y-3">
+                {agent.permissions.length === 0 ? (
+                  <p className="text-sm text-zinc-400 py-4 text-center">No service permissions</p>
+                ) : (
+                  <div className="grid gap-3">
+                    {agent.permissions.map((perm: any) => (
+                      <div key={perm.connection} className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className={`w-2 h-2 rounded-full ${perm.connected ? "bg-green-500" : "bg-zinc-300 dark:bg-zinc-600"}`} />
+                            <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">{perm.name}</span>
+                            <code className="text-[10px] bg-zinc-100 dark:bg-zinc-800 rounded px-1.5 py-0.5 text-zinc-500">{perm.connection}</code>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {perm.connected && (
+                              <Badge variant="success" className="text-[9px]">Token Vault</Badge>
+                            )}
+                            {perm.rules_count > 0 && (
+                              <span className="text-[10px] text-zinc-400">{perm.rules_count} rule{perm.rules_count > 1 ? "s" : ""}</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {(perm.actions || []).map((a: string) => (
+                            <span key={a} className="text-[10px] bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 rounded px-1.5 py-0.5">{a}</span>
+                          ))}
+                        </div>
+
+                        {/* Scopes */}
+                        {perm.scopes && perm.scopes.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mb-2">
+                            {perm.scopes.map((s: string) => (
+                              <span key={s} className="text-[9px] bg-blue-50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400 rounded px-1.5 py-0.5 border border-blue-200/50 dark:border-blue-800/50">{s}</span>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Approval Models */}
+                        {perm.models && perm.models.length > 0 && (
+                          <div className="flex gap-1 mb-2">
+                            {perm.models.map((m: string) => (
+                              <span key={m} className="text-[9px] bg-purple-50 dark:bg-purple-950/20 text-purple-600 dark:text-purple-400 rounded px-1.5 py-0.5">{m.replace(/_/g, " ")}</span>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Usage Stats */}
+                        {perm.usage_7d && perm.usage_7d.total > 0 && (
+                          <div className="flex items-center gap-4 mt-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+                            <span className="text-[10px] text-zinc-400">{perm.usage_7d.total} requests (7d)</span>
+                            <span className="text-[10px] text-green-500">{perm.usage_7d.approved} approved</span>
+                            {perm.usage_7d.rejected > 0 && (
+                              <span className="text-[10px] text-red-500">{perm.usage_7d.rejected} rejected</span>
+                            )}
+                            {perm.usage_7d.last_used && (
+                              <span className="text-[10px] text-zinc-400 ml-auto">
+                                Last: {new Date(perm.usage_7d.last_used).toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </Card>
+        );
+      })}
     </div>
   );
 }

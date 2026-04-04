@@ -22,6 +22,7 @@ from api.schemas.request import ApprovalRequest, ApprovalResponse, JobStatusResp
 from api.services.rule_engine import (
     find_matching_rule,
     is_in_blackout,
+    is_outside_allowed_days,
     check_cooldown,
     check_pre_approval,
     check_scope_creep,
@@ -31,6 +32,11 @@ from api.services.rule_engine import (
     compute_risk_score,
     check_budget,
     record_spending,
+    check_rule_budget,
+    record_rule_spending,
+    check_reauth_required,
+    increment_reauth_counter,
+    reset_reauth_counter,
 )
 
 router = APIRouter(prefix="/api/v1", tags=["approval"])
@@ -177,12 +183,29 @@ async def submit_approval_request(
     if is_in_blackout(rule):
         raise HTTPException(status_code=403, detail="Action blocked: blackout window active")
 
+    # Allowed days check (scheduled approvals)
+    if is_outside_allowed_days(rule):
+        raise HTTPException(status_code=403, detail="Action blocked: not an allowed day of week for this rule")
+
+    # Per-rule budget check
+    if amount_val and amount_val > 0 and getattr(rule, "budget_limits", None):
+        rule_budget = await check_rule_budget(rule, amount_val, redis_client)
+        if not rule_budget["allowed"]:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Rule budget exceeded: {rule_budget['exceeded']} limit reached for rule '{rule.name}'",
+            )
+
     # Cooldown check
     if not await check_cooldown(rule, redis_client):
         raise HTTPException(status_code=403, detail="Action blocked: cooldown limit exceeded")
 
-    # Pre-approval check
-    if await check_pre_approval(rule, request.params, redis_client):
+    # Re-authorization check: if consecutive approvals exceed threshold, force fresh approval
+    reauth = await check_reauth_required(rule, request.user_id, request.connection, request.action, redis_client)
+    reauth_forced = reauth["required"]
+
+    # Pre-approval check (skip if re-auth is forced)
+    if not reauth_forced and await check_pre_approval(rule, request.params, redis_client):
         job = ApprovalJob(
             id=uuid.uuid4(),
             idempotency_key=request.idempotency_key,
@@ -219,9 +242,10 @@ async def submit_approval_request(
     risk_score_val = risk.get("score", 0)
     risk_level_val = risk.get("level", "low")
 
-    # Risk-based auto-approve: if rule has threshold and score is low enough
+    # Risk-based auto-approve: if rule has threshold and score is low enough (skip if re-auth forced)
     if (
-        rule.risk_auto_approve_threshold is not None
+        not reauth_forced
+        and rule.risk_auto_approve_threshold is not None
         and risk_score_val <= rule.risk_auto_approve_threshold
     ):
         job = ApprovalJob(
@@ -280,10 +304,19 @@ async def submit_approval_request(
 
     await increment_cooldown(rule, redis_client)
 
+    # If re-auth was forced, add note to audit
+    if reauth_forced:
+        db.add(AuditLog(
+            job_id=job.id, workspace_id=workspace.id,
+            event_type=AuditEventType.STEP_UP,
+            note=f"Re-authorization required: {reauth['consecutive']} consecutive approvals (threshold: {reauth['threshold']})",
+        ))
+        await db.commit()
+
     response_data = {
         "job_id": str(job.id),
         "status": "pending",
-        "message": "Approval requested — CIBA notification sent",
+        "message": "Re-authorization required" if reauth_forced else "Approval requested — CIBA notification sent",
         "risk": risk,
     }
     await redis_client.setex(REDIS_KEY_IDEMPOTENCY.format(key=idem_key), 86400, json.dumps(response_data))
@@ -342,7 +375,7 @@ async def _create_pending_job(
 class TestRequest(ApprovalRequest):
     """Same as ApprovalRequest but with defaults for dashboard testing."""
     user_id: str = "dashboard-test"
-    idempotency_key: str = ""
+    idempotency_key: str = "test-default"
 
 
 @router.post("/test-request", status_code=202)
@@ -512,6 +545,8 @@ async def get_job_status(
         retry_allowed=job.state not in (JobState.BLOCKED,),
         risk_score=getattr(job, "risk_score", 0) or 0,
         risk_level=getattr(job, "risk_level", "low") or "low",
+        approval_expires_at=job.approval_expires_at.isoformat() if getattr(job, "approval_expires_at", None) else None,
+        expires_at=job.expires_at.isoformat() if job.expires_at else None,
     )
 
 
@@ -553,6 +588,8 @@ async def get_pending_jobs(workspace: Workspace = Depends(get_current_workspace)
             "params": j.params,
             "state": j.state.value,
             "created_at": j.created_at.isoformat(),
+            "expires_at": j.expires_at.isoformat() if j.expires_at else None,
+            "approval_expires_at": j.approval_expires_at.isoformat() if getattr(j, "approval_expires_at", None) else None,
             "binding_message": binding_map.get(str(j.id)),
             "risk_score": getattr(j, "risk_score", 0) or 0,
             "risk_level": getattr(j, "risk_level", "low") or "low",
@@ -574,11 +611,12 @@ async def submit_web_decision(
     allowed = await rate_limiter.check_rate_limit(key=f"decision:{job_id}", max_requests=5, window_seconds=60)
     if not allowed:
         raise HTTPException(status_code=429, detail="Too many decisions for this job. Try again later.")
+    # Use SELECT FOR UPDATE to prevent race condition between concurrent decisions
     result = await db.execute(
         select(ApprovalJob).where(
             ApprovalJob.id == uuid.UUID(job_id),
             ApprovalJob.workspace_id == workspace.id,
-        )
+        ).with_for_update()
     )
     job = result.scalar_one_or_none()
     if not job:
@@ -623,6 +661,9 @@ async def submit_web_decision(
         job.approvals_count = (job.approvals_count or 0) + 1
         if modified_params:
             job.final_params = modified_params
+        # Time-boxed: set approval execution deadline
+        if rule and rule.approval_expiry_seconds:
+            job.approval_expires_at = datetime.utcnow() + timedelta(seconds=rule.approval_expiry_seconds)
         event_type = AuditEventType.APPROVED
     elif decision == "reject":
         job.state = JobState.REJECTED
@@ -665,13 +706,33 @@ async def submit_web_decision(
             workspace_id=str(job.workspace_id),
             db=db,
         )
+        # Record per-rule budget spending
+        if rule and getattr(rule, "budget_limits", None):
+            spend_params = modified_params or job.final_params or job.params
+            for k in ("amount", "amount_usd", "total"):
+                raw = spend_params.get(k)
+                if raw is not None:
+                    try:
+                        await record_rule_spending(rule, float(raw), redis_client)
+                    except Exception:
+                        pass
+                    break
 
-    # Feature 8: update agent trust score
+    # Update agent trust score
     try:
         from api.routes.agents import _update_trust_score
         await _update_trust_score(job.agent_user_id, job.workspace_id, decision, db)
     except Exception:
         pass  # trust score update is best-effort
+
+    # Update re-auth counter: increment on approve, reset on reject
+    try:
+        if decision == "approve":
+            await increment_reauth_counter(job.agent_user_id, job.connection, job.action, redis_client)
+        else:
+            await reset_reauth_counter(job.agent_user_id, job.connection, job.action, redis_client)
+    except Exception:
+        pass  # re-auth counter is best-effort
 
     return {"status": decision + "d", "job_id": job_id, "execution": execution_result}
 

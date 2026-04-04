@@ -148,9 +148,18 @@ class ApprovalKit:
         if r.status_code == 200:
             return {"status": "pre_approved"}
         if r.status_code == 202:
-            return {"status": "pending", "job_id": r.json()["job_id"]}
+            try:
+                data = r.json()
+                return {"status": "pending", "job_id": data.get("job_id")}
+            except (ValueError, KeyError):
+                return {"status": "pending", "job_id": None}
         if r.status_code == 403:
-            return {"status": "blocked"}
+            detail = ""
+            try:
+                detail = r.json().get("detail", "")
+            except (ValueError, KeyError):
+                pass
+            return {"status": "blocked", "detail": detail}
 
         r.raise_for_status()
         return {}

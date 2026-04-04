@@ -104,12 +104,28 @@ export const api = {
   rejectJob: (jobId: string, reason?: string) =>
     fetchAPI(`/api/v1/jobs/${jobId}/decision`, { method: "POST", body: JSON.stringify({ decision: "reject", note: reason || "Rejected" }) }),
 
+  // Email Approval
+  generateApprovalLink: (jobId: string, approverEmail?: string, expiresIn?: number) =>
+    fetchAPI("/api/v1/approve/generate-link", {
+      method: "POST",
+      body: JSON.stringify({ job_id: jobId, approver_email: approverEmail || "approver@company.com", expires_in: expiresIn || 3600 }),
+    }),
+
+  // Batch Decision
+  batchDecision: (jobIds: string[], decision: "approve" | "reject", note?: string) =>
+    fetchAPI("/api/v1/jobs/batch-decision", {
+      method: "POST",
+      body: JSON.stringify({ job_ids: jobIds, decision, note: note || "Batch decision" }),
+    }),
+
   // Consent
   getConsent: () => fetchAPI("/api/v1/consent"),
+  getPermissionMap: () => fetchAPI("/api/v1/consent/permission-map"),
 
   // Compliance
   getComplianceStats: (days?: number) => fetchAPI(`/api/v1/audit/compliance-stats${days ? `?days=${days}` : ""}`),
   getApprovalPatterns: (days?: number) => fetchAPI(`/api/v1/audit/patterns${days ? `?days=${days}` : ""}`),
+  getRiskDistribution: (days?: number) => fetchAPI(`/api/v1/audit/risk-distribution${days ? `?days=${days}` : ""}`),
   exportCompliance: (params?: { format?: string; days?: number; connection?: string }) => {
     const search = new URLSearchParams();
     if (params?.format) search.set("format", params.format);
@@ -176,6 +192,8 @@ export const api = {
     fetchAPI(`/api/v1/agents/${agentId}/scenarios/${scenarioId}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteScenario: (agentId: string, scenarioId: string) =>
     fetchAPI(`/api/v1/agents/${agentId}/scenarios/${scenarioId}`, { method: "DELETE" }),
+  getAgentTimeline: (agentId: string, limit?: number) =>
+    fetchAPI(`/api/v1/agents/${agentId}/timeline${limit ? `?limit=${limit}` : ""}`),
   regenerateAgentKey: (agentId: string) =>
     fetchAPI(`/api/v1/agents/${agentId}/regenerate-key`, { method: "POST" }),
   revokeAgent: (agentId: string) =>

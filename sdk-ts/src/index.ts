@@ -310,7 +310,7 @@ export class ApprovalKit {
     const ts = String(Math.floor(Date.now() / 1000));
     const signKey = this.apiKey ? `${this.hmacSecret}:${this.apiKey}` : this.hmacSecret;
     const sig = createHmac('sha256', signKey).update(`${ts}.`).digest('hex');
-    const resp = await this._fetch(`${this.baseUrl}/api/v1/mcp/connections`, {
+    const resp = await this._fetch(`${this.baseUrl}/api/v1/connections`, {
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
         'X-Signature': `hmac-sha256=${ts}.${sig}`,

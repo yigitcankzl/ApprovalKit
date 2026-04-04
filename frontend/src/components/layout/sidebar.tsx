@@ -158,7 +158,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               )}
               {!collapsed && (
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300 dark:text-zinc-600 truncate">{user.name}</p>
+                  <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">{user.name}</p>
                   <p className="text-xs text-zinc-400 truncate">{user.email}</p>
                 </div>
               )}
@@ -167,7 +167,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               href="/auth/logout"
               title={collapsed ? "Logout" : undefined}
               className={cn(
-                "flex items-center text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:text-zinc-300 dark:text-zinc-600 transition-colors",
+                "flex items-center text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:text-zinc-300 transition-colors",
                 collapsed ? "mt-2 justify-center" : "mt-2 gap-1.5"
               )}
             >

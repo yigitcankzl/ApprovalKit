@@ -36,6 +36,10 @@ export interface Rule {
   approval_expiry_seconds: number | null;
   trigger_rules: { connection: string; action: string; params: Record<string, string> }[] | null;
   on_approve_actions: { connection: string; action: string; params: Record<string, string> }[] | null;
+  risk_auto_approve_threshold: number | null;
+  reauth_every_n: number | null;
+  budget_limits: { daily?: number; weekly?: number; monthly?: number } | null;
+  allowed_days: number[] | null;
   created_at: string;
   updated_at: string;
 }

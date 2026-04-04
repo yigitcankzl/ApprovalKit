@@ -62,8 +62,14 @@ class Rule(Base):
     # Rule chaining: trigger additional rules after this one is approved
     # e.g. [{"connection": "gmail-prod", "action": "send_email", "params": {"subject": "Invoice for {{amount}}"}}]
     trigger_rules: Mapped[list | None] = mapped_column(JSONB, nullable=True)
-    # Feature 7: auto-approve if risk_score <= this threshold (None = disabled)
+    # Auto-approve if risk_score <= this threshold (None = disabled)
     risk_auto_approve_threshold: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Re-auth: require fresh approval after N consecutive auto-approves for same agent+connection
+    reauth_every_n: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Per-rule budget limits: {"daily": 5000, "weekly": 20000, "monthly": 50000}
+    budget_limits: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # Allowed days of week: [0=Mon..6=Sun], null = all days allowed
+    allowed_days: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     priority: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
