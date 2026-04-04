@@ -36,6 +36,24 @@ MIGRATIONS: list[tuple[str, str]] = [
         "registered_agents.trust_history",
         "ALTER TABLE registered_agents ADD COLUMN IF NOT EXISTS trust_history JSONB DEFAULT '[]'",
     ),
+    # Merged from review branch: re-auth, per-rule budgets, scheduled approvals
+    (
+        "rules.reauth_every_n",
+        "ALTER TABLE rules ADD COLUMN IF NOT EXISTS reauth_every_n INTEGER DEFAULT NULL",
+    ),
+    (
+        "rules.budget_limits",
+        "ALTER TABLE rules ADD COLUMN IF NOT EXISTS budget_limits JSONB DEFAULT NULL",
+    ),
+    (
+        "rules.allowed_days",
+        "ALTER TABLE rules ADD COLUMN IF NOT EXISTS allowed_days JSONB DEFAULT NULL",
+    ),
+    # Merged from review branch: time-boxed approvals
+    (
+        "approval_jobs.approval_expires_at",
+        "ALTER TABLE approval_jobs ADD COLUMN IF NOT EXISTS approval_expires_at TIMESTAMP WITH TIME ZONE DEFAULT NULL",
+    ),
 ]
 
 
