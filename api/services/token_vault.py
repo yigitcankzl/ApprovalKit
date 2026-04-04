@@ -723,7 +723,7 @@ async def _execute_paypal(action: str, params: dict, creds: dict) -> dict:
 
 import re as _re
 
-def _render_template(template, token: str, params: dict) -> any:
+def _render_template(template, token: str, params: dict):
     """
     Replace {{token}} and {{param_name}} placeholders in a template value.
     Works on strings, dicts, and lists recursively.

@@ -144,11 +144,16 @@ class CIBAService:
         from api.models.approval_job import ApprovalJob, JobState
         import uuid
 
+        try:
+            job_uuid = uuid.UUID(job_id)
+        except (ValueError, AttributeError):
+            return None
+
         engine = create_async_engine(settings.DATABASE_URL, echo=False)
         session_factory = async_sessionmaker(engine, expire_on_commit=False)
         async with session_factory() as session:
             result = await session.execute(
-                select(ApprovalJob.state).where(ApprovalJob.id == uuid.UUID(job_id))
+                select(ApprovalJob.state).where(ApprovalJob.id == job_uuid)
             )
             state = result.scalar_one_or_none()
         await engine.dispose()

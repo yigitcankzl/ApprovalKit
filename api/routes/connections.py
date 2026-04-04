@@ -651,7 +651,7 @@ async def delete_connection(connection_id: str, workspace: Workspace = Depends(g
     return {"status": "deleted", "connection": conn.name}
 
 
-@router.get("/connections/{connection_id}/health")
+@router.get("/{connection_id}/health")
 async def check_connection_health(
     connection_id: str,
     workspace: Workspace = Depends(get_current_workspace),
@@ -661,7 +661,7 @@ async def check_connection_health(
     from api.models.connection import ServiceConnection
     result = await db.execute(
         select(ServiceConnection).where(
-            ServiceConnection.id == connection_id,
+            ServiceConnection.id == uuid.UUID(connection_id),
             ServiceConnection.workspace_id == workspace.id,
         )
     )
