@@ -19,13 +19,25 @@ class UnsafeURLError(ValueError):
 
 
 def _is_public_ip(addr: str) -> bool:
-    """Return True only for globally-routable public IPs."""
+    """Return True only for globally-routable public unicast IPs.
+
+    Explicitly rejects multicast and reserved ranges — Python's
+    ``is_global`` considers multicast addresses global, which would
+    let a webhook URL resolve to e.g. 224.0.0.1.
+    """
     try:
         ip = ipaddress.ip_address(addr)
     except ValueError:
         return False
-    # is_global excludes private, loopback, link-local, multicast, reserved,
-    # unspecified, and the AWS/GCP metadata ranges.
+    if (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_multicast
+        or ip.is_reserved
+        or ip.is_unspecified
+    ):
+        return False
     return ip.is_global
 
 
