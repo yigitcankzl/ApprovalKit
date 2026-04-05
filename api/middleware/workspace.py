@@ -82,24 +82,29 @@ def _verify_auth0_token(token: str, domain: str) -> dict[str, Any] | None:
         return None
 
 
+def _jwt_enforcement_enabled() -> bool:
+    """
+    JWT-based auth is only enforced when we can actually verify a token:
+    production mode AND AUTH0_DOMAIN configured. Without a domain we have
+    nothing to fetch JWKS from, so fall back to header-based identity.
+    """
+    return settings.ENVIRONMENT == "production" and bool(settings.AUTH0_DOMAIN)
+
+
 async def _resolve_sub(request: Request) -> str | None:
     """Return the authenticated Auth0 sub for this request, or None."""
     token = _extract_bearer(request)
-    if token:
-        # Trust the workspace's Auth0 domain if we can figure it out; otherwise
-        # fall back to the globally-configured one. Multi-tenant deployments
-        # should set AUTH0_DOMAIN per-workspace and extend this lookup.
-        domain = settings.AUTH0_DOMAIN
-        if not domain:
-            logger.error("AUTH0_DOMAIN not configured — cannot verify user token")
-            return None
-        claims = _verify_auth0_token(token, domain)
+    if token and settings.AUTH0_DOMAIN:
+        claims = _verify_auth0_token(token, settings.AUTH0_DOMAIN)
         if claims:
             return claims.get("sub")
+        # Token present but invalid: don't silently fall back to a
+        # spoofable X-User-Sub header.
         return None
 
-    # No token: only honour X-User-Sub in non-production (dev / test).
-    if settings.ENVIRONMENT != "production":
+    # No valid token. Honour X-User-Sub only when JWT enforcement is off
+    # (dev/test or Auth0 not configured at all).
+    if not _jwt_enforcement_enabled():
         return request.headers.get("X-User-Sub", "").strip() or None
     return None
 
@@ -134,13 +139,13 @@ async def get_current_workspace(request: Request, db: AsyncSession = Depends(get
         )
 
     # No verified identity.
-    if settings.ENVIRONMENT == "production":
+    if _jwt_enforcement_enabled():
         raise HTTPException(
             status_code=401,
             detail="Authentication required: provide a valid Auth0 access token in X-User-Token.",
         )
 
-    # Dev/test convenience: fall back to the first active workspace.
+    # Fallback path (non-prod OR Auth0 not configured): first active workspace.
     result = await db.execute(
         select(Workspace).where(Workspace.is_active.is_(True)).limit(1)
     )
