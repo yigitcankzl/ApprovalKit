@@ -52,7 +52,9 @@ async def lifespan(app: FastAPI):
     yield
     logger.info("ApprovalKit API shutting down")
     from api.middleware.rate_limit import rate_limiter
+    from api.services.redis_pool import aclose_all as _aclose_redis
     await rate_limiter.close()
+    await _aclose_redis()
 
 
 app = FastAPI(
@@ -111,7 +113,15 @@ app.include_router(auth0_logs.router)
 
 @app.exception_handler(ValueError)
 async def value_error_handler(request: Request, exc: ValueError):
-    """Return 400 for invalid UUIDs and other value errors instead of 500."""
+    """Return 400 for invalid UUIDs and other value errors instead of 500.
+
+    In production we return a generic message so we don't leak internal
+    error strings (table names, stack hints, etc.) to clients. The full
+    exception is still logged for server-side debugging.
+    """
+    logger.warning(f"ValueError on {request.url.path}: {exc}")
+    if settings.ENVIRONMENT == "production":
+        return JSONResponse(status_code=400, content={"detail": "Invalid request value"})
     return JSONResponse(status_code=400, content={"detail": str(exc)})
 
 

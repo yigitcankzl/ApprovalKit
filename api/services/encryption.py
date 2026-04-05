@@ -65,6 +65,9 @@ def decrypt_secret(value: str | None) -> str | None:
     - Try current key, then previous key (rotation support).
     - If the value is not valid Fernet ciphertext (legacy pre-encryption
       plaintext), return it as-is — but log a warning so this is visible.
+    - On any unexpected decryption error, log and return ``None`` so
+      callers can fail soft. (Use ``decrypt_secret_strict`` from code
+      paths that MUST crash on tamper.)
     """
     if not value:
         return value
@@ -83,7 +86,20 @@ def decrypt_secret(value: str | None) -> str | None:
         return value
     except Exception as e:
         logger.error(f"Unexpected decryption error: {type(e).__name__}: {e}")
-        if settings.ENVIRONMENT == "production":
-            # Don't silently leak plaintext on unexpected errors in prod.
-            raise
+        # Fail soft: return None rather than leaking plaintext OR crashing
+        # every caller that wasn't written to handle exceptions.
+        return None
+
+
+def decrypt_secret_strict(value: str | None) -> str | None:
+    """Decrypt variant that raises on tamper/corruption.
+
+    Use only from code paths with explicit try/except and a meaningful
+    error surface (e.g. one-shot startup checks).
+    """
+    if not value:
         return value
+    f = _get_fernet()
+    if not f:
+        return value
+    return f.decrypt(value.encode()).decode()

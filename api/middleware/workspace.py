@@ -28,8 +28,12 @@ from api.models.workspace import Workspace
 settings = get_settings()
 
 
-# JWKS clients are expensive to construct — cache one per issuer.
-_jwks_clients: dict[str, PyJWKClient] = {}
+from collections import OrderedDict
+
+# JWKS clients are expensive to construct — cache one per issuer,
+# bounded so a misbehaving caller cannot fill memory with entries.
+_JWKS_CACHE_MAX = 32
+_jwks_clients: "OrderedDict[str, PyJWKClient]" = OrderedDict()
 
 
 def _jwks_client(domain: str) -> PyJWKClient:
@@ -41,6 +45,10 @@ def _jwks_client(domain: str) -> PyJWKClient:
             lifespan=3600,
         )
         _jwks_clients[domain] = client
+        # Evict oldest if over cap (LRU-ish: we don't move-to-end on hit,
+        # so hot entries will still be evicted, but cap stays bounded).
+        while len(_jwks_clients) > _JWKS_CACHE_MAX:
+            _jwks_clients.popitem(last=False)
     return client
 
 
@@ -55,24 +63,55 @@ def _extract_bearer(request: Request) -> str | None:
     return None
 
 
+def _allowed_audiences() -> list[str]:
+    """
+    Audiences acceptable for an API access token. Users authenticate via
+    Auth0 and the frontend requests an access token for one of these
+    audiences; ID tokens (aud == client_id) are deliberately rejected.
+    """
+    auds: list[str] = []
+    if settings.AUTH0_AUDIENCE:
+        auds.append(settings.AUTH0_AUDIENCE)
+    if settings.AUTH0_MGMT_API_AUDIENCE:
+        auds.append(settings.AUTH0_MGMT_API_AUDIENCE)
+    return auds
+
+
 def _verify_auth0_token(token: str, domain: str) -> dict[str, Any] | None:
-    """Verify a JWT against the tenant JWKS. Returns decoded claims or None."""
+    """Verify a JWT against the tenant JWKS. Returns decoded claims or None.
+
+    Enforces: RS256 signature, exp, iss = https://{domain}/, and — when
+    AUTH0_AUDIENCE is configured — aud. If no audience is configured we
+    log and skip, since the deployment has opted out of multi-app safety.
+    """
     try:
         signing_key = _jwks_client(domain).get_signing_key_from_jwt(token)
-        claims = jwt.decode(
-            token,
-            signing_key.key,
-            algorithms=["RS256"],
-            issuer=f"https://{domain}/",
-            options={
+        auds = _allowed_audiences()
+        decode_kwargs: dict[str, Any] = {
+            "algorithms": ["RS256"],
+            "issuer": f"https://{domain}/",
+            "options": {
                 "verify_signature": True,
                 "verify_exp": True,
                 "verify_iss": True,
-                # audience varies (api / userinfo / management) — don't enforce here
-                "verify_aud": False,
+                "verify_aud": bool(auds),
             },
-            leeway=30,
-        )
+            "leeway": 30,
+        }
+        if auds:
+            # PyJWT accepts either a string or a list for audience.
+            decode_kwargs["audience"] = auds
+        claims = jwt.decode(token, signing_key.key, **decode_kwargs)
+        # Extra guard: reject ID tokens (aud equal to an Auth0 client_id).
+        # Access tokens are issued for API audiences, not client_ids.
+        token_aud = claims.get("aud")
+        client_ids = {settings.AUTH0_CLIENT_ID, settings.AUTH0_WEB_CLIENT_ID}
+        client_ids.discard("")
+        if client_ids:
+            aud_values = token_aud if isinstance(token_aud, list) else [token_aud]
+            if any(a in client_ids for a in aud_values):
+                logger.warning("JWT verification: rejected ID token (aud == client_id)")
+                return None
         return claims
     except jwt.PyJWTError as e:
         logger.warning(f"JWT verification failed: {type(e).__name__}: {e}")

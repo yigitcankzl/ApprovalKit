@@ -499,37 +499,48 @@ async def _issue_oauth_state_nonce(connection_id: str, workspace_id: str) -> str
     (deleted) when the OAuth callback is processed — any replay or
     attacker-supplied state will fail lookup.
     """
+    from api.services.redis_pool import get_redis as _pool_redis
     nonce = _secrets.token_urlsafe(32)
-    r = await _get_session_redis()
     try:
+        r = _pool_redis()
         await r.setex(
             f"oauth_state:{nonce}",
             600,
             f"{connection_id}:{workspace_id}",
         )
-    finally:
-        await r.aclose()
+    except Exception as e:
+        logger.error(f"Failed to store OAuth state nonce: {e}")
+        raise
     return f"{nonce}:{connection_id}:{workspace_id}"
 
 
 async def _consume_oauth_state_nonce(nonce: str, connection_id: str) -> bool:
-    """Atomically validate + delete a CSRF nonce. Returns True on success."""
+    """Atomically validate + delete a CSRF nonce. Returns True on success.
+
+    Returns False on any Redis failure (fail-closed) so attackers can't
+    slip through when the cache is unreachable.
+    """
     if not nonce or len(nonce) < 16:
         return False
-    r = await _get_session_redis()
+    from api.services.redis_pool import get_redis as _pool_redis
+    stored: str | None = None
     try:
+        r = _pool_redis()
         stored = await r.getdel(f"oauth_state:{nonce}")
-    finally:
-        await r.aclose()
+    except Exception as e:
+        logger.error(f"OAuth state nonce check failed (Redis): {e}")
+        return False
     if not stored:
         return False
     expected_prefix = f"{connection_id}:"
+    if not stored.startswith(expected_prefix):
+        return False
     # Constant-time comparison of the prefix so we don't leak via timing.
     import hmac as _hmac
     return _hmac.compare_digest(
         stored[: len(expected_prefix)].encode(),
         expected_prefix.encode(),
-    ) and stored.startswith(expected_prefix)
+    )
 
 async def _store_auth_session(connection_id: str, auth_session: str, user_token: str = ""):
     r = await _get_session_redis()

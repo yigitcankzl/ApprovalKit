@@ -13,13 +13,13 @@ import hashlib
 import hmac
 import time
 
-import redis.asyncio as aioredis
 from fastapi import APIRouter, HTTPException, Request
 from loguru import logger
 from pydantic import BaseModel
 
 from api.config import get_settings
 from api.services.fga import fga_client
+from api.services.redis_pool import get_redis
 
 router = APIRouter(prefix="/api/v1", tags=["auth0-webhook"])
 settings = get_settings()
@@ -33,12 +33,9 @@ async def _nonce_seen(nonce: str) -> bool:
     if not nonce:
         return False
     try:
-        r = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
-        try:
-            # SETNX: succeeds only if key is new.
-            ok = await r.set(f"auth0_webhook_nonce:{nonce}", "1", ex=_WEBHOOK_NONCE_TTL, nx=True)
-        finally:
-            await r.aclose()
+        r = get_redis()
+        # SETNX: succeeds only if key is new.
+        ok = await r.set(f"auth0_webhook_nonce:{nonce}", "1", ex=_WEBHOOK_NONCE_TTL, nx=True)
         return not ok
     except Exception as e:
         # Fail closed: if Redis is down we cannot guarantee replay safety.

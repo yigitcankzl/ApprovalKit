@@ -750,9 +750,9 @@ async def _execute_webhook(conn_obj, action: str, params: dict, creds: dict) -> 
     method = (conn_obj.webhook_method or "POST").upper()
 
     # SSRF guard: user-supplied webhook URLs can only hit public https targets.
-    from api.utils import assert_safe_outbound_url, UnsafeURLError
+    from api.utils import assert_safe_outbound_url_async, UnsafeURLError
     try:
-        assert_safe_outbound_url(url)
+        await assert_safe_outbound_url_async(url)
     except UnsafeURLError as e:
         logger.warning(f"Webhook rejected (unsafe URL): {e}")
         return {"status": "error", "error": f"unsafe_webhook_url: {e}"}

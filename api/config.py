@@ -38,6 +38,11 @@ class Settings(BaseSettings):
     HMAC_SECRET: str = ""
     HMAC_TIMESTAMP_TOLERANCE: int = 300  # 5 minutes
     API_RATE_LIMIT: int = 100
+    # How many trusted reverse proxies sit in front of the API. The
+    # rate limiter will take the Nth-from-last entry in X-Forwarded-For
+    # as the real client IP. Set to 0 to IGNORE X-Forwarded-For entirely
+    # (safe default — only enable when actually behind a proxy).
+    TRUSTED_PROXY_COUNT: int = 0
     # 32-byte URL-safe base64 key for Fernet credential encryption.
     # Auto-derived from HMAC_SECRET when empty.
     CREDENTIALS_KEY: str = ""

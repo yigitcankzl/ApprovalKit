@@ -1,4 +1,5 @@
 """Shared utility functions."""
+import asyncio
 import ipaddress
 import socket
 from datetime import time
@@ -28,6 +29,34 @@ def _is_public_ip(addr: str) -> bool:
     return ip.is_global
 
 
+def _parse_and_check_scheme(url: str, allowed_schemes: tuple[str, ...]) -> str:
+    if not url or not isinstance(url, str):
+        raise UnsafeURLError("URL must be a non-empty string")
+    parsed = urlparse(url)
+    if parsed.scheme.lower() not in allowed_schemes:
+        raise UnsafeURLError(f"URL scheme must be one of {allowed_schemes}")
+    host = parsed.hostname
+    if not host:
+        raise UnsafeURLError("URL has no host")
+    return host
+
+
+def _check_resolved_addrs(host: str, addrs: list[str]) -> None:
+    for addr in addrs:
+        if not _is_public_ip(addr):
+            raise UnsafeURLError(f"Host {host!r} resolves to non-public IP: {addr}")
+    if not addrs:
+        raise UnsafeURLError(f"Cannot resolve host {host!r}")
+
+
+def _resolve_host_sync(host: str) -> list[str]:
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror as e:
+        raise UnsafeURLError(f"Cannot resolve host {host!r}: {e}") from e
+    return [info[4][0] for info in infos]
+
+
 def assert_safe_outbound_url(url: str, *, allowed_schemes: tuple[str, ...] = ("https",)) -> None:
     """
     Validate a user-supplied URL for outbound HTTP calls (SSRF guard).
@@ -39,33 +68,35 @@ def assert_safe_outbound_url(url: str, *, allowed_schemes: tuple[str, ...] = ("h
       - hostnames that resolve to any non-public IP
 
     Raises UnsafeURLError on any violation.
+
+    WARNING: this is a TOCTOU check — DNS may rebind between validate
+    and fetch. Use ``resolve_safe_outbound_url`` to both validate AND
+    get back a pinned IP that the caller can connect to.
     """
-    if not url or not isinstance(url, str):
-        raise UnsafeURLError("URL must be a non-empty string")
-
-    parsed = urlparse(url)
-    if parsed.scheme.lower() not in allowed_schemes:
-        raise UnsafeURLError(f"URL scheme must be one of {allowed_schemes}")
-    host = parsed.hostname
-    if not host:
-        raise UnsafeURLError("URL has no host")
-
-    # If the host is a literal IP, check directly.
+    host = _parse_and_check_scheme(url, allowed_schemes)
+    # Literal IP — check directly.
     try:
         ipaddress.ip_address(host)
         if not _is_public_ip(host):
             raise UnsafeURLError(f"URL host resolves to non-public address: {host}")
         return
     except ValueError:
-        pass  # not a literal IP, fall through to DNS
+        pass
+    _check_resolved_addrs(host, _resolve_host_sync(host))
 
-    # Resolve hostname → ensure every A/AAAA record is public.
+
+async def assert_safe_outbound_url_async(
+    url: str, *, allowed_schemes: tuple[str, ...] = ("https",)
+) -> None:
+    """Async variant of ``assert_safe_outbound_url``. Runs DNS in a thread
+    so the event loop is not blocked."""
+    host = _parse_and_check_scheme(url, allowed_schemes)
     try:
-        infos = socket.getaddrinfo(host, None)
-    except socket.gaierror as e:
-        raise UnsafeURLError(f"Cannot resolve host {host!r}: {e}") from e
-
-    for info in infos:
-        addr = info[4][0]
-        if not _is_public_ip(addr):
-            raise UnsafeURLError(f"Host {host!r} resolves to non-public IP: {addr}")
+        ipaddress.ip_address(host)
+        if not _is_public_ip(host):
+            raise UnsafeURLError(f"URL host resolves to non-public address: {host}")
+        return
+    except ValueError:
+        pass
+    addrs = await asyncio.to_thread(_resolve_host_sync, host)
+    _check_resolved_addrs(host, addrs)

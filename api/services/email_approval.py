@@ -19,10 +19,10 @@ import time
 from datetime import datetime, timedelta
 
 import httpx
-import redis.asyncio as aioredis
 from loguru import logger
 
 from api.config import get_settings
+from api.services.redis_pool import get_redis
 
 settings = get_settings()
 
@@ -30,10 +30,6 @@ settings = get_settings()
 def _token_fingerprint(token: str) -> str:
     """SHA-256 of token — used as Redis key so raw tokens never hit Redis."""
     return hashlib.sha256(token.encode()).hexdigest()
-
-
-async def _redis() -> aioredis.Redis:
-    return aioredis.from_url(settings.REDIS_URL, decode_responses=True)
 
 
 async def consume_approval_token(token: str) -> dict | None:
@@ -51,12 +47,9 @@ async def consume_approval_token(token: str) -> dict | None:
     key = f"used_token:{_token_fingerprint(token)}"
     ttl = max(1, int(claims["expiry"]) - int(time.time()) + 60)
     try:
-        r = await _redis()
-        try:
-            # SET NX: only succeeds if the key does not exist
-            set_ok = await r.set(key, "1", ex=ttl, nx=True)
-        finally:
-            await r.aclose()
+        r = get_redis()
+        # SET NX: only succeeds if the key does not exist
+        set_ok = await r.set(key, "1", ex=ttl, nx=True)
     except Exception as e:
         # Redis unavailable — fail closed rather than allow replay
         logger.error(f"Approval token replay check failed (Redis): {e}")

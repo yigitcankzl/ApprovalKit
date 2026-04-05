@@ -61,11 +61,26 @@ rate_limiter = RateLimiter()
 
 
 def _client_ip(request: Request) -> str:
-    """Extract the client IP, honouring X-Forwarded-For when behind a proxy."""
-    xff = request.headers.get("X-Forwarded-For", "")
-    if xff:
-        # Take the first IP in the chain (closest to origin).
-        return xff.split(",")[0].strip()
+    """
+    Extract the client IP.
+
+    X-Forwarded-For is ONLY honoured when TRUSTED_PROXY_COUNT > 0.
+    Each trusted proxy appends the IP it saw; the attacker can prepend
+    arbitrary values, so we read from the right-hand side of the chain,
+    skipping exactly TRUSTED_PROXY_COUNT entries we own. With
+    TRUSTED_PROXY_COUNT=0 we ignore XFF entirely and trust only the
+    TCP peer — that's the safe default for any deployment that is NOT
+    behind a controlled reverse proxy.
+    """
+    trusted = settings.TRUSTED_PROXY_COUNT
+    if trusted > 0:
+        xff = request.headers.get("X-Forwarded-For", "")
+        if xff:
+            chain = [p.strip() for p in xff.split(",") if p.strip()]
+            # Client IP is `trusted` hops from the right.
+            idx = len(chain) - trusted
+            if 0 <= idx < len(chain):
+                return chain[idx]
     if request.client and request.client.host:
         return request.client.host
     return "unknown"

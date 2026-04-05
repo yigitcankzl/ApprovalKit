@@ -7,6 +7,7 @@ No Auth0 Guardian app required.
 import json
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
@@ -46,7 +47,7 @@ class ApprovalLinkResponse(BaseModel):
 
 
 class TokenDecisionRequest(BaseModel):
-    decision: str  # "approve" or "reject"
+    decision: Literal["approve", "reject"]
     note: str | None = None
 
 
@@ -85,13 +86,15 @@ async def approve_via_token(
     time-limited HMAC-signed token sent via email, Slack, or any URL.
     No login or Guardian app required.
     """
+    # Pydantic already enforces decision ∈ {"approve","reject"} via the
+    # Literal type — by the time we get here the decision is valid. We
+    # only consume the token AFTER validation so a bad body doesn't
+    # burn a legitimate token.
+
     # Single-use: atomically verify + consume via Redis (fails closed on replay)
     token_data = await consume_approval_token(token)
     if not token_data:
         raise HTTPException(status_code=401, detail="Invalid, expired, or already-used approval token")
-
-    if body.decision not in ("approve", "reject"):
-        raise HTTPException(status_code=422, detail="decision must be 'approve' or 'reject'")
 
     job_id = token_data["job_id"]
     result = await db.execute(
