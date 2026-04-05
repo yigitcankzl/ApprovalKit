@@ -311,10 +311,15 @@ async def oauth_callback(
     if not code or not state:
         return RedirectResponse(url=f"{settings.FRONTEND_URL}/connections?error=missing_code")
 
-    # State format: connection_id:workspace_id
-    parts = state.split(":", 1)
-    connection_id = parts[0]
-    workspace_id = parts[1] if len(parts) > 1 else None
+    # State format: nonce:connection_id:workspace_id
+    parts = state.split(":", 2)
+    if len(parts) != 3:
+        return RedirectResponse(url=f"{settings.FRONTEND_URL}/connections?error=invalid_state")
+    nonce, connection_id, workspace_id = parts
+
+    # Verify and consume the CSRF nonce (single-use, 10 min TTL)
+    if not await _consume_oauth_state_nonce(nonce, connection_id):
+        return RedirectResponse(url=f"{settings.FRONTEND_URL}/connections?error=invalid_state")
 
     try:
         conn_uuid = uuid.UUID(connection_id)
@@ -439,7 +444,7 @@ async def get_connect_url(connection_id: str, request: Request, workspace: Works
                     json={
                         "connection": auth0_connection,
                         "redirect_uri": callback_url,
-                        "state": f"{connection_id}:{workspace.id}",
+                        "state": await _issue_oauth_state_nonce(connection_id, str(workspace.id)),
                     },
                 )
                 logger.debug(f"Connected Accounts API: {resp.status_code}")
@@ -470,7 +475,7 @@ async def get_connect_url(connection_id: str, request: Request, workspace: Works
         "response_type": "code",
         "scope":         scope,
         "connection":    auth0_connection,
-        "state":         f"{connection_id}:{workspace.id}",
+        "state":         await _issue_oauth_state_nonce(connection_id, str(workspace.id)),
         "redirect_uri":  legacy_callback,
     })
     url = f"https://{ws_config.auth0_domain}/authorize?{params}"
@@ -479,9 +484,52 @@ async def get_connect_url(connection_id: str, request: Request, workspace: Works
 
 # Auth session store — Redis-backed for multi-instance deployments
 import redis.asyncio as aioredis
+import secrets as _secrets
 
 async def _get_session_redis() -> aioredis.Redis:
     return aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+
+
+async def _issue_oauth_state_nonce(connection_id: str, workspace_id: str) -> str:
+    """
+    Mint a single-use CSRF nonce bound to this connection+workspace and
+    return the full `state` string for Auth0: `<nonce>:<conn>:<ws>`.
+
+    The nonce is stored in Redis with a 10 minute TTL. It is consumed
+    (deleted) when the OAuth callback is processed — any replay or
+    attacker-supplied state will fail lookup.
+    """
+    nonce = _secrets.token_urlsafe(32)
+    r = await _get_session_redis()
+    try:
+        await r.setex(
+            f"oauth_state:{nonce}",
+            600,
+            f"{connection_id}:{workspace_id}",
+        )
+    finally:
+        await r.aclose()
+    return f"{nonce}:{connection_id}:{workspace_id}"
+
+
+async def _consume_oauth_state_nonce(nonce: str, connection_id: str) -> bool:
+    """Atomically validate + delete a CSRF nonce. Returns True on success."""
+    if not nonce or len(nonce) < 16:
+        return False
+    r = await _get_session_redis()
+    try:
+        stored = await r.getdel(f"oauth_state:{nonce}")
+    finally:
+        await r.aclose()
+    if not stored:
+        return False
+    expected_prefix = f"{connection_id}:"
+    # Constant-time comparison of the prefix so we don't leak via timing.
+    import hmac as _hmac
+    return _hmac.compare_digest(
+        stored[: len(expected_prefix)].encode(),
+        expected_prefix.encode(),
+    ) and stored.startswith(expected_prefix)
 
 async def _store_auth_session(connection_id: str, auth_session: str, user_token: str = ""):
     r = await _get_session_redis()
@@ -508,10 +556,13 @@ async def connected_accounts_callback(
     if not connect_code or not state:
         return RedirectResponse(url=f"{settings.FRONTEND_URL}/connections?error=missing_connect_code")
 
-    # State format: connection_id:workspace_id
-    parts = state.split(":", 1)
-    connection_id = parts[0]
-    workspace_id = parts[1] if len(parts) > 1 else None
+    # State format: nonce:connection_id:workspace_id
+    parts = state.split(":", 2)
+    if len(parts) != 3:
+        return RedirectResponse(url=f"{settings.FRONTEND_URL}/connections?error=invalid_state")
+    nonce, connection_id, workspace_id = parts
+    if not await _consume_oauth_state_nonce(nonce, connection_id):
+        return RedirectResponse(url=f"{settings.FRONTEND_URL}/connections?error=invalid_state")
 
     import json as _json
     r = await _get_session_redis()

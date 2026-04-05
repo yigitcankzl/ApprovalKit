@@ -127,6 +127,16 @@ async def root():
 
 @app.get("/health")
 async def health():
+    """Liveness + shallow DB check. Returns 503 if the DB is unreachable
+    so Docker/Kubernetes can restart unhealthy containers."""
+    from api.database import engine
+    from sqlalchemy import text
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+    except Exception as e:
+        logger.warning(f"Healthcheck DB ping failed: {e}")
+        return JSONResponse(status_code=503, content={"status": "unhealthy", "db": "error"})
     return {"status": "healthy"}
 
 
@@ -172,7 +182,9 @@ async def health_deep():
 async def add_trace_id(request: Request, call_next):
     """Add trace_id to every request for distributed tracing."""
     import uuid as _uuid
-    trace_id = request.headers.get("X-Trace-Id", str(_uuid.uuid4())[:8])
+    # Full UUID4 (32 hex chars) avoids collisions under load that would
+    # otherwise break log correlation when trace_id is used as a join key.
+    trace_id = request.headers.get("X-Trace-Id") or _uuid.uuid4().hex
     request.state.trace_id = trace_id
     response = await call_next(request)
     response.headers["X-Trace-Id"] = trace_id

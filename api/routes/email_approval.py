@@ -16,8 +16,11 @@ import redis.asyncio as aioredis
 
 from api.config import get_settings
 from api.database import get_db
+from api.middleware.auth import verify_hmac_signature
+from api.middleware.rate_limit import check_api_rate_limit
 from api.models.approval_job import ApprovalJob, AuditLog, AuditEventType, JobState
-from api.services.email_approval import verify_approval_token, generate_approval_url
+from api.models.workspace import Workspace
+from api.services.email_approval import verify_approval_token, consume_approval_token, generate_approval_url
 from api.services.pii import mask_text
 
 router = APIRouter(prefix="/api/v1", tags=["email-approval"])
@@ -53,7 +56,7 @@ class TokenDecisionResponse(BaseModel):
     decision: str
 
 
-@router.get("/approve/verify/{token}")
+@router.get("/approve/verify/{token}", dependencies=[Depends(check_api_rate_limit)])
 async def verify_token(token: str) -> TokenVerifyResponse:
     """Verify an email approval token and return the job details."""
     result = verify_approval_token(token)
@@ -66,7 +69,11 @@ async def verify_token(token: str) -> TokenVerifyResponse:
     )
 
 
-@router.post("/approve/{token}", response_model=TokenDecisionResponse)
+@router.post(
+    "/approve/{token}",
+    response_model=TokenDecisionResponse,
+    dependencies=[Depends(check_api_rate_limit)],
+)
 async def approve_via_token(
     token: str,
     body: TokenDecisionRequest,
@@ -78,9 +85,10 @@ async def approve_via_token(
     time-limited HMAC-signed token sent via email, Slack, or any URL.
     No login or Guardian app required.
     """
-    token_data = verify_approval_token(token)
+    # Single-use: atomically verify + consume via Redis (fails closed on replay)
+    token_data = await consume_approval_token(token)
     if not token_data:
-        raise HTTPException(status_code=401, detail="Invalid or expired approval token")
+        raise HTTPException(status_code=401, detail="Invalid, expired, or already-used approval token")
 
     if body.decision not in ("approve", "reject"):
         raise HTTPException(status_code=422, detail="decision must be 'approve' or 'reject'")
@@ -144,12 +152,35 @@ async def approve_via_token(
 
 
 @router.post("/approve/generate-link")
-async def generate_link(req: ApprovalLinkRequest) -> ApprovalLinkResponse:
+async def generate_link(
+    req: ApprovalLinkRequest,
+    workspace: Workspace = Depends(verify_hmac_signature),
+    db: AsyncSession = Depends(get_db),
+) -> ApprovalLinkResponse:
     """Generate approval/reject URLs for a pending job.
 
-    These links can be sent via email, Slack, or any messaging platform.
-    The approver clicks the link to approve or reject — no login required.
+    Requires HMAC auth so that only the workspace owning the job can
+    mint approval links for it. The job must belong to the caller's
+    workspace — cross-tenant link minting is rejected.
     """
+    # Cap expiry to prevent absurdly long-lived approval URLs.
+    if req.expires_in <= 0 or req.expires_in > 7 * 24 * 3600:
+        raise HTTPException(status_code=422, detail="expires_in must be between 1 and 604800 seconds")
+
+    try:
+        job_uuid = uuid.UUID(req.job_id)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid job_id")
+
+    result = await db.execute(
+        select(ApprovalJob).where(
+            ApprovalJob.id == job_uuid,
+            ApprovalJob.workspace_id == workspace.id,
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Job not found in this workspace")
+
     approve_url = generate_approval_url(req.job_id, req.approver_email, req.expires_in)
     reject_url = f"{approve_url}?decision=reject"
     return ApprovalLinkResponse(

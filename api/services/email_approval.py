@@ -19,11 +19,53 @@ import time
 from datetime import datetime, timedelta
 
 import httpx
+import redis.asyncio as aioredis
 from loguru import logger
 
 from api.config import get_settings
 
 settings = get_settings()
+
+
+def _token_fingerprint(token: str) -> str:
+    """SHA-256 of token — used as Redis key so raw tokens never hit Redis."""
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+async def _redis() -> aioredis.Redis:
+    return aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+
+
+async def consume_approval_token(token: str) -> dict | None:
+    """
+    Atomically verify + consume a single-use approval token.
+
+    Returns the decoded claims on success, or None if the token is
+    invalid, expired, or already used. Uses Redis SETNX so concurrent
+    callers cannot both succeed.
+    """
+    claims = verify_approval_token(token)
+    if not claims:
+        return None
+
+    key = f"used_token:{_token_fingerprint(token)}"
+    ttl = max(1, int(claims["expiry"]) - int(time.time()) + 60)
+    try:
+        r = await _redis()
+        try:
+            # SET NX: only succeeds if the key does not exist
+            set_ok = await r.set(key, "1", ex=ttl, nx=True)
+        finally:
+            await r.aclose()
+    except Exception as e:
+        # Redis unavailable — fail closed rather than allow replay
+        logger.error(f"Approval token replay check failed (Redis): {e}")
+        return None
+
+    if not set_ok:
+        logger.warning(f"Approval token replay attempt: fingerprint={key[:20]}...")
+        return None
+    return claims
 
 
 def _generate_approval_token(job_id: str, approver_email: str, expires_in: int = 3600) -> str:
@@ -126,7 +168,7 @@ async def send_approval_email(
                 )
                 if token_resp.status_code != 200:
                     logger.warning(f"Auth0 token for email failed: {token_resp.status_code}")
-                    return True  # URL still generated
+                    return False
 
                 mgmt_token = token_resp.json()["access_token"]
 
@@ -153,7 +195,9 @@ async def send_approval_email(
 
         except Exception as e:
             logger.warning(f"Auth0 email error: {e}")
+            return False
 
-    # Always return True — the URL is generated even if email delivery fails
-    # The approver can still use the dashboard to approve
-    return True
+    # No Auth0 credentials configured — email wasn't sent, but the URL
+    # is still generated and logged so the approver can reach it via
+    # the dashboard. Surface this to the caller as a failed send.
+    return False

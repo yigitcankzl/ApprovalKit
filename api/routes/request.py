@@ -771,7 +771,7 @@ async def batch_decision(
                 select(ApprovalJob).where(
                     ApprovalJob.id == uuid.UUID(jid),
                     ApprovalJob.workspace_id == workspace.id,
-                )
+                ).with_for_update()
             )
             job = result.scalar_one_or_none()
             if not job:

@@ -130,7 +130,7 @@ fi
 
 step "3/7" "Detecting hardware"
 
-COMPOSE_FILES=(-f docker-compose.yml)
+COMPOSE_FILES=(-f docker-compose.yml -f docker-compose.dev.yml)
 USE_GPU=0
 
 if command -v nvidia-smi &>/dev/null && nvidia-smi &>/dev/null; then
@@ -173,7 +173,7 @@ if ! _compose_up; then
         # Tear down any partially-created containers with the GPU config
         # so the next `up` can re-create Ollama with CPU-only settings.
         docker compose "${COMPOSE_FILES[@]}" down ollama &>/dev/null || true
-        COMPOSE_FILES=(-f docker-compose.yml)
+        COMPOSE_FILES=(-f docker-compose.yml -f docker-compose.dev.yml)
         USE_GPU=0
         _compose_up || err "docker compose up failed — check: docker compose logs"
     else

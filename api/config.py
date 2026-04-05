@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     # 32-byte URL-safe base64 key for Fernet credential encryption.
     # Auto-derived from HMAC_SECRET when empty.
     CREDENTIALS_KEY: str = ""
+    # Previous key kept during rotation: decrypt attempts the current key
+    # first, then this one. Leave empty when not rotating.
+    CREDENTIALS_KEY_PREVIOUS: str = ""
 
     # HashiCorp Vault (Credential Vault for M2M API keys)
     VAULT_URL: str = ""

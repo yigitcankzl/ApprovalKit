@@ -60,14 +60,33 @@ class RateLimiter:
 rate_limiter = RateLimiter()
 
 
+def _client_ip(request: Request) -> str:
+    """Extract the client IP, honouring X-Forwarded-For when behind a proxy."""
+    xff = request.headers.get("X-Forwarded-For", "")
+    if xff:
+        # Take the first IP in the chain (closest to origin).
+        return xff.split(",")[0].strip()
+    if request.client and request.client.host:
+        return request.client.host
+    return "unknown"
+
+
 async def check_api_rate_limit(request: Request):
     api_key = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
-    if not api_key:
-        return
-
-    allowed = await rate_limiter.check_rate_limit(
-        key=api_key,
-        max_requests=settings.API_RATE_LIMIT,
-    )
+    if api_key:
+        allowed = await rate_limiter.check_rate_limit(
+            key=f"apikey:{api_key}",
+            max_requests=settings.API_RATE_LIMIT,
+        )
+    else:
+        # Unauthenticated: rate-limit by client IP so public endpoints
+        # (email approval, /health/deep, OAuth callbacks) cannot be
+        # brute-forced or DoS'd anonymously.
+        ip = _client_ip(request)
+        allowed = await rate_limiter.check_rate_limit(
+            key=f"ip:{ip}",
+            max_requests=max(20, settings.API_RATE_LIMIT // 4),
+            window_seconds=3600,
+        )
     if not allowed:
         raise HTTPException(status_code=429, detail="Rate limit exceeded")

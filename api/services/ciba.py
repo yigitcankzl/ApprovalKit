@@ -8,6 +8,10 @@ from api.services.circuit_breaker import auth0_breaker
 
 settings = get_settings()
 
+# Bounded timeouts so worker threads can never block forever waiting
+# on a slow/hanging Auth0 tenant.
+_CIBA_TIMEOUT = httpx.Timeout(connect=5.0, read=30.0, write=10.0, pool=5.0)
+
 _CIBA_MSG_ALLOWED = re.compile(r"[^A-Za-z0-9 +\-_.,:#]")
 
 
@@ -41,7 +45,7 @@ class CIBAService:
             scope = f"openid {scope}"
 
         url = f"https://{domain}/bc-authorize"
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=_CIBA_TIMEOUT) as client:
             response = await client.post(
                 url,
                 data={
@@ -88,7 +92,7 @@ class CIBAService:
                 await asyncio.sleep(interval)
                 elapsed += interval
                 continue
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=_CIBA_TIMEOUT) as client:
                 response = await client.post(
                     url,
                     data={

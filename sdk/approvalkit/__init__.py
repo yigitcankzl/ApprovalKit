@@ -209,7 +209,10 @@ class ApprovalKit:
         """
         self._validate_inputs(connection, action, params)
         _log.info(f" {connection}/{action}")
-        _log.info(f"params: {json.dumps(params)}")
+        # Don't log raw param values — they may contain PII, secrets,
+        # or amounts the operator doesn't want in terminal/CI logs.
+        # Log only the parameter names and a count.
+        _log.debug(f"params: {len(params)} fields ({', '.join(sorted(params.keys()))})")
 
         result = self._request_approval(connection, action, params)
 
