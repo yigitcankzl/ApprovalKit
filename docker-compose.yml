@@ -47,13 +47,9 @@ services:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+    # GPU is opt-in via docker-compose.gpu.yml override.
+    # Falls back to CPU automatically when the override is not applied
+    # (e.g. no NVIDIA GPU or nvidia-container-toolkit missing).
     healthcheck:
       test: ["CMD-SHELL", "ollama list || exit 1"]
       interval: 10s
