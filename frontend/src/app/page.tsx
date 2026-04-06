@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import {
   Shield, ArrowRight, Lock, Smartphone, CheckCircle2,
   XCircle, AlertTriangle, CreditCard, Mail, GitBranch,
-  ChevronDown, Zap, Eye, EyeOff, Bot,
+  ChevronDown, Zap, Eye, EyeOff, Bot, FileText, Settings,
 } from "lucide-react";
 
 // ── Animated terminal ────────────────────────────────────────────────────────
@@ -199,6 +199,22 @@ export default function WelcomePage() {
                 className="inline-flex items-center gap-2 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 px-5 py-3 rounded-lg text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
               >
                 Open Dashboard
+              </Link>
+            </div>
+            <div className="flex items-center gap-3 flex-wrap mt-3">
+              <Link
+                href="/docs"
+                className="inline-flex items-center gap-2 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/30 px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
+              >
+                <FileText className="h-4 w-4" />
+                Documentation
+              </Link>
+              <Link
+                href="/settings"
+                className="inline-flex items-center gap-2 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+              >
+                <Settings className="h-4 w-4" />
+                Setup Guide
               </Link>
             </div>
 
