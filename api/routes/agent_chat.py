@@ -98,7 +98,8 @@ async def chat_with_agent(
     req: ChatRequest,
     workspace: Workspace = Depends(get_current_workspace),
 ):
-    provider, api_key = _resolve_ai_credentials(workspace)
+    pconfig, api_key = _resolve_openai_config(workspace)
+    provider = "ollama" if "ollama" in pconfig.get("base_url", "") else "openai"
 
     result = process_message(
         agent_id, req.message, req.agent_title, req.session_id,
@@ -124,7 +125,7 @@ async def chat_with_agent_stream(
     - type=tool_result: result from tool execution
     - type=done: final response with summary
     """
-    provider, api_key = _resolve_ai_credentials(workspace)
+    pconfig_resolved, api_key_resolved = _resolve_openai_config(workspace)
     workspace_id = str(workspace.owner_auth0_sub or workspace.id)
 
     async def event_generator():
@@ -138,18 +139,7 @@ async def chat_with_agent_stream(
             )
             from openai import OpenAI
 
-            pconfig = _PROVIDER_CONFIG.get(provider, _PROVIDER_CONFIG.get("gemini", {}))
-            if pconfig.get("type") != "openai":
-                # Fall back to non-streaming for Gemini
-                result = process_message(
-                    agent_id, req.message, req.agent_title, req.session_id,
-                    api_key=api_key, provider=provider, workspace_id=workspace_id,
-                )
-                yield f"data: {json.dumps({'type': 'token', 'content': result.get('response', '')})}\n\n"
-                yield f"data: {json.dumps({'type': 'done', 'response': result.get('response', ''), 'session_id': result.get('session_id', '')})}\n\n"
-                return
-
-            client = OpenAI(api_key=api_key or "ollama", base_url=pconfig["base_url"], timeout=90)
+            client = OpenAI(api_key=api_key_resolved or "ollama", base_url=pconfig_resolved["base_url"], timeout=90)
             model = pconfig["model"]
 
             base_prompt = AGENT_PROMPTS.get(agent_id, f"You are a helpful AI assistant.")
