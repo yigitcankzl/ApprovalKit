@@ -1183,7 +1183,14 @@ def _execute_tool(agent_id: str, tool_name: str, tool_args: dict, workspace_id: 
                     ServiceConnection.slug == action["connection"],
                 )
             ).scalar_one_or_none()
-            conn_linked = bool(conn_obj and conn_obj.auth0_refresh_token)
+            conn_linked = False
+            if conn_obj and conn_obj.auth0_refresh_token:
+                try:
+                    from api.services.encryption import decrypt_secret
+                    decrypted = decrypt_secret(conn_obj.auth0_refresh_token)
+                    conn_linked = bool(decrypted and len(decrypted) > 5)
+                except Exception:
+                    conn_linked = False
 
             from api.services.rule_engine import evaluate_conditions
             matched_rule = None
