@@ -75,6 +75,23 @@ def _resolve_ai_credentials(workspace: Workspace) -> tuple[str, str]:
     return provider, api_key
 
 
+def _resolve_openai_config(workspace: Workspace) -> tuple[dict, str]:
+    """Resolve provider config ensuring OpenAI-compatible base_url exists.
+
+    Falls back to Ollama when the configured provider (e.g. Gemini) is not
+    OpenAI-compatible.  Returns (pconfig, api_key).
+    """
+    from api.services.agent_chat import _PROVIDER_CONFIG
+    provider, api_key = _resolve_ai_credentials(workspace)
+    pconfig = _PROVIDER_CONFIG.get(provider, _PROVIDER_CONFIG.get("gemini", {}))
+    if pconfig.get("type") != "openai":
+        ollama_cfg = _PROVIDER_CONFIG.get("ollama")
+        if ollama_cfg:
+            pconfig = ollama_cfg
+            api_key = "ollama"
+    return pconfig, api_key
+
+
 @router.post("/{agent_id}/chat", response_model=ChatResponse)
 async def chat_with_agent(
     agent_id: str,
@@ -388,19 +405,7 @@ async def orchestrate(
     workspace: Workspace = Depends(get_current_workspace),
 ):
     """AI-powered workflow planner: decides which agents to use and in what order."""
-    from api.services.agent_chat import _PROVIDER_CONFIG
-    provider, api_key = _resolve_ai_credentials(workspace)
-
-    pconfig = _PROVIDER_CONFIG.get(provider, _PROVIDER_CONFIG.get("gemini", {}))
-
-    # Fallback to Ollama if provider is not OpenAI-compatible (e.g. Gemini native)
-    if pconfig.get("type") != "openai":
-        ollama_cfg = _PROVIDER_CONFIG.get("ollama", {})
-        if ollama_cfg:
-            pconfig = ollama_cfg
-            api_key = "ollama"
-        else:
-            raise HTTPException(400, "Orchestrator requires OpenAI-compatible provider")
+    pconfig, api_key = _resolve_openai_config(workspace)
 
     from openai import OpenAI
     client = OpenAI(api_key=api_key or "ollama", base_url=pconfig["base_url"], timeout=60)
@@ -736,9 +741,7 @@ async def run_sub_agent(
 
     prompt = SUB_AGENT_PROMPTS.get(req_role) or SUB_AGENT_PROMPTS.get(req.role, "Analyze the following:")
 
-    from api.services.agent_chat import _PROVIDER_CONFIG
-    provider, api_key = _resolve_ai_credentials(workspace)
-    pconfig = _PROVIDER_CONFIG.get(provider, _PROVIDER_CONFIG.get("gemini", {}))
+    pconfig, api_key = _resolve_openai_config(workspace)
 
     from openai import OpenAI
     client = OpenAI(api_key=api_key or "ollama", base_url=pconfig["base_url"], timeout=45)
@@ -848,9 +851,7 @@ async def rule_assistant(
     workspace: Workspace = Depends(get_current_workspace),
 ):
     """AI-powered rule creation assistant — suggests rule configurations via chat."""
-    from api.services.agent_chat import _PROVIDER_CONFIG
-    provider, api_key = _resolve_ai_credentials(workspace)
-    pconfig = _PROVIDER_CONFIG.get(provider, _PROVIDER_CONFIG.get("gemini", {}))
+    pconfig, api_key = _resolve_openai_config(workspace)
 
     from openai import OpenAI
     client = OpenAI(api_key=api_key or "ollama", base_url=pconfig["base_url"], timeout=45)
