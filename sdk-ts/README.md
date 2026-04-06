@@ -1,6 +1,6 @@
 # approvalkit-sdk
 
-TypeScript/JavaScript SDK for [ApprovalKit](https://github.com/your-org/ApprovalKit) — human approval middleware for AI agents.
+TypeScript/JavaScript SDK for [ApprovalKit](https://github.com/yigitcankzl/ApprovalKit) — human approval middleware for AI agents.
 
 ## Install
 

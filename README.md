@@ -4,7 +4,8 @@
 [![Python SDK](https://img.shields.io/badge/SDK-Python-green?logo=python)](sdk/)
 [![MCP Server](https://img.shields.io/badge/MCP-Compatible-purple)](sdk/approvalkit/mcp_server.py)
 [![Docker](https://img.shields.io/badge/Docker-Compose-blue?logo=docker)](docker-compose.yml)
-[![30 Services](https://img.shields.io/badge/Services-30%20Handlers-orange)](api/services/token_vault.py)
+[![TypeScript SDK](https://img.shields.io/badge/SDK-TypeScript-blue?logo=typescript)](sdk-ts/)
+[![26 Services](https://img.shields.io/badge/Services-26%20Handlers-orange)](api/services/token_vault.py)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
 **Human Approval Middleware for AI Agents**
@@ -90,7 +91,7 @@ subject_token={auth0_refresh_token}
 connection={stripe|github|slack|...}
 ```
 
-All actions execute through **Auth0 Token Vault** — the agent never sees credentials. Token Vault supports 30 OAuth providers:
+All actions execute through **Auth0 Token Vault** — the agent never sees credentials. Token Vault supports 26+ OAuth providers:
 
 | Category | Services |
 |----------|----------|
@@ -103,7 +104,7 @@ All actions execute through **Auth0 Token Vault** — the agent never sees crede
 | **Data & AI** | Amazon, Figma, Hugging Face, Fitbit |
 | **Enterprise** | Salesforce, Microsoft Entra (Azure AD), Google Workspace |
 
-ApprovalKit has **30 built-in service handlers** covering every Token Vault provider — Stripe, GitHub, Slack, Google (Gmail/Calendar/Drive/Sheets), Microsoft (Outlook/OneDrive), Salesforce, Notion, Jira, Discord, Linear, HubSpot, Shopify, PayPal, Dropbox, Box, Bitbucket, Figma, Spotify, Twitch, Fitbit, Freshbooks, DigitalOcean, Basecamp, Hugging Face, Amadeus.
+ApprovalKit has **26 built-in service handlers** covering Token Vault providers — Stripe, GitHub, Slack, Google (Gmail/Calendar/Drive/Sheets), Microsoft (Outlook/OneDrive), Salesforce, Notion, Jira, Discord, Linear, HubSpot, Shopify, PayPal, Dropbox, Box, Bitbucket, Figma, Spotify, Twitch, Fitbit, Freshbooks, DigitalOcean, Basecamp, Hugging Face, Amadeus.
 
 Existing MCP servers (GitHub, Slack, Stripe, etc.) give agents **direct API access with no oversight**. ApprovalKit sits in front — same actions, but with human approval, credential isolation via Token Vault, and full audit trail.
 
@@ -131,7 +132,7 @@ $5000 charge → step-up → all_of_n (manager + CFO both approve)
 
 Step-up conditions are configurable per rule. The Celery worker evaluates conditions at runtime and escalates the approval model before dispatching.
 
-### 5 Approval Models
+### 6 Approval Models
 
 | Model | How it works |
 |-------|-------------|
@@ -140,6 +141,7 @@ Step-up conditions are configurable per rule. The Celery worker evaluates condit
 | `all_of_n` | Every approver must approve |
 | `k_of_n` | k out of n within a quorum time window |
 | `sequential` | Ordered chain — each step waits for the previous |
+| `fga_dynamic` | Auth0 FGA resolves approvers at runtime |
 
 ### AI Orchestrator & Sub-Agents
 
@@ -221,13 +223,13 @@ Each agent has a chronological activity timeline showing every request with risk
 |-------|-----------|
 | API | Python 3.11, FastAPI, SQLAlchemy 2.0, Pydantic v2 |
 | Worker | Celery 5.4, Redis 7 (circuit breaker, rate limiting, sessions) |
-| Database | PostgreSQL 16, 8 migrations, Fernet encryption at rest |
+| Database | PostgreSQL 16, 10 migrations, Fernet encryption at rest |
 | Frontend | Next.js 14, React 18, Tailwind CSS, TypeScript, dark mode |
 | Auth | Auth0 Token Vault, CIBA, FGA, nextjs-auth0 v4, per-agent HMAC |
-| SDK | Python, pip-installable, sync + async, jitter polling |
-| Execution | 30 built-in handlers, all via Auth0 Token Vault |
+| SDK | Python + TypeScript, pip-installable, sync + async, jitter polling |
+| Execution | 26 built-in handlers, all via Auth0 Token Vault |
 | AI Agents | 10 specialized agents, code-based sub-agents, LLM compliance/summary |
-| Infrastructure | Docker Compose (8 services), Ollama GPU support, non-root containers |
+| Infrastructure | Docker Compose (7 services), Ollama GPU support, non-root containers |
 
 ---
 
@@ -266,7 +268,7 @@ Edit `.env` with your Auth0 M2M and Web app credentials, then run setup. This st
 12. **PII Masking** — Emails and names masked in audit logs automatically
 13. **Rate Limiting** — Per-agent API key + per-job decision limits
 14. **Refresh Token Encryption** — OAuth tokens encrypted at rest, decrypted only at execution
-15. **30 Token Vault Providers** — Any Auth0 OAuth connection works out of the box
+15. **26 Token Vault Providers** — Any Auth0 OAuth connection works out of the box
 16. **Per-Step Least Privilege** — Each agent in a chain gets only the tools needed for its specific role (1-2 tools, not the full 15+). Framework-level enforcement, not prompt-level — even prompt injection can't access filtered tools
 17. **Cascading Hallucination Prevention** — Chain context passes only verified tool execution results between agents, not LLM-generated text. Prevents Agent A's hallucination from propagating to Agent B
 18. **Input Parameter Validation** — SQL injection, shell injection, path traversal, and script injection patterns blocked at framework level before tool execution
@@ -298,7 +300,7 @@ Edit `.env` with your Auth0 M2M and Web app credentials, then run setup. This st
 | Page | Description |
 |------|-------------|
 | Dashboard | Real-time stats, SSE live feed, pending approvals, security status |
-| Connections | 30 services via Token Vault, inline action edit, OAuth connect |
+| Connections | 26 services via Token Vault, inline action edit, OAuth connect |
 | Rules & Consent | Approval rules with step-up + consent/permissions (tabbed) |
 | Approvers | CRUD + Guardian auto-linking + delegation + workspace isolation |
 | Audit Log | Filterable event log with PII masking, binding messages, Token Vault receipts |
@@ -315,7 +317,7 @@ Edit `.env` with your Auth0 M2M and Web app credentials, then run setup. This st
 
 ## API Reference
 
-40+ endpoints across 8 domains. Full OpenAPI docs at `/docs`.
+73 endpoints across 9 domains. Full OpenAPI docs at `/docs`.
 
 **Core:** `POST /request`, `GET /status/:id`, `POST /test-request`, `POST /jobs/:id/decision`
 **Rules:** CRUD + `POST /simulate` (dry-run with risk score)
