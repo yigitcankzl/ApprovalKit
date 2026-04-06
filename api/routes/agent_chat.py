@@ -286,6 +286,7 @@ CRITICAL RULES:
                                         _job = (await _db.execute(_sel(ApprovalJob).where(ApprovalJob.id == job_id))).scalar_one_or_none()
                                         if _job and _job.state.value in ("approved", "rejected", "timeout", "blocked"):
                                             final_status = _job.state.value
+                                            final_reason = getattr(_job, "rejection_reason", None) or ""
                                             break
                                 except Exception:
                                     pass  # DB hiccup, retry next poll
@@ -294,9 +295,11 @@ CRITICAL RULES:
 
                         if final_status == "pending":
                             final_status = "timeout"
+                            final_reason = ""
 
-                        yield f"data: {json.dumps({'type': 'approval_resolved', 'job_id': job_id, 'status': final_status})}\n\n"
-                        tool_result_text = f"Action {final_status}. " + ("Approved and executed." if final_status == "approved" else f"Rejected/timed out by approver.")
+                        yield f"data: {json.dumps({'type': 'approval_resolved', 'job_id': job_id, 'status': final_status, 'reason': final_reason})}\n\n"
+                        reason_text = f" Reason: {final_reason}" if final_reason else ""
+                        tool_result_text = f"Action {final_status}.{reason_text} " + ("Approved and executed." if final_status == "approved" else f"Rejected/timed out by approver.")
                     else:
                         tool_result_text = json.dumps(result)
 

@@ -21,6 +21,7 @@ interface ShieldEvent {
   id: string; timestamp: Date; agentId: string; agentTitle: string;
   type: "auto_approved" | "pending" | "approved" | "rejected" | "blocked" | "step_up" | "scope_creep" | "budget_exceeded";
   action: string; connection: string; params: Record<string, unknown>; message: string; jobId?: string;
+  rejectionReason?: string;
 }
 interface ChatMessage {
   id: string; role: "user" | "agent" | "tool" | "system"; text: string; timestamp: Date;
@@ -649,17 +650,18 @@ export default function LiveThreatDemoPage() {
               // Backend is waiting for human approval — no action needed, UI already shows pending
             }
             else if (data.type === "approval_resolved") {
-              // Approval decision came through — update tool card + shield event
               const jid = data.job_id;
               const st = data.status as "approved" | "rejected" | "blocked";
-              setMessages(prev => ({
-                ...prev,
-                [agentId]: (prev[agentId] || []).map(m =>
-                  m.jobId === jid ? { ...m, toolStatus: st } : m
-                ),
-              }));
+              const reason = data.reason || "";
+              setMessages(prev => {
+                const updated = { ...prev };
+                for (const [aid, msgs] of Object.entries(updated)) {
+                  updated[aid] = msgs.map(m => m.jobId === jid ? { ...m, toolStatus: st, ...(reason ? { text: (m.text || "") + ` ❌ ${reason}` } : {}) } : m);
+                }
+                return updated;
+              });
               setEvents(prev => prev.map(e =>
-                e.jobId === jid ? { ...e, type: st } : e
+                e.jobId === jid ? { ...e, type: st, ...(reason ? { rejectionReason: reason } : {}) } : e
               ));
               if (st === "approved") {
                 setSummary(prev => ({ ...prev, pendingApproval: Math.max(0, prev.pendingApproval - 1), autoApproved: prev.autoApproved + 1 }));
@@ -732,13 +734,12 @@ export default function LiveThreatDemoPage() {
     const reason = prompt("Rejection reason (optional):") || "Rejected by approver";
     const evt = events.find(e => e.id === eventId); const amt = Number(evt?.params?.amount_usd) || 0;
     try { await api.rejectJob(jobId, reason); } catch (e) { void e; }
-    setEvents(prev => prev.map(e => e.id === eventId ? { ...e, type: "rejected" as const } : e));
+    setEvents(prev => prev.map(e => e.id === eventId ? { ...e, type: "rejected" as const, rejectionReason: reason } : e));
     setSummary(prev => ({ ...prev, pendingApproval: Math.max(0, prev.pendingApproval - 1), blocked: prev.blocked + 1, preventedDamage: prev.preventedDamage + amt }));
-    // Update tool card across ALL agents (not just selected)
     setMessages(prev => {
       const updated = { ...prev };
       for (const [aid, msgs] of Object.entries(updated)) {
-        updated[aid] = msgs.map(m => m.jobId === jobId ? { ...m, toolStatus: "rejected" as const } : m);
+        updated[aid] = msgs.map(m => m.jobId === jobId ? { ...m, toolStatus: "rejected" as const, text: (m.text || "") + ` ❌ ${reason}` } : m);
       }
       return updated;
     });
@@ -1294,6 +1295,7 @@ function EventCard({ event, onApprove, onReject, shieldOff }: {
       {event.type === "auto_approved" && !shieldOff && <p className="text-[9px] text-green-600/70 dark:text-green-400/50 mt-1.5 ml-6 italic">Below threshold — auto-approved by rule engine</p>}
       {event.type === "step_up" && <p className="text-[9px] text-amber-600/70 dark:text-amber-400/50 mt-1.5 ml-6 italic">High-value action — approval model escalated automatically</p>}
       {event.type === "blocked" && <p className="text-[9px] text-orange-600/70 dark:text-orange-400/50 mt-1.5 ml-6 italic">Rule engine blocked this action — agent never had access to credentials</p>}
+      {event.type === "rejected" && <p className="text-[9px] text-red-600/70 dark:text-red-400/50 mt-1.5 ml-6 italic">Rejected{event.rejectionReason ? `: ${event.rejectionReason}` : " by approver"}</p>}
       {event.type === "scope_creep" && <p className="text-[9px] text-red-600/70 dark:text-red-400/50 mt-1.5 ml-6 italic">First-time action or 3x amount anomaly detected</p>}
       {shieldOff && event.type === "auto_approved" && <p className="text-[9px] text-red-600/70 dark:text-red-400/50 mt-1.5 ml-6 italic">Without ApprovalKit, this action executes with zero oversight</p>}
       {(event.type === "pending" || event.type === "step_up") && event.jobId && (
