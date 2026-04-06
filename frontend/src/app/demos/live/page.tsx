@@ -720,7 +720,13 @@ export default function LiveThreatDemoPage() {
     try { await api.submitDecision(jobId, { decision: "approve", modified_params: modifiedParams }); } catch (e) { void e; }
     setEvents(prev => prev.map(e => e.id === eventId ? { ...e, type: "approved" as const } : e));
     setSummary(prev => ({ ...prev, pendingApproval: Math.max(0, prev.pendingApproval - 1), autoApproved: prev.autoApproved + 1 }));
-    if (selectedAgent) setMessages(prev => ({ ...prev, [selectedAgent.id]: (prev[selectedAgent.id] || []).map(m => m.jobId === jobId ? { ...m, toolStatus: "approved" as const } : m) }));
+    setMessages(prev => {
+      const updated = { ...prev };
+      for (const [aid, msgs] of Object.entries(updated)) {
+        updated[aid] = msgs.map(m => m.jobId === jobId ? { ...m, toolStatus: "approved" as const } : m);
+      }
+      return updated;
+    });
   };
   const handleReject = async (jobId: string, eventId: string) => {
     const reason = prompt("Rejection reason (optional):") || "Rejected by approver";
@@ -728,7 +734,14 @@ export default function LiveThreatDemoPage() {
     try { await api.rejectJob(jobId, reason); } catch (e) { void e; }
     setEvents(prev => prev.map(e => e.id === eventId ? { ...e, type: "rejected" as const } : e));
     setSummary(prev => ({ ...prev, pendingApproval: Math.max(0, prev.pendingApproval - 1), blocked: prev.blocked + 1, preventedDamage: prev.preventedDamage + amt }));
-    if (selectedAgent) setMessages(prev => ({ ...prev, [selectedAgent.id]: (prev[selectedAgent.id] || []).map(m => m.jobId === jobId ? { ...m, toolStatus: "rejected" as const } : m) }));
+    // Update tool card across ALL agents (not just selected)
+    setMessages(prev => {
+      const updated = { ...prev };
+      for (const [aid, msgs] of Object.entries(updated)) {
+        updated[aid] = msgs.map(m => m.jobId === jobId ? { ...m, toolStatus: "rejected" as const } : m);
+      }
+      return updated;
+    });
   };
   const handleReset = () => { if (!selectedAgent) return; const sid = sessionIds[selectedAgent.id]; if (sid) api.clearAgentSession(selectedAgent.id, sid).catch(() => {}); setMessages(prev => ({ ...prev, [selectedAgent.id]: [] })); setSessionIds(prev => ({ ...prev, [selectedAgent.id]: "" })); };
   const scenarios = selectedAgent ? (SCENARIO_PROMPTS[selectedAgent.id] || DEFAULT_PROMPTS) : [];
