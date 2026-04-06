@@ -1,0 +1,26 @@
+# Development-only overlay.
+#
+# Starts HashiCorp Vault in `dev` mode with an in-memory KV store
+# and a hardcoded root token. DO NOT USE IN PRODUCTION — restarting
+# the container wipes all secrets and the token is public knowledge.
+#
+# Usage (local dev):
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+#
+# In production, leave this file out and provide VAULT_URL / VAULT_TOKEN
+# via environment variables that point to a managed Vault cluster.
+services:
+  vault:
+    image: hashicorp/vault:latest
+    cap_add: [IPC_LOCK]
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: approvalkit-dev-token
+      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
+      VAULT_ADDR: "http://0.0.0.0:8200"
+    ports:
+      - "8200:8200"
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 5s
+      timeout: 3s
+      retries: 5

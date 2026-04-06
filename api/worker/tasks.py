@@ -59,12 +59,23 @@ async def _get_db_session():
     return session_factory()
 
 
-_current_ws_ciba: dict = {}
+import contextvars
+
+# Per-task workspace CIBA credentials. Using contextvars instead of a
+# module-level dict makes this safe under Celery's `--concurrency` (the
+# value is isolated per asyncio task) — two jobs from different
+# workspaces can no longer stomp on each other's credentials.
+_ws_ciba_ctx: contextvars.ContextVar[dict] = contextvars.ContextVar("ws_ciba", default={})
+
+
+def _current_ws_creds() -> dict:
+    return _ws_ciba_ctx.get() or {}
+
 
 async def _send_ciba(approver, binding_msg: str, rule: Rule, scope: str = "", job_id: str = "", ws_creds: dict | None = None) -> dict:
     """Shared CIBA initiate → record → poll pattern. Uses workspace credentials passed as param."""
     actual = _resolve_delegation(approver)
-    ws = ws_creds or _current_ws_ciba
+    ws = ws_creds or _current_ws_creds()
     if not ws.get("domain"):
         raise ValueError("Workspace CIBA credentials not configured — cannot send push notification")
     ciba_result = await ciba_service.initiate_ciba_request(
@@ -144,7 +155,7 @@ async def _process_k_of_n(job: ApprovalJob, rule: Rule):
     window = rule.quorum_window or rule.timeout_seconds
 
     # --- send all CIBA requests in parallel ---
-    ws = _current_ws_ciba
+    ws = _current_ws_creds()
     async def _initiate(ra):
         actual = _resolve_delegation(ra.approver)
         try:
@@ -380,14 +391,13 @@ async def _process_job(job_id: str):
             if engine2:
                 await engine2.dispose()
 
-        # Thread-safe: set both global (backward compat) and pass via contextvars
-        global _current_ws_ciba
+        # Store per-task in a contextvar so concurrent workers don't race.
         ws_creds = {
             "domain": ws_config.auth0_domain,
             "client_id": ws_config.auth0_client_id,
             "client_secret": ws_config.auth0_client_secret,
         }
-        _current_ws_ciba = ws_creds
+        _ws_ciba_ctx.set(ws_creds)
 
         # Process based on approval model
         processor = MODEL_PROCESSORS.get(effective_model)
@@ -577,7 +587,7 @@ async def _process_escalation(job: ApprovalJob, rule: Rule, session):
         return {"status": "blocked"}
 
     binding_msg = render_binding_message(rule.context_template, job.params)
-    ws = _current_ws_ciba
+    ws = _current_ws_creds()
     ciba_result = await ciba_service.initiate_ciba_request(
         user_id=escalation_approver.auth0_user_id,
         binding_message=f"[ESCALATION] {binding_msg}",

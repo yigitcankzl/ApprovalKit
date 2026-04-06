@@ -12,6 +12,7 @@ httpx==0.28.1
 loguru==0.7.3
 sentry-sdk[fastapi]==2.19.2
 cryptography==46.0.5
+pyjwt[crypto]==2.10.1
 python-dotenv==1.0.1
 hvac==2.3.0
 pytest==8.3.4

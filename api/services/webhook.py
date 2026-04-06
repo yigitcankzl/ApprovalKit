@@ -91,8 +91,15 @@ async def notify_slack(
     if fields:
         attachment["fields"] = fields
 
+    from api.utils import assert_safe_outbound_url_async, UnsafeURLError
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
+        await assert_safe_outbound_url_async(webhook_url)
+    except UnsafeURLError as e:
+        logger.warning(f"Slack webhook URL rejected (SSRF guard): {e}")
+        return False
+
+    try:
+        async with httpx.AsyncClient(timeout=10, follow_redirects=False) as client:
             r = await client.post(webhook_url, json={"attachments": [attachment]})
             if r.status_code == 200:
                 logger.info(f"Slack notification sent: {title}")

@@ -52,7 +52,9 @@ async def lifespan(app: FastAPI):
     yield
     logger.info("ApprovalKit API shutting down")
     from api.middleware.rate_limit import rate_limiter
+    from api.services.redis_pool import aclose_all as _aclose_redis
     await rate_limiter.close()
+    await _aclose_redis()
 
 
 app = FastAPI(
@@ -111,7 +113,15 @@ app.include_router(auth0_logs.router)
 
 @app.exception_handler(ValueError)
 async def value_error_handler(request: Request, exc: ValueError):
-    """Return 400 for invalid UUIDs and other value errors instead of 500."""
+    """Return 400 for invalid UUIDs and other value errors instead of 500.
+
+    In production we return a generic message so we don't leak internal
+    error strings (table names, stack hints, etc.) to clients. The full
+    exception is still logged for server-side debugging.
+    """
+    logger.warning(f"ValueError on {request.url.path}: {exc}")
+    if settings.ENVIRONMENT == "production":
+        return JSONResponse(status_code=400, content={"detail": "Invalid request value"})
     return JSONResponse(status_code=400, content={"detail": str(exc)})
 
 
@@ -127,6 +137,16 @@ async def root():
 
 @app.get("/health")
 async def health():
+    """Liveness + shallow DB check. Returns 503 if the DB is unreachable
+    so Docker/Kubernetes can restart unhealthy containers."""
+    from api.database import engine
+    from sqlalchemy import text
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+    except Exception as e:
+        logger.warning(f"Healthcheck DB ping failed: {e}")
+        return JSONResponse(status_code=503, content={"status": "unhealthy", "db": "error"})
     return {"status": "healthy"}
 
 
@@ -172,7 +192,9 @@ async def health_deep():
 async def add_trace_id(request: Request, call_next):
     """Add trace_id to every request for distributed tracing."""
     import uuid as _uuid
-    trace_id = request.headers.get("X-Trace-Id", str(_uuid.uuid4())[:8])
+    # Full UUID4 (32 hex chars) avoids collisions under load that would
+    # otherwise break log correlation when trace_id is used as a join key.
+    trace_id = request.headers.get("X-Trace-Id") or _uuid.uuid4().hex
     request.state.trace_id = trace_id
     response = await call_next(request)
     response.headers["X-Trace-Id"] = trace_id

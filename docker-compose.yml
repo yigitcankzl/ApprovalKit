@@ -26,20 +26,11 @@ services:
       timeout: 3s
       retries: 5
 
-  vault:
-    image: hashicorp/vault:latest
-    cap_add: [IPC_LOCK]
-    environment:
-      VAULT_DEV_ROOT_TOKEN_ID: approvalkit-dev-token
-      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
-      VAULT_ADDR: "http://0.0.0.0:8200"
-    ports:
-      - "8200:8200"
-    healthcheck:
-      test: ["CMD", "vault", "status"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
+  # NOTE: HashiCorp Vault is NOT started by the base compose file.
+  # For local development, layer in `docker-compose.dev.yml` which
+  # spins up Vault in `dev` mode with a hardcoded root token.
+  # In production, point VAULT_URL/VAULT_TOKEN at a managed Vault
+  # cluster — never the dev-mode container.
 
   ollama:
     image: ollama/ollama:latest
@@ -47,13 +38,9 @@ services:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+    # GPU is opt-in via docker-compose.gpu.yml override.
+    # Falls back to CPU automatically when the override is not applied
+    # (e.g. no NVIDIA GPU or nvidia-container-toolkit missing).
     healthcheck:
       test: ["CMD-SHELL", "ollama list || exit 1"]
       interval: 10s

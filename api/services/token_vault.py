@@ -749,6 +749,14 @@ async def _execute_webhook(conn_obj, action: str, params: dict, creds: dict) -> 
     url = _render_template(conn_obj.webhook_url, token, {**params, "action": action})
     method = (conn_obj.webhook_method or "POST").upper()
 
+    # SSRF guard: user-supplied webhook URLs can only hit public https targets.
+    from api.utils import assert_safe_outbound_url_async, UnsafeURLError
+    try:
+        await assert_safe_outbound_url_async(url)
+    except UnsafeURLError as e:
+        logger.warning(f"Webhook rejected (unsafe URL): {e}")
+        return {"status": "error", "error": f"unsafe_webhook_url: {e}"}
+
     # Render headers
     raw_headers = conn_obj.webhook_headers or {}
     headers = _render_template(raw_headers, token, {**params, "action": action})
@@ -769,7 +777,7 @@ async def _execute_webhook(conn_obj, action: str, params: dict, creds: dict) -> 
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            async with httpx.AsyncClient(timeout=30) as c:
+            async with httpx.AsyncClient(timeout=30, follow_redirects=False) as c:
                 if method == "GET":
                     r = await c.get(url, headers=headers, params=body if isinstance(body, dict) else None)
                 elif method == "DELETE":

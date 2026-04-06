@@ -11,6 +11,7 @@ All webhooks are verified via HMAC-SHA256 signature.
 """
 import hashlib
 import hmac
+import time
 
 from fastapi import APIRouter, HTTPException, Request
 from loguru import logger
@@ -18,9 +19,28 @@ from pydantic import BaseModel
 
 from api.config import get_settings
 from api.services.fga import fga_client
+from api.services.redis_pool import get_redis
 
 router = APIRouter(prefix="/api/v1", tags=["auth0-webhook"])
 settings = get_settings()
+
+_WEBHOOK_TIMESTAMP_TOLERANCE = 300  # 5 minutes
+_WEBHOOK_NONCE_TTL = 600  # nonce memory window
+
+
+async def _nonce_seen(nonce: str) -> bool:
+    """Return True if this nonce was already consumed (replay)."""
+    if not nonce:
+        return False
+    try:
+        r = get_redis()
+        # SETNX: succeeds only if key is new.
+        ok = await r.set(f"auth0_webhook_nonce:{nonce}", "1", ex=_WEBHOOK_NONCE_TTL, nx=True)
+        return not ok
+    except Exception as e:
+        # Fail closed: if Redis is down we cannot guarantee replay safety.
+        logger.error(f"Auth0 webhook nonce check failed: {e}")
+        return True
 
 
 class PostLoginPayload(BaseModel):
@@ -44,12 +64,19 @@ class TokenExchangePayload(BaseModel):
     ip: str | None = None
 
 
-def _verify_signature(body: bytes, signature: str) -> bool:
-    """Verify HMAC-SHA256 signature from Auth0 Action."""
+def _verify_signature(body: bytes, signature: str, timestamp: str) -> bool:
+    """
+    Verify HMAC-SHA256 signature from Auth0 Action.
+
+    The signature is computed over `{timestamp}.{body}` to bind the
+    timestamp into the MAC; an attacker cannot modify the timestamp
+    to keep a replayed request "fresh".
+    """
     secret = settings.HMAC_SECRET
     if not secret:
         return False
-    expected = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+    msg = timestamp.encode() + b"." + body
+    expected = hmac.new(secret.encode(), msg, hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected, signature)
 
 
@@ -64,11 +91,27 @@ async def auth0_webhook(request: Request):
     """
     signature = request.headers.get("X-Auth0-Signature", "")
     action_type = request.headers.get("X-Auth0-Action", "")
+    timestamp = request.headers.get("X-Auth0-Timestamp", "")
+    nonce = request.headers.get("X-Auth0-Nonce", "")
     body = await request.body()
 
-    if not _verify_signature(body, signature):
+    # Require timestamp + nonce + freshness window.
+    try:
+        ts_int = int(timestamp)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=401, detail="Missing or invalid X-Auth0-Timestamp")
+    if abs(int(time.time()) - ts_int) > _WEBHOOK_TIMESTAMP_TOLERANCE:
+        raise HTTPException(status_code=401, detail="Webhook timestamp outside tolerance window")
+    if not nonce or len(nonce) < 8:
+        raise HTTPException(status_code=401, detail="Missing X-Auth0-Nonce")
+
+    if not _verify_signature(body, signature, timestamp):
         logger.warning("Auth0 webhook: invalid signature")
         raise HTTPException(status_code=401, detail="Invalid signature")
+
+    if await _nonce_seen(nonce):
+        logger.warning(f"Auth0 webhook: replayed nonce {nonce[:12]}...")
+        raise HTTPException(status_code=401, detail="Replayed or reused nonce")
 
     data = await request.json()
 

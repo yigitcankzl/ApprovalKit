@@ -60,14 +60,48 @@ class RateLimiter:
 rate_limiter = RateLimiter()
 
 
+def _client_ip(request: Request) -> str:
+    """
+    Extract the client IP.
+
+    X-Forwarded-For is ONLY honoured when TRUSTED_PROXY_COUNT > 0.
+    Each trusted proxy appends the IP it saw; the attacker can prepend
+    arbitrary values, so we read from the right-hand side of the chain,
+    skipping exactly TRUSTED_PROXY_COUNT entries we own. With
+    TRUSTED_PROXY_COUNT=0 we ignore XFF entirely and trust only the
+    TCP peer — that's the safe default for any deployment that is NOT
+    behind a controlled reverse proxy.
+    """
+    trusted = settings.TRUSTED_PROXY_COUNT
+    if trusted > 0:
+        xff = request.headers.get("X-Forwarded-For", "")
+        if xff:
+            chain = [p.strip() for p in xff.split(",") if p.strip()]
+            # Client IP is `trusted` hops from the right.
+            idx = len(chain) - trusted
+            if 0 <= idx < len(chain):
+                return chain[idx]
+    if request.client and request.client.host:
+        return request.client.host
+    return "unknown"
+
+
 async def check_api_rate_limit(request: Request):
     api_key = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
-    if not api_key:
-        return
-
-    allowed = await rate_limiter.check_rate_limit(
-        key=api_key,
-        max_requests=settings.API_RATE_LIMIT,
-    )
+    if api_key:
+        allowed = await rate_limiter.check_rate_limit(
+            key=f"apikey:{api_key}",
+            max_requests=settings.API_RATE_LIMIT,
+        )
+    else:
+        # Unauthenticated: rate-limit by client IP so public endpoints
+        # (email approval, /health/deep, OAuth callbacks) cannot be
+        # brute-forced or DoS'd anonymously.
+        ip = _client_ip(request)
+        allowed = await rate_limiter.check_rate_limit(
+            key=f"ip:{ip}",
+            max_requests=max(20, settings.API_RATE_LIMIT // 4),
+            window_seconds=3600,
+        )
     if not allowed:
         raise HTTPException(status_code=429, detail="Rate limit exceeded")

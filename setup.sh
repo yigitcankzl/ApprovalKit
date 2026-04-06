@@ -130,15 +130,20 @@ fi
 
 step "3/7" "Detecting hardware"
 
+COMPOSE_FILES=(-f docker-compose.yml -f docker-compose.dev.yml)
+USE_GPU=0
+
 if command -v nvidia-smi &>/dev/null && nvidia-smi &>/dev/null; then
     GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1)
     log "NVIDIA GPU: $GPU_NAME"
 
-    if dpkg -l nvidia-container-toolkit &>/dev/null 2>&1; then
-        log "NVIDIA Container Toolkit installed"
+    if dpkg -l nvidia-container-toolkit &>/dev/null 2>&1 || docker info 2>/dev/null | grep -qi "nvidia"; then
+        log "NVIDIA Container Toolkit detected — enabling GPU for Ollama"
+        COMPOSE_FILES+=(-f docker-compose.gpu.yml)
+        USE_GPU=1
     else
-        warn "NVIDIA Container Toolkit not installed"
-        echo -e "    ${DIM}Ollama will use CPU. For GPU support, run:${NC}"
+        warn "NVIDIA Container Toolkit not installed — falling back to CPU"
+        echo -e "    ${DIM}For GPU support, run:${NC}"
         echo -e "    ${DIM}curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg${NC}"
         echo -e "    ${DIM}sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit${NC}"
         echo -e "    ${DIM}sudo nvidia-ctk runtime configure --runtime=docker && sudo systemctl restart docker${NC}"
@@ -151,13 +156,30 @@ fi
 
 step "4/7" "Starting services (this may take a few minutes on first run)"
 
-docker compose up -d --build 2>&1 | while read line; do
-    case "$line" in
-        *"Created"*|*"Started"*) log "$line" ;;
-        *"Error"*|*"error"*)     err "$line" ;;
-        *"Built"*)               info "$line" ;;
-    esac
-done
+_compose_up() {
+    docker compose "${COMPOSE_FILES[@]}" up -d --build 2>&1 | while read line; do
+        case "$line" in
+            *"Created"*|*"Started"*) log "$line" ;;
+            *"Error"*|*"error"*)     err "$line" ;;
+            *"Built"*)               info "$line" ;;
+        esac
+    done
+    return ${PIPESTATUS[0]}
+}
+
+if ! _compose_up; then
+    if [ "$USE_GPU" = "1" ]; then
+        warn "GPU startup failed — retrying without GPU (CPU fallback)"
+        # Tear down any partially-created containers with the GPU config
+        # so the next `up` can re-create Ollama with CPU-only settings.
+        docker compose "${COMPOSE_FILES[@]}" down ollama &>/dev/null || true
+        COMPOSE_FILES=(-f docker-compose.yml -f docker-compose.dev.yml)
+        USE_GPU=0
+        _compose_up || err "docker compose up failed — check: docker compose logs"
+    else
+        err "docker compose up failed — check: docker compose logs"
+    fi
+fi
 
 echo ""
 info "Waiting for services to become healthy..."
