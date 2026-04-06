@@ -214,7 +214,7 @@ For each service you want agents to control:
 
 #### E. Other Services (Discord, PayPal, Figma, etc.)
 
-Auth0 Token Vault supports 30 OAuth providers. For any service:
+Auth0 Token Vault supports 26+ OAuth providers. For any service:
 
 1. Create OAuth app on the service's developer portal
 2. Set redirect URI to `https://YOUR_AUTH0_DOMAIN/login/callback`
@@ -335,7 +335,7 @@ After the app is running and you've logged in + completed the Setup Wizard:
 
 ## Demo Agents
 
-8 specialized AI agents across 6 domains, powered by local LLM (Qwen 2.5 7B via Ollama):
+10 specialized AI agents across 6 domains, powered by local LLM (auto-detected via Ollama):
 
 | Domain | Agent | Capabilities |
 |--------|-------|-------------|
@@ -347,6 +347,8 @@ After the app is running and you've logged in + completed the Setup Wizard:
 | Open Source | Open Source Maintenance | PR merges, releases, bounty payments |
 | Research | Research Operations | GPU provisioning, paper submission, datasets |
 | Communications | Communications | Slack, email, Discord across all domains |
+| Infrastructure | Key Rotation | API key rotation, credential management |
+| IAM | Access Provisioning | Grant/revoke access, onboarding |
 
 
 Each agent has 3 pre-built scenarios (Safe / Risky / Rogue) that demonstrate different ApprovalKit capabilities: auto-approve, step-up authentication, scope creep detection, and more.
@@ -376,9 +378,10 @@ By default, setup installs **Qwen 2.5 7B** via Ollama (runs locally, no API key 
 docker compose exec ollama ollama pull llama3.1:8b
 ```
 
-Then update `api/services/agent_chat.py`:
-```python
-"ollama": {"type": "openai", "base_url": "http://ollama:11434/v1", "model": "llama3.1:8b", ...}
+The API auto-detects the first available Ollama model at startup — no config change needed. Just pull and restart:
+
+```bash
+docker compose restart api
 ```
 
 ### Using Groq (Cloud, Free)

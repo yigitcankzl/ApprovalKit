@@ -192,7 +192,7 @@ export default function WelcomePage() {
                 href="/demos"
                 className="inline-flex items-center gap-2 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 px-5 py-3 rounded-lg text-sm font-semibold hover:bg-zinc-700 dark:hover:bg-zinc-200 transition-colors"
               >
-                All 8 Agents
+                All 10 Agents
               </Link>
               <Link
                 href="/dashboard"
