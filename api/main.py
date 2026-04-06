@@ -96,6 +96,27 @@ app.add_middleware(
 
 app.add_middleware(LimitRequestBodyMiddleware)
 
+
+# ── Global rate limiting middleware ──────────────────────────────────────────
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # Skip health checks
+        if request.url.path in ("/health", "/health/deep"):
+            return await call_next(request)
+        try:
+            from api.middleware.rate_limit import check_api_rate_limit
+            await check_api_rate_limit(request)
+        except HTTPException as e:
+            return JSONResponse(status_code=e.status_code, content={"detail": e.detail})
+        except Exception:
+            pass  # Redis down → allow request
+        response = await call_next(request)
+        response.headers["X-RateLimit-Policy"] = "100/hour"
+        return response
+
+
+app.add_middleware(RateLimitMiddleware)
+
 app.include_router(request.router)
 app.include_router(rules.router)
 app.include_router(approvers.router)
