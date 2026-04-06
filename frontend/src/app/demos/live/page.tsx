@@ -718,12 +718,12 @@ export default function LiveThreatDemoPage() {
 
   const handleApprove = async (jobId: string, eventId: string, modifiedParams?: Record<string, unknown>) => {
     try { await api.submitDecision(jobId, { decision: "approve", modified_params: modifiedParams }); } catch (e) { void e; }
-    setEvents(prev => prev.map(e => e.id === eventId ? { ...e, type: "approved" as const } : e));
+    setEvents(prev => prev.map(e => e.id === eventId ? { ...e, type: "approved" as const, ...(modifiedParams ? { params: modifiedParams } : {}) } : e));
     setSummary(prev => ({ ...prev, pendingApproval: Math.max(0, prev.pendingApproval - 1), autoApproved: prev.autoApproved + 1 }));
     setMessages(prev => {
       const updated = { ...prev };
       for (const [aid, msgs] of Object.entries(updated)) {
-        updated[aid] = msgs.map(m => m.jobId === jobId ? { ...m, toolStatus: "approved" as const } : m);
+        updated[aid] = msgs.map(m => m.jobId === jobId ? { ...m, toolStatus: "approved" as const, ...(modifiedParams ? { toolArgs: modifiedParams, text: (m.text || "") + " ✏️ Modified" } : {}) } : m);
       }
       return updated;
     });
