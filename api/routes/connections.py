@@ -431,9 +431,7 @@ async def get_connect_url(connection_id: str, request: Request, workspace: Works
         conn.auth0_refresh_token = encrypt_secret(login_refresh_token)
         await db.commit()
 
-    # Connected Accounts API disabled — Token Vault not fully provisioned on tenant.
-    # Using legacy OAuth flow + Management API fallback instead.
-    me_token = None  # user_token
+    me_token = user_token
 
     if me_token:
         try:
