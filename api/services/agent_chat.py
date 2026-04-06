@@ -1453,7 +1453,17 @@ def _fire_token_vault_execution(connection: str, action: str, params: dict, user
 
             # Try Token Exchange first, fall back to stored token
             access_token = None
-            provider = auth0_conn_name or service
+            # Map service name to Auth0 connection name
+            _SERVICE_TO_AUTH0 = {
+                "gmail": "google-oauth2", "google": "google-oauth2",
+                "google-drive": "google-oauth2", "google-calendar": "google-oauth2",
+                "github": "github", "slack": "slack",
+                "stripe": "stripe", "salesforce": "salesforce",
+                "discord": "discord", "dropbox": "dropbox",
+                "microsoft": "windowslive", "outlook": "windowslive",
+            }
+            raw_provider = auth0_conn_name or conn_obj.token_vault_connection_id or service
+            provider = _SERVICE_TO_AUTH0.get(raw_provider, raw_provider)
             try:
                 token_resp = httpx.post(
                     f"https://{ws_domain}/oauth/token",
@@ -1468,7 +1478,7 @@ def _fire_token_vault_execution(connection: str, action: str, params: dict, user
                     },
                     timeout=15,
                 )
-                logger.info(f"Token Exchange response: {token_resp.status_code}")
+                logger.info(f"Token Exchange response: {token_resp.status_code} body={token_resp.text[:300]}")
                 if token_resp.status_code == 200:
                     access_token = token_resp.json().get("access_token", "")
                     logger.info(f"Token Exchange succeeded for {connection} (provider={provider})")
@@ -1481,7 +1491,6 @@ def _fire_token_vault_execution(connection: str, action: str, params: dict, user
 
             # Execute the action with the fresh token
             if service == "slack":
-                # Slack API: chat.postMessage
                 slack_resp = httpx.post(
                     "https://slack.com/api/chat.postMessage",
                     headers={"Authorization": f"Bearer {access_token}"},
@@ -1493,6 +1502,26 @@ def _fire_token_vault_execution(connection: str, action: str, params: dict, user
                     logger.info(f"Slack message sent to {params.get('channel')}: {result.get('ts')}")
                 else:
                     logger.warning(f"Slack API error: {result.get('error')}")
+            elif service == "gmail":
+                import base64
+                to = params.get("to") or params.get("recipient", "")
+                subject = params.get("subject", "")
+                body_text = params.get("body") or params.get("body_markdown") or params.get("message", "")
+                raw_msg = f"To: {to}\r\nSubject: {subject}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n{body_text}"
+                encoded = base64.urlsafe_b64encode(raw_msg.encode()).decode()
+                gmail_resp = httpx.post(
+                    "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                    json={"raw": encoded},
+                    timeout=15,
+                )
+                if gmail_resp.status_code == 200:
+                    msg_id = gmail_resp.json().get("id", "")
+                    logger.info(f"Gmail sent to {to}: message_id={msg_id}")
+                else:
+                    logger.warning(f"Gmail API error: {gmail_resp.status_code} {gmail_resp.text[:200]}")
+            elif service == "github":
+                logger.info(f"GitHub action: {action} — token obtained, action logged (no direct API call in demo)")
             else:
                 logger.info(f"Token Vault fire: no handler for service '{service}', token obtained but action not executed")
 
