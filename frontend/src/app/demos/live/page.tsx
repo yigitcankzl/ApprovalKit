@@ -451,7 +451,7 @@ export default function LiveThreatDemoPage() {
                 setMessages(prev => {
                   const msgs = prev[step.agentId] || [];
                   const idx = msgs.findLastIndex((m: ChatMessage) => m.role === "tool" && m.toolStatus === "running");
-                  if (idx >= 0) { const u = [...msgs]; u[idx] = { ...u[idx], text: `${mp.connection}/${mp.action}`, toolArgs: mp.params, toolStatus: st === "auto_approved" ? "auto_approved" : st === "pending" ? "pending" : "blocked", jobId: r.job_id }; return { ...prev, [step.agentId]: u }; }
+                  if (idx >= 0) { const notLinked = r.message?.includes("not linked"); const u = [...msgs]; u[idx] = { ...u[idx], text: `${mp.connection}/${mp.action}${notLinked ? " ⚠️ Not connected" : ""}`, toolArgs: mp.params, toolStatus: st === "auto_approved" ? "auto_approved" : st === "pending" ? "pending" : "blocked", jobId: r.job_id }; return { ...prev, [step.agentId]: u }; }
                   return prev;
                 });
                 const lbl = mp.action.replace(/_/g, " ");
@@ -615,10 +615,11 @@ export default function LiveThreatDemoPage() {
                 const msgs = prev[agentId] || [];
                 const lastToolIdx = msgs.findLastIndex(m => m.role === "tool" && m.toolStatus === "running");
                 if (lastToolIdx >= 0) {
+                  const notLinked = r.message?.includes("not linked");
                   const updated = [...msgs];
                   updated[lastToolIdx] = {
                     ...updated[lastToolIdx],
-                    text: `${mapped.connection}/${mapped.action}`,
+                    text: `${mapped.connection}/${mapped.action}${notLinked ? " ⚠️ Not connected" : ""}`,
                     toolArgs: mapped.params,
                     toolStatus: status === "auto_approved" ? "auto_approved" : status === "pending" ? "pending" : "blocked",
                     jobId: r.job_id,
