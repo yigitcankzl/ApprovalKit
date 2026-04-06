@@ -13,9 +13,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY api/ ./api/
 COPY scripts/ ./scripts/
-# Note: tests/ and sdk/ are intentionally NOT copied into the
-# production image. Run the test suite on the host or in a separate
-# builder stage instead.
+COPY tests/ ./tests/
+COPY sdk/ ./sdk/
 
 # Non-root user for security
 RUN adduser --disabled-password --gecos "" appuser
