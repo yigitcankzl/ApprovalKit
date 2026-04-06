@@ -150,7 +150,7 @@ class CIBAService:
 
         try:
             job_uuid = uuid.UUID(job_id)
-        except (ValueError, AttributeError):
+        except (ValueError, AttributeError, TypeError):
             return None
 
         engine = create_async_engine(settings.DATABASE_URL, echo=False)

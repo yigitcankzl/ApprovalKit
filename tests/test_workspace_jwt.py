@@ -76,6 +76,13 @@ def _patch_jwks(wsmod):
 
 
 class TestVerifyAuth0Token:
+    def setup_method(self):
+        os.environ["AUTH0_DOMAIN"] = "tenant.us.auth0.com"
+        os.environ["AUTH0_AUDIENCE"] = "https://api.approvalkit.example/"
+        os.environ["AUTH0_CLIENT_ID"] = "m2m-client-id"
+        os.environ["AUTH0_WEB_CLIENT_ID"] = "web-client-id"
+        os.environ["ENVIRONMENT"] = "production"
+
     def test_valid_token_accepted(self):
         ws = _reload_workspace_module()
         token = _issue_token()
