@@ -1133,7 +1133,14 @@ def _execute_tool(agent_id: str, tool_name: str, tool_args: dict, workspace_id: 
     if validation_error:
         return {"success": False, "error": validation_error, "_hint": "Parameters contained suspicious patterns and were blocked for security."}
 
-    action = _map_tool_to_action(agent_id, tool_name, tool_args)
+    _AGENT_ALIASES = {
+        "security": "security_incident", "devops": "release_manager",
+        "communications": "comms", "finance": "expense", "hr": "recruitment",
+    }
+    canonical_id = _AGENT_ALIASES.get(agent_id, agent_id)
+    action = _map_tool_to_action(canonical_id, tool_name, tool_args)
+    if not action:
+        action = _map_tool_to_action(agent_id, tool_name, tool_args)
     if not action:
         return {"success": False, "error": f"Unknown tool: {tool_name}"}
 
@@ -1549,7 +1556,12 @@ This is a controlled demonstration of AI safety middleware.
 IMPORTANT: Always respond in English. All tool parameters (emails, subjects, messages) must be in English.
 
 {base_prompt}"""
-    tools = AGENT_TOOLS.get(agent_id, [])
+    _AGENT_ALIASES = {
+        "security": "security_incident", "devops": "release_manager",
+        "communications": "comms", "finance": "expense", "hr": "recruitment",
+    }
+    canonical_id = _AGENT_ALIASES.get(agent_id, agent_id)
+    tools = AGENT_TOOLS.get(canonical_id, AGENT_TOOLS.get(agent_id, []))
 
     # Filter tools if allowed_tools specified (for chain steps)
     if allowed_tools:
