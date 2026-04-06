@@ -1175,6 +1175,16 @@ def _execute_tool(agent_id: str, tool_name: str, tool_args: dict, workspace_id: 
                 ).order_by(Rule.priority.desc())
             ).scalars().all()
 
+            # Check if connection is linked (has refresh token for Token Vault)
+            from api.models.connection import ServiceConnection
+            conn_obj = db.execute(
+                select(ServiceConnection).where(
+                    ServiceConnection.workspace_id == workspace.id,
+                    ServiceConnection.slug == action["connection"],
+                )
+            ).scalar_one_or_none()
+            conn_linked = bool(conn_obj and conn_obj.auth0_refresh_token)
+
             from api.services.rule_engine import evaluate_conditions
             matched_rule = None
             logger.debug(f"Rule matching: {action['connection']}/{action['action']}")
@@ -1190,12 +1200,16 @@ def _execute_tool(agent_id: str, tool_name: str, tool_args: dict, workspace_id: 
 
         if not matched_rule:
             logger.debug(f"No rule matched — auto-approving {action['connection']}/{action['action']}")
-            # Auto-approved — execute via Token Vault in background
-            _fire_token_vault_execution(action["connection"], action["action"], action["params"], workspace_id)
+            if conn_linked:
+                _fire_token_vault_execution(action["connection"], action["action"], action["params"], workspace_id)
+                vault_msg = "Auto-approved. Action executed via Token Vault."
+            else:
+                vault_msg = "Auto-approved. ⚠️ Connection not linked — connect via /connections to enable real execution."
+
             return {
                 "success": True,
                 "status": "auto_approved",
-                "message": "No matching rule — auto-approved. Action executed via Token Vault.",
+                "message": vault_msg,
                 "rule_name": None,
                 "connection": action["connection"],
                 "action": action["action"],
@@ -1302,11 +1316,15 @@ def _execute_tool(agent_id: str, tool_name: str, tool_args: dict, workspace_id: 
         except Exception:
             pass
 
+        pending_msg = f"Submitted for approval (Rule: {matched_rule.name}, Model: {matched_rule.model.value}). "
+        pending_msg += "Approval is async — CONTINUE with your remaining actions immediately."
+        if not conn_linked:
+            pending_msg += " ⚠️ Connection not linked — connect via /connections to enable Token Vault execution."
+
         return {
             "success": True,
             "status": "pending",
-            "message": f"Submitted for approval (Rule: {matched_rule.name}, Model: {matched_rule.model.value}). "
-                       f"Approval is async — CONTINUE with your remaining actions immediately.",
+            "message": pending_msg,
             "rule_name": matched_rule.name,
             "model": matched_rule.model.value,
             "approvers": approvers,
