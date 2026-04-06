@@ -1105,7 +1105,7 @@ AGENT_SUGGESTIONS: dict[str, list[str]] = {
 # ── Input Validation (inspired by Claude Code's bashSecurity.ts) ─────────────
 _DANGEROUS_PARAM_PATTERNS = [
     ("sql_injection", r"(?i)(DROP\s+TABLE|DELETE\s+FROM|INSERT\s+INTO|UPDATE\s+\w+\s+SET|;\s*--)", "SQL injection attempt detected"),
-    ("shell_injection", r"[;&|`$()]", "Shell metacharacter in parameter"),
+    ("shell_injection", r"[;&|`]|\$\(|\$\{", "Shell metacharacter in parameter"),
     ("path_traversal", r"\.\./", "Path traversal attempt"),
     ("script_injection", r"(?i)<script", "Script injection attempt"),
 ]
