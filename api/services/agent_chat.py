@@ -1398,133 +1398,31 @@ def _fire_token_vault_execution(connection: str, action: str, params: dict, user
 
     def _call():
         try:
-            import httpx
-            from sqlalchemy import create_engine, select
-            from sqlalchemy.orm import Session
-            from api.config import get_settings
-            from api.models.connection import ServiceConnection
-            from api.models.workspace import Workspace
-            from api.services.encryption import decrypt_secret
+            import asyncio
+            from api.services.token_vault import TokenVaultService
+            from api.database import async_session
 
-            settings = get_settings()
-            sync_url = settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
-            engine = create_engine(sync_url)
-
-            with Session(engine) as db:
-                workspace = db.execute(
-                    select(Workspace).where(Workspace.owner_auth0_sub == user_sub)
-                ).scalar_one_or_none()
-                if not workspace:
-                    logger.warning(f"Token Vault fire: workspace not found for {user_sub}")
-                    return
-
-                conn_obj = db.execute(
-                    select(ServiceConnection).where(
-                        ServiceConnection.workspace_id == workspace.id,
-                        ServiceConnection.slug == connection,
+            async def _run():
+                vault = TokenVaultService()
+                async with async_session() as db:
+                    from sqlalchemy import select
+                    from api.models.workspace import Workspace
+                    ws = (await db.execute(
+                        select(Workspace).where(Workspace.owner_auth0_sub == user_sub)
+                    )).scalar_one_or_none()
+                    if not ws:
+                        logger.warning(f"Token Vault fire: workspace not found for {user_sub}")
+                        return
+                    result = await vault.execute_action(
+                        connection, action, params,
+                        workspace_id=str(ws.id), db=db,
                     )
-                ).scalar_one_or_none()
-                if not conn_obj:
-                    logger.warning(f"Token Vault fire: connection '{connection}' not found")
-                    return
+                    if result.get("success"):
+                        logger.info(f"Token Vault executed: {connection}/{action} → {result.get('status', 'ok')}")
+                    else:
+                        logger.warning(f"Token Vault failed: {connection}/{action} → {result.get('error', 'unknown')[:200]}")
 
-                refresh_token = decrypt_secret(conn_obj.auth0_refresh_token)
-                service = conn_obj.service.lower()
-
-                # Extract real Auth0 connection name from user_id
-                auth0_conn_name = None
-                if conn_obj.connected_auth0_user_id:
-                    parts = conn_obj.connected_auth0_user_id.split("|")
-                    if len(parts) >= 2 and parts[0] == "oauth2":
-                        auth0_conn_name = parts[1]
-                    elif len(parts) >= 2:
-                        auth0_conn_name = parts[0]
-
-                # Use workspace's own Auth0 tenant for Token Exchange
-                ws_domain = workspace.auth0_domain or settings.AUTH0_DOMAIN
-                ws_client_id = workspace.auth0_web_client_id or settings.AUTH0_WEB_CLIENT_ID or settings.AUTH0_CLIENT_ID
-                ws_client_secret = decrypt_secret(workspace.auth0_web_client_secret) or settings.AUTH0_WEB_CLIENT_SECRET or settings.AUTH0_CLIENT_SECRET
-
-            # engine is shared pool — do not dispose
-
-            if not refresh_token:
-                logger.warning(f"Token Vault fire: no token for '{connection}'")
-                return
-
-            # Try Token Exchange first, fall back to stored token
-            access_token = None
-            # Map service name to Auth0 connection name
-            _SERVICE_TO_AUTH0 = {
-                "gmail": "google-oauth2", "google": "google-oauth2",
-                "google-drive": "google-oauth2", "google-calendar": "google-oauth2",
-                "github": "github", "slack": "slack",
-                "stripe": "stripe", "salesforce": "salesforce",
-                "discord": "discord", "dropbox": "dropbox",
-                "microsoft": "windowslive", "outlook": "windowslive",
-            }
-            raw_provider = auth0_conn_name or conn_obj.token_vault_connection_id or service
-            provider = _SERVICE_TO_AUTH0.get(raw_provider, raw_provider)
-            try:
-                token_resp = httpx.post(
-                    f"https://{ws_domain}/oauth/token",
-                    json={
-                        "grant_type": "urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token",
-                        "client_id": ws_client_id,
-                        "client_secret": ws_client_secret,
-                        "subject_token_type": "urn:ietf:params:oauth:token-type:refresh_token",
-                        "subject_token": refresh_token,
-                        "requested_token_type": "http://auth0.com/oauth/token-type/federated-connection-access-token",
-                        "connection": provider,
-                    },
-                    timeout=15,
-                )
-                logger.info(f"Token Exchange response: {token_resp.status_code} body={token_resp.text[:300]}")
-                if token_resp.status_code == 200:
-                    access_token = token_resp.json().get("access_token", "")
-                    logger.info(f"Token Exchange succeeded for {connection} (provider={provider})")
-            except Exception as e:
-                logger.warning(f"Token Exchange error: {e}")
-
-            if not access_token:
-                logger.warning(f"Token Exchange failed — no access_token for {connection}")
-                return
-
-            # Execute the action with the fresh token
-            if service == "slack":
-                slack_resp = httpx.post(
-                    "https://slack.com/api/chat.postMessage",
-                    headers={"Authorization": f"Bearer {access_token}"},
-                    json={"channel": params.get("channel", "#general"), "text": params.get("message", "")},
-                    timeout=10,
-                )
-                result = slack_resp.json()
-                if result.get("ok"):
-                    logger.info(f"Slack message sent to {params.get('channel')}: {result.get('ts')}")
-                else:
-                    logger.warning(f"Slack API error: {result.get('error')}")
-            elif service == "gmail":
-                import base64
-                to = params.get("to") or params.get("recipient", "")
-                subject = params.get("subject", "")
-                body_text = params.get("body") or params.get("body_markdown") or params.get("message", "")
-                raw_msg = f"To: {to}\r\nSubject: {subject}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n{body_text}"
-                encoded = base64.urlsafe_b64encode(raw_msg.encode()).decode()
-                gmail_resp = httpx.post(
-                    "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
-                    headers={"Authorization": f"Bearer {access_token}"},
-                    json={"raw": encoded},
-                    timeout=15,
-                )
-                if gmail_resp.status_code == 200:
-                    msg_id = gmail_resp.json().get("id", "")
-                    logger.info(f"Gmail sent to {to}: message_id={msg_id}")
-                else:
-                    logger.warning(f"Gmail API error: {gmail_resp.status_code} {gmail_resp.text[:200]}")
-            elif service == "github":
-                logger.info(f"GitHub action: {action} — token obtained, action logged (no direct API call in demo)")
-            else:
-                logger.info(f"Token Vault fire: no handler for service '{service}', token obtained but action not executed")
-
+            asyncio.run(_run())
         except Exception as e:
             logger.warning(f"Token Vault fire failed: {e}")
 
