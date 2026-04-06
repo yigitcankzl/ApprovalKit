@@ -1211,7 +1211,7 @@ def _execute_tool(agent_id: str, tool_name: str, tool_args: dict, workspace_id: 
         params_hash = _hashlib.sha256(json.dumps(action["params"], sort_keys=True, default=str).encode()).hexdigest()[:16]
         idem_key = f"agent:{action['connection']}:{action['action']}:{params_hash}"
 
-        # Server-side idempotency dedup: check if same action+params already submitted
+        # Server-side idempotency dedup: only dedup against PENDING jobs (not terminal states)
         existing = db.execute(
             select(ApprovalJob).where(
                 ApprovalJob.workspace_id == workspace.id,
@@ -1219,13 +1219,21 @@ def _execute_tool(agent_id: str, tool_name: str, tool_args: dict, workspace_id: 
             )
         ).scalar_one_or_none()
         if existing:
-            logger.info(f"Idempotency hit: {idem_key} → job {existing.id} (state={existing.state})")
-            return {
-                "success": True, "status": existing.state.value if hasattr(existing.state, 'value') else str(existing.state),
-                "message": f"Duplicate request — existing job is {existing.state}",
-                "job_id": str(existing.id), "rule_name": matched_rule.name,
-                "connection": action["connection"], "action": action["action"], "params": action["params"],
-            }
+            state_val = existing.state.value if hasattr(existing.state, 'value') else str(existing.state)
+            # Only dedup if job is still active (pending/waiting). Terminal states allow retry.
+            if state_val in ("pending", "ciba_sent", "waiting_approval", "partially_approved"):
+                logger.info(f"Idempotency hit: {idem_key} → job {existing.id} (state={state_val})")
+                return {
+                    "success": True, "status": state_val,
+                    "message": f"Duplicate request — existing job is {existing.state}",
+                    "job_id": str(existing.id), "rule_name": matched_rule.name,
+                    "connection": action["connection"], "action": action["action"], "params": action["params"],
+                }
+            else:
+                # Terminal state (approved/rejected/timeout/blocked) — allow retry with new key
+                logger.info(f"Idempotency bypass: {idem_key} → terminal state {state_val}, generating new key")
+                import time as _time
+                idem_key = f"{idem_key}:{int(_time.time())}"
 
         job_id = _uuid.uuid4()
         job = ApprovalJob(
