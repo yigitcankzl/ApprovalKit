@@ -66,6 +66,20 @@ class Settings(BaseSettings):
     CELERY_BROKER_URL: str = "redis://localhost:6379/1"
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/2"
 
+    # --- Pluggable providers ------------------------------------------------
+    # `auth0` (default) wires up Auth0 CIBA + Token Vault + JWT auth.
+    # `local` swaps in the Fernet-encrypted local store, the in-process
+    # mock approval channel, and X-User-Sub header auth. Useful for
+    # development, self-hosted deployments without Auth0, and CI.
+    APPROVAL_PROVIDER: str = "auth0"
+    # Per-component overrides — leave empty to follow APPROVAL_PROVIDER.
+    APPROVAL_CHANNEL: str = ""
+    CREDENTIAL_STORE: str = ""
+    IDENTITY_PROVIDER: str = ""
+    # When the local approval channel is active, auto-approve every
+    # request. Intended for unattended CI / integration test runs only.
+    LOCAL_APPROVAL_AUTO_APPROVE: bool = False
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 

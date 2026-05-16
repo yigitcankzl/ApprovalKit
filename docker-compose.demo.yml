@@ -1,0 +1,46 @@
+# docker-compose.demo.yml — Auth0-free playground
+# ===================================================================
+# Layer this file on top of docker-compose.yml to run ApprovalKit
+# without any Auth0 credentials. The local approval channel + Fernet
+# credential store + header identity provider are wired in via env.
+#
+# Usage:
+#   cp .env.example .env
+#   docker compose -f docker-compose.yml -f docker-compose.demo.yml up
+#
+# Open the dashboard at http://localhost:3000 and approve requests via
+# the /local-approvals/{handle} endpoints (logged by the API on every
+# request). Set LOCAL_APPROVAL_AUTO_APPROVE=true for fully unattended
+# runs (CI / integration tests).
+#
+# Ollama is dropped from this stack — agent chat features that depend
+# on a local LLM will be disabled. The core approval pipeline still
+# works.
+# ===================================================================
+services:
+  ollama:
+    profiles: ["disabled"]
+
+  api:
+    environment:
+      APPROVAL_PROVIDER: "local"
+      LOCAL_APPROVAL_AUTO_APPROVE: "${LOCAL_APPROVAL_AUTO_APPROVE:-false}"
+      # Stub values so config validation doesn't fail when Auth0 is unused.
+      AUTH0_DOMAIN: "${AUTH0_DOMAIN:-localhost.local}"
+      AUTH0_CLIENT_ID: "${AUTH0_CLIENT_ID:-local-client-id}"
+      AUTH0_CLIENT_SECRET: "${AUTH0_CLIENT_SECRET:-local-client-secret}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    environment:
+      APPROVAL_PROVIDER: "local"
+      LOCAL_APPROVAL_AUTO_APPROVE: "${LOCAL_APPROVAL_AUTO_APPROVE:-false}"
+      AUTH0_DOMAIN: "${AUTH0_DOMAIN:-localhost.local}"
+      AUTH0_CLIENT_ID: "${AUTH0_CLIENT_ID:-local-client-id}"
+      AUTH0_CLIENT_SECRET: "${AUTH0_CLIENT_SECRET:-local-client-secret}"

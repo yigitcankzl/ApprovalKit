@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 
 import sentry_sdk
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
@@ -19,7 +19,7 @@ if get_settings().ENVIRONMENT == "production":
     logger.add(sys.stderr, format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}", level="INFO")
 else:
     logger.add(sys.stderr, format="{time:HH:mm:ss} | {level:<7} | {message}", level="DEBUG", colorize=True)
-from api.routes import request, rules, approvers, audit, connections, workspace, consent, demo, agents, agent_chat, auth0_webhook, email_approval, auth0_logs
+from api.routes import request, rules, approvers, audit, connections, workspace, consent, demo, agents, agent_chat, auth0_webhook, email_approval, auth0_logs, local_approvals
 
 settings = get_settings()
 
@@ -130,6 +130,14 @@ app.include_router(agents.router)
 app.include_router(auth0_webhook.router)
 app.include_router(email_approval.router)
 app.include_router(auth0_logs.router)
+
+# Local approval channel routes are only useful when the local channel
+# is active. Mount them conditionally so the Auth0 deployment surface
+# stays unchanged.
+_active_channel = (settings.APPROVAL_CHANNEL or settings.APPROVAL_PROVIDER or "auth0").lower()
+if _active_channel == "local":
+    app.include_router(local_approvals.router)
+    logger.info("Local approval channel active — /local-approvals/* routes mounted")
 
 
 @app.exception_handler(ValueError)
