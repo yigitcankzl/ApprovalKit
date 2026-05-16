@@ -20,7 +20,7 @@ Run:
     export APPROVALKIT_URL=http://localhost:8000
     export APPROVALKIT_API_KEY=...
     export APPROVALKIT_HMAC_SECRET=...
-    python demos/account-takeover-agent/agent.py
+    python examples/account-takeover-agent/agent.py
 """
 
 import os

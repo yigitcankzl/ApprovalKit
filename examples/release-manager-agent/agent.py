@@ -28,7 +28,7 @@ Run:
     export APPROVALKIT_URL=http://localhost:8000
     export APPROVALKIT_API_KEY=...
     export APPROVALKIT_HMAC_SECRET=...
-    python demos/release-manager-agent/agent.py
+    python examples/release-manager-agent/agent.py
 """
 
 import os

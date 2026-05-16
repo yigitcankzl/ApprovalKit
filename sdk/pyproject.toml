@@ -26,8 +26,10 @@ dev = [
 approvalkit-mcp = "approvalkit.mcp_server:main"
 
 [project.urls]
-Homepage = "https://github.com/yigitkizil/ApprovalKit"
-Documentation = "http://localhost:3000/docs"
+Homepage = "https://github.com/yigitcankzl/ApprovalKit"
+Documentation = "https://github.com/yigitcankzl/ApprovalKit/tree/main/docs"
+Repository = "https://github.com/yigitcankzl/ApprovalKit"
+Issues = "https://github.com/yigitcankzl/ApprovalKit/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]

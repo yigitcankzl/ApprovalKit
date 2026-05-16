@@ -21,7 +21,7 @@ Run:
     export APPROVALKIT_URL=http://localhost:8000
     export APPROVALKIT_API_KEY=...
     export APPROVALKIT_HMAC_SECRET=...
-    python demos/patient-data-agent/agent.py
+    python examples/patient-data-agent/agent.py
 """
 
 import os

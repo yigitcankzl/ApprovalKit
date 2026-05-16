@@ -1,16 +1,16 @@
 # ApprovalKit
 
-[![Auth0 Token Vault](https://img.shields.io/badge/Auth0-Token%20Vault-blue?logo=auth0)](https://auth0.com/ai/docs/intro/token-vault)
-[![Python SDK](https://img.shields.io/badge/SDK-Python-green?logo=python)](sdk/)
-[![MCP Server](https://img.shields.io/badge/MCP-Compatible-purple)](sdk/approvalkit/mcp_server.py)
-[![Docker](https://img.shields.io/badge/Docker-Compose-blue?logo=docker)](docker-compose.yml)
-[![TypeScript SDK](https://img.shields.io/badge/SDK-TypeScript-blue?logo=typescript)](sdk-ts/)
-[![26 Services](https://img.shields.io/badge/Services-26%20Handlers-orange)](api/services/token_vault.py)
-[![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python)](sdk/)
+[![TypeScript](https://img.shields.io/badge/typescript-5.x-blue?logo=typescript)](sdk-ts/)
+[![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker)](docker-compose.yml)
+[![MCP](https://img.shields.io/badge/MCP-compatible-purple)](sdk/approvalkit/mcp_server.py)
+[![Auth0 Token Vault](https://img.shields.io/badge/Auth0-Token%20Vault-EB5424?logo=auth0)](https://auth0.com/ai/docs/intro/token-vault)
+[![status](https://img.shields.io/badge/status-beta-yellow)](#project-status)
 
-**Human Approval Middleware for AI Agents**
+**Human approval middleware for AI agents.** Gate any high-stakes action behind real-time human approval, while credentials stay in a secure vault — never in the agent's memory.
 
-> One decorator. Any agent. Credentials never leave Auth0 Token Vault.
+> One decorator. Any agent. Pluggable approval channels and credential vaults.
 
 ```
 pip install ./sdk
@@ -377,4 +377,8 @@ async def async_charge(amount, customer):
 
 ---
 
-*Built for the [Authorized to Act](https://authorizedtoact.devpost.com/) hackathon. See [BLOG_POST.md](BLOG_POST.md) for our Token Vault deep-dive and [SETUP.md](SETUP.md) for installation guide.*
+## Project Status
+
+ApprovalKit is open-source under the MIT license. The project originated at the [Authorized to Act](https://authorizedtoact.devpost.com/) hackathon; the original technical write-up is preserved in [HACKATHON.md](HACKATHON.md). Setup instructions live in [SETUP.md](SETUP.md), and longer-form documentation lives under [`docs/`](docs/).
+
+Contributions, issues, and discussions are welcome.

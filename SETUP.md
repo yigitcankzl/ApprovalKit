@@ -93,7 +93,7 @@ Token Vault is enabled in **two places**:
 
 Both must be enabled for Token Exchange to work. When Token Vault is enabled on a connection, access/refresh tokens are managed by Token Vault.
 
-> **Note:** On some free-tier tenants, Token Vault may require manual enablement. If you don't see the Token Vault grant type in your app settings, submit a support ticket at [Auth0 Support](https://support.auth0.com) or check the [community thread](https://community.auth0.com/t/request-to-enable-token-vault-early-access-for-hackathon-tenant/198372).
+> **Note:** On some free-tier tenants, Token Vault may require manual enablement. If you don't see the Token Vault grant type in your app settings, submit a support ticket at [Auth0 Support](https://support.auth0.com).
 
 > **Critical:** Token Exchange (RFC 8693) can only access tokens stored in Token Vault. Make sure Token Vault is toggled ON for each social connection you want agents to use (Step 6).
 

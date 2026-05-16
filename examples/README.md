@@ -1,8 +1,8 @@
-# ApprovalKit — Demo Agents
+# ApprovalKit — Example Agents
 
-Six demo agents covering every use case from the gallery.
-Each agent maps directly to a real-world scenario with realistic
-approval rules.
+Reference agents that demonstrate how to gate real actions behind
+ApprovalKit. Each example maps to a realistic scenario with sensible
+approval rules. Use them as a starting point for your own agents.
 
 ## Setup
 
@@ -16,16 +16,16 @@ export APPROVALKIT_API_KEY=<key>
 export APPROVALKIT_HMAC_SECRET=<secret>
 
 # 3. Create all rules in one shot
-python demos/setup_rules.py
+python examples/setup_rules.py
 
 # 4. Run any demo
-python demos/ecommerce_agent.py
-python demos/hr_agent.py
-python demos/devops_agent.py
-python demos/opensource_agent.py
-python demos/research_agent.py
-python demos/fintech_agent.py
-python demos/comms_agent.py
+python examples/ecommerce_agent.py
+python examples/hr_agent.py
+python examples/devops_agent.py
+python examples/opensource_agent.py
+python examples/research_agent.py
+python examples/fintech_agent.py
+python examples/comms_agent.py
 ```
 
 ---

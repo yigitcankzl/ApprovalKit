@@ -1323,7 +1323,7 @@ class TokenVaultService:
     # NOTE: Management API fallback (get_token_from_auth0) has been intentionally
     # removed.  Token Exchange is the only supported credential retrieval path.
     # If the refresh token expires the user must reconnect via /connections.
-    # This aligns with the security model described in BLOG_POST.md.
+    # This aligns with the project's security model (see HACKATHON.md for context).
 
     async def get_token_via_m2m(
         self, token_url: str, client_id: str, client_secret: str,

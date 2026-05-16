@@ -1,8 +1,10 @@
-# Blog Post: Building Token Vault Token Exchange for AI Agent Approval
+# Hackathon Notes
 
-## Bonus Blog Post
+> This project was originally built for the [Authorized to Act](https://authorizedtoact.devpost.com/) hackathon. The notes below capture the technical discovery process and the patterns that shaped the architecture. They are preserved here for historical context — the project itself is being maintained as a general-purpose open-source library.
 
-## The Discovery
+## Building Token Vault Token Exchange for AI Agent Approval
+
+### The Discovery
 
 When we started building ApprovalKit, we assumed Token Vault was simple: store OAuth tokens, retrieve them when needed. We were wrong.
 
@@ -10,7 +12,7 @@ Our first implementation used the Auth0 Management API (`GET /api/v2/users/{id}`
 
 The proper approach is **Token Exchange (RFC 8693)**: exchange an Auth0 refresh token for a fresh external provider access token. But this required a discovery that cost us significant debugging time.
 
-## The Login Flow vs Connected Accounts Flow
+### The Login Flow vs Connected Accounts Flow
 
 When a user authorizes a social connection via Auth0's standard `/authorize` endpoint, tokens are stored in the `identities[]` array on the user profile. Token Exchange **cannot access these tokens**.
 
@@ -31,7 +33,7 @@ This flow requires:
 
 None of this was immediately obvious from the documentation. We discovered it through trial and error with the `federated_connection_refresh_token_not_found` error.
 
-## The Architecture
+### The Architecture
 
 Our final Token Vault integration has two paths:
 
@@ -43,7 +45,7 @@ Our final Token Vault integration has two paths:
 
 **M2M Credential Vault:** For APIs that don't support user-delegated OAuth (Amadeus, Twilio, AWS), credentials are stored in HashiCorp Vault — never in the database.
 
-## What We Built With Token Vault
+### What We Built With Token Vault
 
 ApprovalKit is a human approval middleware for AI agents. When an AI agent wants to charge a credit card, send an email, or deploy code, ApprovalKit:
 
@@ -56,7 +58,7 @@ We built 26 service handlers (Stripe, GitHub, Slack, Gmail, Google Calendar, Mic
 
 In our live demo, an AI agent powered by a local LLM (Qwen 2.5) reasons about customer complaints, decides to issue refunds, send apology emails, and notify teams — all gated through ApprovalKit. The agent calls real Stripe charges and real Gmail sends, but never holds a single API key.
 
-## Patterns We Discovered
+### Patterns We Discovered
 
 **1. Agent authorization is a platform problem, not a per-agent problem.** Building auth into each agent doesn't scale. A middleware layer with centralized rules and per-agent isolation is the right pattern.
 
@@ -68,7 +70,7 @@ In our live demo, an AI agent powered by a local LLM (Qwen 2.5) reasons about cu
 
 **5. Defense-in-depth works.** Inspired by Claude Code's layered permission system, we repeat security rules across 3 prompt layers (agent → orchestrator → chain context). Input parameters are validated against SQL injection, shell injection, path traversal, and script injection patterns at the framework level — before the LLM even processes them.
 
-## Feedback for Auth0
+### Feedback for Auth0
 
 **Connected Accounts documentation:** The distinction between login flow (`/authorize`) and Connected Accounts flow (`/me/v1/connected-accounts`) is the single most important thing to understand when building with Token Vault. We lost days to `federated_connection_refresh_token_not_found` errors before discovering this. A prominent callout in the Token Vault docs would save every developer this pain.
 
