@@ -1,0 +1,52 @@
+site_name: ApprovalKit
+site_description: Human approval middleware for AI agents.
+site_url: https://yigitcankzl.github.io/ApprovalKit/
+repo_url: https://github.com/yigitcankzl/ApprovalKit
+repo_name: yigitcankzl/ApprovalKit
+edit_uri: edit/main/docs/
+
+docs_dir: docs
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - content.code.copy
+    - content.action.edit
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+nav:
+  - Home: README.md
+  - Quickstart: quickstart.md
+  - Architecture: architecture.md
+  - Approval models: approval-models.md
+  - Providers: providers.md
+  - SDK:
+      - Python: sdk-python.md
+      - TypeScript: sdk-typescript.md
+  - REST API: rest-api.md
+  - Security: security.md
+  - Self-hosting: self-hosting.md
+
+markdown_extensions:
+  - admonition
+  - codehilite
+  - pymdownx.superfences
+  - pymdownx.details
+  - tables
+  - toc:
+      permalink: true

@@ -235,6 +235,10 @@ Each agent has a chronological activity timeline showing every request with risk
 
 ## Quick Start
 
+Pick a flavour:
+
+### Auth0 (production-grade)
+
 ```bash
 git clone https://github.com/yigitcankzl/ApprovalKit.git
 cd ApprovalKit
@@ -244,11 +248,26 @@ chmod +x setup.sh
 ./setup.sh
 ```
 
-Edit `.env` with your Auth0 M2M and Web app credentials, then run setup. This starts all services (PostgreSQL, Redis, Vault, Ollama, API, Worker, Frontend), downloads the AI model, and auto-generates `frontend/.env.local`. Open `http://localhost:3000` and start using the demo agents.
+Starts PostgreSQL, Redis, Vault, Ollama, API, Worker, and Frontend.
+Open `http://localhost:3000`.
 
-> **⏱️ Setup time:** ~5 min for services + 5-30 min for one-time AI model download (4.7 GB). Alternatively, use a free [Groq API key](https://console.groq.com) to skip the download entirely.
+> **⏱️ Setup time:** ~5 min for services + 5-30 min for the one-time AI model download (4.7 GB). Use a free [Groq API key](https://console.groq.com) to skip the download.
 
-**For detailed setup instructions, Auth0 configuration, and using your own tenant, see [SETUP.md](SETUP.md).**
+### Local (no Auth0 required)
+
+```bash
+git clone https://github.com/yigitcankzl/ApprovalKit.git
+cd ApprovalKit
+cp .env.example .env
+# Set APPROVAL_PROVIDER=local in .env
+docker compose -f docker-compose.yml -f docker-compose.demo.yml up
+```
+
+The local backend swaps Auth0 CIBA for a Redis-backed HTTP approval
+flow and Token Vault for a Fernet-encrypted local store. Best for
+development, evaluations, and CI. See [`docs/providers.md`](docs/providers.md).
+
+**Detailed docs live in [`docs/`](docs/) — start with [`docs/quickstart.md`](docs/quickstart.md). For the full Auth0 walkthrough see [`SETUP.md`](SETUP.md).**
 
 ---
 
