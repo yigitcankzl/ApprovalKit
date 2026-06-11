@@ -8,21 +8,26 @@
 [![Auth0 Token Vault](https://img.shields.io/badge/Auth0-Token%20Vault-EB5424?logo=auth0)](https://auth0.com/ai/docs/intro/token-vault)
 [![status](https://img.shields.io/badge/status-beta-yellow)](#project-status)
 
-**Human approval middleware for AI agents.** Gate any high-stakes action behind real-time human approval, while credentials stay in a secure vault — never in the agent's memory.
+**Human approval gateway for AI agents.** Wrap any high-stakes function in a human approval gate — policy, approval, and audit are handled for you; your code runs only after a human says yes.
 
-> One decorator. Any agent. Pluggable approval channels and credential vaults.
+> One decorator. Any agent. Local-first. Auth0 optional.
 
 ```
 pip install ./sdk
 ```
 
 ```python
+# Default (client execution): your function runs after a human approves.
 @kit.requires_approval(connection="stripe-prod", action="charge")
 def charge_customer(amount, email):
-    pass  # Token Vault executes — agent never sees credentials
+    return stripe.Charge.create(amount=amount, customer=email)
+
+receipt = charge_customer(amount=150, email="alice@example.com")
 ```
 
-Works with **LangChain**, **CrewAI**, **OpenAI Function Calling**, **Claude MCP**, or any Python agent.
+No Auth0 account, no credentials, no cloud dependency required to start — bring up the local stack and you have a working approval flow in minutes. Auth0 (CIBA push + Token Vault server-side execution) is an optional, production-grade **provider** you can switch on later.
+
+Works with **LangChain**, **CrewAI**, **OpenAI Function Calling**, **Claude MCP**, or any Python/TypeScript agent.
 
 ---
 
@@ -37,9 +42,9 @@ Today, most agents hold raw API keys in memory. If the agent is compromised, or 
 ApprovalKit is a **plug-and-play middleware** that sits between AI agents and the services they control. When an agent wants to take a high-stakes action, ApprovalKit:
 
 1. **Evaluates the request** against configurable rules
-2. **Sends a push notification** to the right human (via Auth0 CIBA + Guardian)
-3. **Waits for approval** on the human's phone
-4. **Executes the action** through Auth0 Token Vault — the agent never sees the credentials
+2. **Notifies the right human** through the configured approval channel (local dashboard/HTTP by default, or Auth0 CIBA + Guardian push in production)
+3. **Waits for approval** and records a full audit trail
+4. **Hands control back** — in the default **client execution mode**, your code runs the action after approval; in **server execution mode**, ApprovalKit runs it for you via a provider (e.g. Auth0 Token Vault, so the agent never sees credentials)
 
 ```
 AI Agent                          Human
@@ -67,12 +72,53 @@ The agent adds **one decorator** to any function:
 ```python
 from approvalkit import ApprovalKit
 
+# Client execution mode is the default — your function runs after approval.
 kit = ApprovalKit(base_url="...", api_key="...", hmac_secret="...")
 
 @kit.requires_approval(connection="stripe-prod", action="charge")
 def charge_customer(amount: int, customer: str):
-    pass  # Body never runs — Token Vault executes server-side
+    return stripe.Charge.create(amount=amount, customer=customer)
+
+# Prefer ApprovalKit to run the action for you (Auth0 Token Vault, no creds in
+# the agent)? Opt into server execution mode:
+kit = ApprovalKit(..., execution_mode="server")  # function body is not run
 ```
+
+### Execution modes
+
+| | `client` (default) | `server` (legacy / Auth0) |
+|---|---|---|
+| Who runs the action | **Your code**, after approval | ApprovalKit, via an `ActionExecutor` provider |
+| Credentials | Stay in your process | Held by the provider (agent never sees them) |
+| Requires Auth0 | No | For Token Vault execution, yes |
+| `gate()` returns | Approval result (you act on it) | Approval result (already executed) |
+| Decorated fn body | Runs with approved params | Never runs |
+
+> REST note: requests that omit `execution_mode` default to `server` for backward
+> compatibility. The SDKs and MCP server send `client` by default.
+
+---
+
+## Quickstart (local-first, no Auth0)
+
+```bash
+# 1. Bring up the local stack (Postgres + Redis + API + worker, no Auth0/Ollama)
+docker compose -f docker-compose.local.yml up
+
+# 2. Install the SDK and gate a function — your code runs after approval
+pip install ./sdk
+```
+
+Pending approvals are listed at `GET /local-approvals` and can be approved or
+rejected over HTTP — no log scraping:
+
+```bash
+curl http://localhost:8000/local-approvals
+curl -X POST http://localhost:8000/local-approvals/<handle>/approve
+```
+
+See [docs/quickstart.md](docs/quickstart.md) for the full walkthrough and
+[docs/providers.md](docs/providers.md) for switching on the Auth0 provider.
 
 ---
 

@@ -48,6 +48,17 @@ class ApprovalResponse:
 
 
 @dataclass(slots=True)
+class ActionExecutionRequest:
+    """A downstream action that should run after approval."""
+    connection: str
+    action: str
+    params: dict[str, Any]
+    workspace_id: str
+    db: Any
+    approver_user_id: str | None = None
+
+
+@dataclass(slots=True)
 class Identity:
     """The authenticated caller behind a request."""
     sub: str
@@ -72,7 +83,14 @@ class ApprovalChannel(Protocol):
         """
         ...
 
-    async def poll(self, handle: str, *, timeout: int, job_id: str = "") -> ApprovalResponse:
+    async def poll(
+        self,
+        handle: str,
+        *,
+        timeout: int,
+        job_id: str = "",
+        metadata: dict[str, Any] | None = None,
+    ) -> ApprovalResponse:
         """Wait up to ``timeout`` seconds for a decision."""
         ...
 
@@ -100,6 +118,21 @@ class CredentialStore(Protocol):
 
     async def health_check(self, *, user_id: str, connection: str) -> bool:
         """Return True iff a usable credential exists for this user+connection."""
+        ...
+
+
+@runtime_checkable
+class ActionExecutor(Protocol):
+    """Runs approved downstream actions.
+
+    Client execution mode never calls this protocol. Server execution
+    mode uses it so Token Vault and future executors are swappable.
+    """
+
+    name: str
+
+    async def execute(self, request: ActionExecutionRequest) -> dict[str, Any]:
+        """Execute the approved action and return an execution receipt."""
         ...
 
 

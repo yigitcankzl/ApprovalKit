@@ -15,7 +15,7 @@ from api.models.workspace import Workspace
 from api.models.approval_job import ApprovalJob, AuditLog, AuditEventType, JobState
 from api.models.connection import ServiceConnection
 from api.models.agent import RegisteredAgent
-from api.constants import REDIS_KEY_IDEMPOTENCY
+from api.constants import REDIS_KEY_IDEMPOTENCY, EXECUTION_MODE_CLIENT
 from api.middleware.workspace import get_current_workspace
 from api.services.pii import mask_text, mask_params
 from api.schemas.request import ApprovalRequest, ApprovalResponse, JobStatusResponse
@@ -115,9 +115,10 @@ async def submit_approval_request(
                            f"Allowed actions: {', '.join(conn_actions)}",
                 )
 
-    # Check idempotency (key includes params hash to prevent replay with different params)
+    # Check idempotency (key includes params hash to prevent replay with different
+    # params, and execution_mode so client/server requests don't share a cached result)
     params_hash = hashlib.sha256(json.dumps(request.params, sort_keys=True).encode()).hexdigest()[:12]
-    idem_key = f"{request.idempotency_key}:{params_hash}"
+    idem_key = f"{request.idempotency_key}:{params_hash}:{request.execution_mode}"
     cached = await redis_client.get(REDIS_KEY_IDEMPOTENCY.format(key=idem_key))
     if cached:
         data = json.loads(cached)
@@ -163,16 +164,25 @@ async def submit_approval_request(
     )
 
     if not rule:
-        # No rule = auto-approve, execute via Token Vault immediately
+        # No rule = auto-approve.
         await db.commit()  # persist auto-discovered agent (if created above)
-        from api.services.token_vault import token_vault_service
-        exec_result = await token_vault_service.execute_action(
+        if request.execution_mode == EXECUTION_MODE_CLIENT:
+            # Client execution: ApprovalKit does policy/approval/audit only —
+            # the caller runs the action. No Token Vault / executor call.
+            return ApprovalResponse(
+                job_id=str(uuid.uuid4()),
+                status="approved",
+                message="No matching rule — auto-approved (caller executes the action)",
+            )
+        # Server execution: run the action via the configured ActionExecutor.
+        from api.providers import get_action_executor, ActionExecutionRequest
+        exec_result = await get_action_executor().execute(ActionExecutionRequest(
             connection=request.connection,
             action=request.action,
             params=request.params,
             workspace_id=str(workspace.id),
             db=db,
-        )
+        ))
         return ApprovalResponse(
             job_id=str(uuid.uuid4()),
             status="approved",
@@ -218,6 +228,7 @@ async def submit_approval_request(
             state=JobState.PRE_APPROVED,
             required_count=1,
             completed_at=datetime.utcnow(),
+            execution_mode=request.execution_mode,
         )
         db.add(job)
 
@@ -262,6 +273,7 @@ async def submit_approval_request(
             completed_at=datetime.utcnow(),
             risk_score=risk_score_val,
             risk_level=risk_level_val,
+            execution_mode=request.execution_mode,
         )
         db.add(job)
         db.add(AuditLog(
@@ -284,6 +296,7 @@ async def submit_approval_request(
         workspace, rule, request.connection, request.action, request.params,
         request.user_id, request.idempotency_key, db, redis_client,
         risk_score=risk_score_val, risk_level=risk_level_val,
+        execution_mode=request.execution_mode,
     )
 
     # Scope creep audit (only for SDK requests, not test)
@@ -330,6 +343,7 @@ async def _create_pending_job(
     params: dict, user_id: str, idempotency_key: str,
     db: AsyncSession, redis_client: aioredis.Redis,
     risk_score: int = 0, risk_level: str = "low",
+    execution_mode: str = "server",
 ) -> ApprovalJob:
     """Shared: create ApprovalJob, audit log, enqueue Celery task, publish SSE."""
     required = get_required_approval_count(rule)
@@ -347,6 +361,7 @@ async def _create_pending_job(
         expires_at=datetime.utcnow() + timedelta(seconds=rule.timeout_seconds),
         risk_score=risk_score,
         risk_level=risk_level,
+        execution_mode=execution_mode,
     )
     db.add(job)
     audit = AuditLog(
@@ -695,17 +710,25 @@ async def submit_web_decision(
         "timestamp": datetime.utcnow().isoformat(),
     }))
 
-    # If approved, execute action via Token Vault
+    # If approved, run the action server-side (server mode) or hand it back to
+    # the caller (client mode — ApprovalKit only records the decision here).
     execution_result = None
     if decision == "approve":
-        from api.services.token_vault import token_vault_service
-        execution_result = await token_vault_service.execute_action(
-            connection=job.connection,
-            action=job.action,
-            params=modified_params or job.final_params or job.params,
-            workspace_id=str(job.workspace_id),
-            db=db,
-        )
+        if getattr(job, "execution_mode", "server") == EXECUTION_MODE_CLIENT:
+            execution_result = {
+                "skipped": True,
+                "client_execution": True,
+                "message": "Approved — caller executes the action",
+            }
+        else:
+            from api.providers import get_action_executor, ActionExecutionRequest
+            execution_result = await get_action_executor().execute(ActionExecutionRequest(
+                connection=job.connection,
+                action=job.action,
+                params=modified_params or job.final_params or job.params,
+                workspace_id=str(job.workspace_id),
+                db=db,
+            ))
         # Record per-rule budget spending
         if rule and getattr(rule, "budget_limits", None):
             spend_params = modified_params or job.final_params or job.params

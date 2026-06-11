@@ -100,6 +100,7 @@ async def request_approval(
     action: str,
     params: dict[str, Any],
     user_id: str = "mcp-agent",
+    execution_mode: str = "client",
 ) -> str:
     """Request human approval for an action. The action will NOT execute until a human approves it.
 
@@ -108,6 +109,9 @@ async def request_approval(
         action: Action to perform (e.g. "charge", "deploy", "send_message")
         params: Action parameters (e.g. {"amount": 500, "customer": "alice@example.com"})
         user_id: Identifier for this agent (for audit trail)
+        execution_mode: "client" (default) → ApprovalKit only approves/audits and YOU
+            run the action after approval. "server" → ApprovalKit runs the action
+            server-side via Token Vault.
 
     Returns:
         Approval status and job ID. Poll with check_approval_status() to wait for the decision.
@@ -119,6 +123,7 @@ async def request_approval(
         "params": params,
         "user_id": user_id,
         "idempotency_key": str(uuid.uuid4()),
+        "execution_mode": execution_mode,
     })
     return json.dumps(result, indent=2)
 
@@ -150,6 +155,7 @@ async def wait_for_approval(
     params: dict[str, Any],
     user_id: str = "mcp-agent",
     timeout_seconds: int = 300,
+    execution_mode: str = "client",
 ) -> str:
     """Request approval and wait until it's granted or denied. Blocks until resolution.
 
@@ -162,9 +168,12 @@ async def wait_for_approval(
         params: Action parameters
         user_id: Agent identifier
         timeout_seconds: Max seconds to wait (default 300)
+        execution_mode: "client" (default) → you run the action after approval;
+            "server" → ApprovalKit runs it via Token Vault.
 
     Returns:
-        Final result: approved (with execution result) or rejected/timeout/blocked.
+        Final result: approved (you run the action) or rejected/timeout/blocked.
+        In server mode, approved includes the server-side execution result.
     """
     import uuid
     result = await _api_call("POST", "/api/v1/request", {
@@ -173,6 +182,7 @@ async def wait_for_approval(
         "params": params,
         "user_id": user_id,
         "idempotency_key": str(uuid.uuid4()),
+        "execution_mode": execution_mode,
     })
 
     status = result.get("status")

@@ -48,6 +48,9 @@ class ApprovalJob(Base):
     action: Mapped[str] = mapped_column(String(100), nullable=False)
     params: Mapped[dict] = mapped_column(JSONB, nullable=False)
     agent_user_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    # Who runs the approved action: "client" (caller/SDK) or "server"
+    # (ApprovalKit via an ActionExecutor, e.g. Auth0 Token Vault).
+    execution_mode: Mapped[str] = mapped_column(String(10), nullable=False, default="server")
     state: Mapped[JobState] = mapped_column(Enum(JobState, name="job_state", values_callable=lambda x: [e.value for e in x]), default=JobState.PENDING)
     approvals_count: Mapped[int] = mapped_column(Integer, default=0)
     required_count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)

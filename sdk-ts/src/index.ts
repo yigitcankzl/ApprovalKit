@@ -1,11 +1,17 @@
 /**
  * ApprovalKit TypeScript/JavaScript SDK
  * ======================================
- * Add human approval to AI agents with a single function call.
- * After approval, Auth0 Token Vault executes the action server-side —
- * the agent never holds credentials.
+ * Add a human approval gate to AI agents with a single function call.
  *
- * Usage (TypeScript):
+ * Execution modes:
+ *  - 'client' (default): ApprovalKit does policy + approval + audit only.
+ *    After a human approves, the SDK runs YOUR function with the approved
+ *    params and returns its value. Nothing runs server-side.
+ *  - 'server': legacy behavior — the wrapped function is never called;
+ *    ApprovalKit executes the action server-side (Auth0 Token Vault) and
+ *    gate() returns the approval result.
+ *
+ * Usage (TypeScript, client mode):
  *   import { ApprovalKit, ApprovalDenied } from 'approvalkit-sdk';
  *
  *   const kit = new ApprovalKit({
@@ -15,18 +21,17 @@
  *     userId: 'my-ts-agent',
  *   });
  *
- *   // Gate — blocks until approved
+ *   // Gate — blocks until approved; returns the approval result (you run the action)
  *   const result = await kit.gate('gmail', 'send_email', {
  *     to: 'cto@company.com',
  *     subject: 'Q4 Budget Report',
  *     body: '...',
  *   });
- *   // result.status === 'approved'
- *   // result.finalParams may differ if approver modified params
+ *   if (result.status === 'approved') await sendEmail(result.finalParams);
  *
- *   // Decorator pattern (wraps any async function)
+ *   // requiresApproval — after approval, your function runs with finalParams
  *   const safeSend = kit.requiresApproval('gmail', 'send_email')(sendEmail);
- *   const result = await safeSend({ to: '...', subject: '...' });
+ *   const sent = await safeSend({ to: '...', subject: '...' });
  */
 
 import { createHmac } from 'crypto';
@@ -49,6 +54,11 @@ export interface ApprovalKitConfig {
   timeout?: number;
   /** HTTP request timeout in milliseconds (default: 10000) */
   httpTimeout?: number;
+  /**
+   * Who runs the approved action. 'client' (default) → your code runs it
+   * after approval. 'server' → ApprovalKit runs it via Token Vault.
+   */
+  executionMode?: 'client' | 'server';
 }
 
 export interface GateResult {
@@ -100,6 +110,7 @@ export class ApprovalKit {
   private readonly pollInterval: number;
   private readonly timeout: number;
   private readonly httpTimeout: number;
+  private readonly executionMode: 'client' | 'server';
 
   constructor(config: ApprovalKitConfig = {}) {
     this.baseUrl = (
@@ -113,6 +124,14 @@ export class ApprovalKit {
     this.pollInterval = Math.max(1, Math.min(config.pollInterval ?? 3, 120));
     this.timeout = Math.max(10, Math.min(config.timeout ?? 300, 3600));
     this.httpTimeout = Math.max(1000, Math.min(config.httpTimeout ?? 10000, 60000));
+    const mode =
+      config.executionMode ||
+      (process.env.APPROVALKIT_EXECUTION_MODE as 'client' | 'server' | undefined) ||
+      'client';
+    if (mode !== 'client' && mode !== 'server') {
+      throw new Error(`executionMode must be 'client' or 'server', got ${mode}`);
+    }
+    this.executionMode = mode;
   }
 
   // ── Internal helpers ───────────────────────────────────────────────────────
@@ -158,6 +177,7 @@ export class ApprovalKit {
       params,
       user_id: this.userId,
       idempotency_key: randomUUID(),
+      execution_mode: this.executionMode,
     };
     const body = JSON.stringify(payload);
     const { ts, sig } = this._sign(body);
@@ -264,8 +284,14 @@ export class ApprovalKit {
 
   /**
    * requiresApproval — decorator factory.
-   * Wraps an async function so it goes through approval before executing.
-   * The wrapped function is never called; Token Vault handles execution.
+   * Wraps an async function so it goes through a human approval gate first.
+   *
+   * client mode (default): after approval, `fn(finalParams)` runs and its
+   *   value is returned (finalParams may have been modified by the approver).
+   * server mode: `fn` is never called; ApprovalKit executes server-side and
+   *   the wrapper resolves to the GateResult.
+   *
+   * Throws ApprovalDenied if rejected/timed out/blocked — fn never runs.
    *
    * @example
    *   const safeDeploy = kit.requiresApproval('github', 'deploy')(deploy);
@@ -277,8 +303,12 @@ export class ApprovalKit {
   ): <T extends (params: Record<string, unknown>) => Promise<unknown>>(fn: T) => T {
     return <T extends (params: Record<string, unknown>) => Promise<unknown>>(fn: T): T => {
       const wrapped = async (params: Record<string, unknown>) => {
-        void fn; // fn body intentionally unused — Token Vault handles execution
-        return this.gate(connection, action, params);
+        const result = await this.gate(connection, action, params);
+        if (this.executionMode === 'server') {
+          return result;
+        }
+        // client mode: run the caller's function with the approved params
+        return fn(result.finalParams ?? params);
       };
       return wrapped as unknown as T;
     };

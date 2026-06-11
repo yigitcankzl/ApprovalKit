@@ -1,0 +1,133 @@
+# ApprovalKit — local-first quickstart (no Auth0, no Ollama, no GPU).
+#
+#   docker compose -f docker-compose.local.yml up
+#
+# This is the canonical "try it in 10 minutes" stack. It runs the API +
+# worker against Postgres and Redis with the local provider, so you can
+# drive a full approval flow with the SDK and approve/reject over HTTP via
+# the /local-approvals endpoints — no Auth0 account or model server needed.
+#
+# Auth0 (CIBA push, Token Vault server-side execution) is an optional,
+# production-grade provider — see docker-compose.yml for that stack.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: approvalkit
+      POSTGRES_USER: approvalkit
+      POSTGRES_PASSWORD: approvalkit
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata_local:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U approvalkit -d approvalkit"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Shared local-provider environment. No Auth0 credentials required.
+  # HMAC_SECRET is a dev value — override it for anything beyond local use.
+  x-local-env: &local-env
+    DATABASE_URL: postgresql+asyncpg://approvalkit:approvalkit@postgres:5432/approvalkit
+    REDIS_URL: redis://redis:6379/0
+    CELERY_BROKER_URL: redis://redis:6379/1
+    CELERY_RESULT_BACKEND: redis://redis:6379/2
+    ENVIRONMENT: development
+    DEBUG: "true"
+    # Pluggable providers → local (Auth0-less). The caller runs actions
+    # itself (client execution mode), so no Token Vault / executor is needed.
+    APPROVAL_PROVIDER: local
+    HMAC_SECRET: local-dev-hmac-secret-change-me
+    FRONTEND_URL: http://localhost:3000
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    command:
+      - sh
+      - -c
+      - |
+        cd /app && PYTHONPATH=/app python -B -c "
+        import asyncio, os
+        from sqlalchemy.ext.asyncio import create_async_engine
+        from api.database import Base
+        from api.models.workspace import Workspace
+        from api.models.connection import ServiceConnection
+        from api.models.approver import Approver
+        from api.models.rule import Rule, RuleApprover
+        from api.models.approval_job import ApprovalJob, AuditLog
+        from api.models.agent import RegisteredAgent
+        async def main():
+            engine = create_async_engine(os.environ['DATABASE_URL'])
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            await engine.dispose()
+        asyncio.run(main())
+        "
+    environment: *local-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./api:/app/api
+      - ./scripts:/app/scripts
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "8000:8000"
+    environment: *local-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - ./api:/app/api
+      - ./scripts:/app/scripts
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    command: celery -A api.worker.celery_app worker --loglevel=info --concurrency=4
+    environment: *local-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - ./api:/app/api
+      - ./scripts:/app/scripts
+    restart: unless-stopped
+
+volumes:
+  pgdata_local:

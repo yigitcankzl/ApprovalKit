@@ -1,12 +1,19 @@
 """
 ApprovalKit Python SDK
 ======================
-Add human approval to any function with a single decorator.
-After approval, Token Vault executes the action server-side —
-the agent never holds credentials.
+Add a human approval gate to any function with a single decorator.
 
-Usage:
-    from approvalkit_sdk import ApprovalKit, ApprovalDenied
+Execution modes
+---------------
+* ``"client"`` (default): ApprovalKit does policy + approval + audit only.
+  After a human approves, the SDK runs *your* function and returns its value.
+  No credentials leave your process; nothing runs server-side.
+* ``"server"``: legacy behavior — the decorated function body is never run;
+  ApprovalKit executes the action server-side (e.g. Auth0 Token Vault) and
+  the SDK returns the approval result dict.
+
+Usage (client mode — the default):
+    from approvalkit import ApprovalKit, ApprovalDenied
 
     kit = ApprovalKit(
         base_url="http://localhost:8000",
@@ -15,25 +22,32 @@ Usage:
         user_id="my-agent",
     )
 
-    # Decorator — fn() body is never called; Token Vault executes the action
+    # Decorator — after approval, YOUR function runs and its value is returned.
     @kit.requires_approval(connection="stripe-prod", action="charge")
     def charge_customer(amount: int, customer: str):
-        pass  # body ignored — Token Vault handles execution after approval
+        return stripe.Charge.create(amount=amount, customer=customer)
 
-    result = charge_customer(amount=150, customer="alice@example.com")
-    # result = {"status": "approved", "final_params": {...}}
+    receipt = charge_customer(amount=150, customer="alice@example.com")
 
-    # Inline gate
+    # Inline gate — returns the approval result only; you run the action.
     result = kit.gate("stripe-prod", "charge", {"amount": 150, "customer": "alice@example.com"})
-    # result = {"status": "approved", "final_params": {...}}
+    if result["status"] in ("approved", "pre_approved"):
+        do_charge(**result["final_params"])
 
     # Async decorator
     @kit.async_requires_approval(connection="github-main", action="deploy")
     async def deploy(env: str, branch: str):
-        pass
+        return await deploy_async(env=env, branch=branch)
 
-    # Async gate
-    result = await kit.async_gate("github-main", "deploy", {"env": "production", "branch": "main"})
+Usage (server mode — Auth0 Token Vault executes the action):
+    kit = ApprovalKit(..., execution_mode="server")
+
+    @kit.requires_approval(connection="stripe-prod", action="charge")
+    def charge_customer(amount: int, customer: str):
+        pass  # body ignored — server executes after approval
+
+    result = charge_customer(amount=150, customer="alice@example.com")
+    # result = {"status": "approved", "final_params": {...}}
 """
 
 import asyncio
@@ -78,6 +92,7 @@ class ApprovalKit:
         poll_interval: int = 3,
         timeout: int = 300,
         http_timeout: int = 10,
+        execution_mode: str = "client",
     ):
         import os
         self.base_url = (base_url or os.getenv("APPROVALKIT_BASE_URL", "http://localhost:8000")).rstrip("/")
@@ -87,6 +102,10 @@ class ApprovalKit:
         self.poll_interval = max(1, min(poll_interval, 120))
         self.timeout = max(10, min(timeout, 3600))
         self.http_timeout = max(1, min(http_timeout, 60))
+        mode = (execution_mode or os.getenv("APPROVALKIT_EXECUTION_MODE", "client")).strip().lower()
+        if mode not in ("client", "server"):
+            raise ValueError(f"execution_mode must be 'client' or 'server', got {execution_mode!r}")
+        self.execution_mode = mode
 
 
     # ------------------------------------------------------------------
@@ -134,6 +153,7 @@ class ApprovalKit:
             "params": params,
             "user_id": self.user_id,
             "idempotency_key": str(uuid.uuid4()),
+            "execution_mode": self.execution_mode,
         }
         body = json.dumps(payload, separators=(",", ":"))
         ts, sig = self._sign(body)
@@ -146,7 +166,11 @@ class ApprovalKit:
         )
 
         if r.status_code == 200:
-            return {"status": "pre_approved"}
+            try:
+                data = r.json()
+                return {"status": data.get("status", "pre_approved")}
+            except ValueError:
+                return {"status": "pre_approved"}
         if r.status_code == 202:
             try:
                 data = r.json()
@@ -216,9 +240,9 @@ class ApprovalKit:
 
         result = self._request_approval(connection, action, params)
 
-        if result["status"] == "pre_approved":
-            _log.info(" Pre-approved — Token Vault executing.")
-            return {"status": "pre_approved", "final_params": params}
+        if result["status"] in ("approved", "pre_approved"):
+            _log.info(" Pre-approved.")
+            return {"status": result["status"], "final_params": params}
 
         if result["status"] == "blocked":
             _log.info(" Blocked by policy.")
@@ -231,7 +255,10 @@ class ApprovalKit:
 
         if status == "approved":
             final_params = data.get("final_params") or params
-            _log.info(" Approved — Token Vault executed server-side.")
+            if self.execution_mode == "server":
+                _log.info(" Approved — action executed server-side.")
+            else:
+                _log.info(" Approved — running your function.")
             return {"status": "approved", "final_params": final_params}
 
         _log.info(f"{status} — action NOT executed.")
@@ -252,29 +279,48 @@ class ApprovalKit:
     ):
         """
         Decorator — gates the wrapped function behind a human approval.
-        fn() body is NEVER called. After approval, Token Vault executes
-        the action server-side using stored credentials.
 
-        Returns {"status": "approved", "final_params": {...}}.
+        client mode (default): after approval, the wrapped function runs and
+            its return value is returned to the caller. If the approver
+            modified params, the modified values are applied — except when
+            ``params_fn`` is used (see below), where the original arguments
+            are passed through unchanged.
+        server mode: the function body is NEVER run; ApprovalKit executes the
+            action server-side and the decorator returns
+            ``{"status": "approved", "final_params": {...}}``.
+
+        Raises ApprovalDenied on rejection/timeout/block — the function never runs.
 
         params_fn: optional callable to build the params dict from fn args.
-                   If omitted, all fn arguments are sent as params.
+            If omitted, all fn arguments are sent as params. In client mode,
+            using params_fn disables automatic final-param mapping (the
+            approver's modifications cannot be mapped back to the function
+            signature); use gate() directly if you need to apply them.
         """
         def decorator(fn: Callable) -> Callable:
             @functools.wraps(fn)
             def wrapper(*args, **kwargs):
                 params = self._resolve_params(fn, params_fn, args, kwargs)
-                return self._wait_for_approval(connection, action, params)
+                result = self._wait_for_approval(connection, action, params)
+                if self.execution_mode == "server":
+                    return result
+                # client mode: run the user's function after approval
+                if params_fn is not None:
+                    # Advanced: no automatic param mapping — pass original args.
+                    return fn(*args, **kwargs)
+                final_params = result.get("final_params") or params
+                return fn(**final_params)
             return wrapper
         return decorator
 
     def gate(self, connection: str, action: str, params: dict) -> dict:
         """
         Inline approval gate — blocks until approved or raises ApprovalDenied.
-        Token Vault executes the action server-side after approval.
 
-        Returns {"status": "approved", "final_params": {...}}.
-        final_params may differ from params if the approver modified them.
+        Returns the approval result only: {"status": "approved"/"pre_approved",
+        "final_params": {...}}. final_params may differ from params if the
+        approver modified them. The caller runs the action (client mode); in
+        server mode ApprovalKit has already executed it.
         """
         return self._wait_for_approval(connection, action, params)
 
@@ -290,22 +336,30 @@ class ApprovalKit:
     ):
         """
         Async version of requires_approval.
-        HTTP calls run in a thread pool — event loop is not blocked.
-        fn() body is NEVER called.
+        HTTP calls run in a thread pool — the event loop is not blocked.
+
+        client mode (default): after approval, ``await fn(...)`` runs and its
+            value is returned. server mode: fn body is NEVER run.
         """
         def decorator(fn: Callable) -> Callable:
             @functools.wraps(fn)
             async def wrapper(*args, **kwargs):
                 params = self._resolve_params(fn, params_fn, args, kwargs)
-                return await asyncio.to_thread(
+                result = await asyncio.to_thread(
                     self._wait_for_approval, connection, action, params
                 )
+                if self.execution_mode == "server":
+                    return result
+                if params_fn is not None:
+                    return await fn(*args, **kwargs)
+                final_params = result.get("final_params") or params
+                return await fn(**final_params)
             return wrapper
         return decorator
 
     async def async_gate(self, connection: str, action: str, params: dict) -> dict:
         """
         Async version of gate — awaitable, non-blocking for the event loop.
-        Token Vault executes the action server-side after approval.
+        Returns the approval result; the caller runs the action (client mode).
         """
         return await asyncio.to_thread(self._wait_for_approval, connection, action, params)

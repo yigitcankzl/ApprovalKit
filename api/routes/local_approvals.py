@@ -7,6 +7,7 @@ approvals and approve/reject them without Auth0 / Guardian.
 
 Endpoints
 ---------
+GET  /local-approvals                   → list pending requests (no log scraping)
 GET  /local-approvals/{handle}          → inspect a pending request
 POST /local-approvals/{handle}/approve  → mark as approved
 POST /local-approvals/{handle}/reject   → mark as rejected
@@ -20,11 +21,19 @@ from fastapi import APIRouter, HTTPException
 
 from api.providers.local.approval import (
     get_pending,
+    list_pending,
     record_decision,
 )
 
 
 router = APIRouter(prefix="/local-approvals", tags=["local-approvals"])
+
+
+@router.get("")
+async def list_local_approvals(include_decided: bool = False) -> list[dict]:
+    """List local-approval requests so you can approve/reject by handle
+    without scraping the API logs. Pending only by default."""
+    return await list_pending(include_decided=include_decided)
 
 
 @router.get("/{handle}")

@@ -12,6 +12,20 @@ REDIS_KEY_SSE_CHANNEL = "sse:activity"     # SSE pub/sub channel for live feed
 # Forbidden param keys (injection prevention)
 FORBIDDEN_PARAM_KEYS = {"__proto__", "constructor", "$where", "__prototype__"}
 
+# Execution mode — who runs the approved action.
+#   "client" — ApprovalKit only does policy/approval/audit; the SDK (the
+#              caller) runs the action after approval. This is the default
+#              for new SDKs and the local-first quickstart.
+#   "server" — ApprovalKit runs the action server-side via an ActionExecutor
+#              (e.g. Auth0 Token Vault). Legacy behavior; kept for REST
+#              backward-compatibility when the field is omitted.
+EXECUTION_MODE_CLIENT = "client"
+EXECUTION_MODE_SERVER = "server"
+EXECUTION_MODES = {EXECUTION_MODE_CLIENT, EXECUTION_MODE_SERVER}
+# REST requests that omit execution_mode default to "server" so existing
+# integrations keep their server-side execution behavior.
+DEFAULT_EXECUTION_MODE = EXECUTION_MODE_SERVER
+
 # Default notification channels
 DEFAULT_NOTIFY_CHANNELS = ["guardian_push"]
 DEFAULT_URGENT_CHANNELS = ["guardian_push"]

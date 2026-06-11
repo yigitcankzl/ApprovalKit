@@ -159,10 +159,10 @@ export default function WelcomePage() {
           <div>
             <div className="flex items-center gap-2 mb-5 flex-wrap">
               <span className="inline-flex items-center gap-1.5 bg-gradient-to-r from-purple-100 to-blue-100 dark:from-purple-900/30 dark:to-blue-900/30 text-purple-700 dark:text-purple-300 text-xs font-semibold px-3 py-1.5 rounded-full border border-purple-200 dark:border-purple-800">
-                🏆 Auth0 Hackathon 2026
+                Open source · Local-first
               </span>
               <span className="inline-flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 text-xs font-medium px-3 py-1.5 rounded-full">
-                Built on Auth0 Token Vault + CIBA + FGA
+                Pluggable providers — Auth0 optional
               </span>
             </div>
 

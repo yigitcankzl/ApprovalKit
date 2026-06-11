@@ -146,3 +146,31 @@ async def get_pending(handle: str) -> dict[str, Any] | None:
         return json.loads(raw)
     except (json.JSONDecodeError, TypeError):
         return None
+
+
+async def list_pending(*, include_decided: bool = False) -> list[dict[str, Any]]:
+    """List local-approval records so operators can approve/reject without
+    scraping logs for a handle.
+
+    Returns a list of records, each with its ``handle`` included, newest
+    first. By default only ``pending`` records are returned; pass
+    ``include_decided=True`` to also see already-approved/rejected ones.
+    """
+    redis = get_redis()
+    out: list[dict[str, Any]] = []
+    async for key in redis.scan_iter(match=f"{_KEY_PREFIX}*"):
+        raw = await redis.get(key)
+        if raw is None:
+            continue
+        try:
+            record = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            continue
+        if not include_decided and record.get("status") != "pending":
+            continue
+        # redis_pool decodes responses, so keys are str; strip the prefix.
+        handle = key[len(_KEY_PREFIX):] if isinstance(key, str) else key.decode()[len(_KEY_PREFIX):]
+        record["handle"] = handle
+        out.append(record)
+    out.sort(key=lambda r: r.get("created_at", 0), reverse=True)
+    return out

@@ -4,6 +4,8 @@ from __future__ import annotations
 import pytest
 
 from api.providers.base import (
+    ActionExecutionRequest,
+    ActionExecutor,
     ApprovalChannel,
     ApprovalRequest,
     ApprovalStatus,
@@ -13,6 +15,7 @@ from api.providers.base import (
     ProviderUnavailable,
 )
 from api.providers.local.credentials import LocalCredentialStore
+from api.providers.local.executor import LocalActionExecutor
 from api.providers.local.identity import LocalHeaderIdentityProvider
 
 
@@ -25,6 +28,7 @@ def test_protocols_are_runtime_checkable():
         LocalCredentialStore(loader=_loader_returning(None)), CredentialStore,
     )
     assert isinstance(LocalHeaderIdentityProvider(), IdentityProvider)
+    assert isinstance(LocalActionExecutor(), ActionExecutor)
 
 
 def test_factory_resolves_local_backend(monkeypatch):
@@ -32,6 +36,7 @@ def test_factory_resolves_local_backend(monkeypatch):
     from api.config import get_settings
     get_settings.cache_clear()  # type: ignore[attr-defined]
     from api.providers import (
+        get_action_executor,
         get_approval_channel,
         get_credential_store,
         get_identity_provider,
@@ -42,9 +47,40 @@ def test_factory_resolves_local_backend(monkeypatch):
     assert get_approval_channel().name == "local"
     assert get_credential_store().name == "local-fernet"
     assert get_identity_provider().name == "local-header"
+    assert get_action_executor().name == "local-noop"
 
     reset_provider_cache()
     get_settings.cache_clear()  # type: ignore[attr-defined]
+
+
+def test_factory_resolves_auth0_executor(monkeypatch):
+    monkeypatch.setenv("APPROVAL_PROVIDER", "auth0")
+    from api.config import get_settings
+    get_settings.cache_clear()  # type: ignore[attr-defined]
+    from api.providers import get_action_executor, reset_provider_cache
+    reset_provider_cache()
+
+    assert get_action_executor().name == "auth0-token-vault"
+
+    reset_provider_cache()
+    get_settings.cache_clear()  # type: ignore[attr-defined]
+
+
+def test_local_executor_is_a_noop():
+    """The local executor never runs anything server-side — it returns a
+    skipped receipt so client-mode callers know to run the action themselves."""
+    import asyncio
+
+    executor = LocalActionExecutor()
+    receipt = asyncio.run(executor.execute(ActionExecutionRequest(
+        connection="stripe",
+        action="charge",
+        params={"amount": 100},
+        workspace_id="ws-1",
+        db=None,
+    )))
+    assert receipt["skipped"] is True
+    assert receipt["success"] is False
 
 
 def test_factory_rejects_unknown_backend(monkeypatch):

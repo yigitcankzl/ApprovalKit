@@ -54,6 +54,11 @@ MIGRATIONS: list[tuple[str, str]] = [
         "approval_jobs.approval_expires_at",
         "ALTER TABLE approval_jobs ADD COLUMN IF NOT EXISTS approval_expires_at TIMESTAMP WITH TIME ZONE DEFAULT NULL",
     ),
+    # Client/server execution mode — "server" default keeps legacy behavior
+    (
+        "approval_jobs.execution_mode",
+        "ALTER TABLE approval_jobs ADD COLUMN IF NOT EXISTS execution_mode VARCHAR(10) NOT NULL DEFAULT 'server'",
+    ),
 ]
 
 

@@ -16,7 +16,12 @@ from functools import lru_cache
 from typing import Any
 
 from api.config import get_settings
-from api.providers.base import ApprovalChannel, CredentialStore, IdentityProvider
+from api.providers.base import (
+    ActionExecutor,
+    ApprovalChannel,
+    CredentialStore,
+    IdentityProvider,
+)
 
 
 def _resolve(override: str, default: str) -> str:
@@ -81,8 +86,22 @@ def get_credential_store() -> CredentialStore:
     return _build_credential_store()
 
 
+@lru_cache(maxsize=1)
+def get_action_executor() -> ActionExecutor:
+    settings = get_settings()
+    backend = _resolve(settings.ACTION_EXECUTOR, settings.APPROVAL_PROVIDER)
+    if backend == "local":
+        from api.providers.local import LocalActionExecutor
+        return LocalActionExecutor()
+    if backend == "auth0":
+        from api.providers.auth0 import Auth0TokenVaultExecutor
+        return Auth0TokenVaultExecutor()
+    raise ValueError(f"Unknown ACTION_EXECUTOR backend: {backend!r}")
+
+
 def reset_provider_cache() -> None:
     """Drop cached providers — primarily for tests that flip env vars."""
     get_approval_channel.cache_clear()
     get_identity_provider.cache_clear()
     get_credential_store.cache_clear()
+    get_action_executor.cache_clear()

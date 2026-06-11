@@ -21,6 +21,8 @@ Concrete providers live in `api/providers/auth0` and
 `APPROVAL_PROVIDER` (and individual overrides) in settings.
 """
 from api.providers.base import (
+    ActionExecutionRequest,
+    ActionExecutor,
     ApprovalChannel,
     ApprovalRequest,
     ApprovalResponse,
@@ -31,6 +33,7 @@ from api.providers.base import (
     ProviderUnavailable,
 )
 from api.providers.factory import (
+    get_action_executor,
     get_approval_channel,
     get_credential_store,
     get_identity_provider,
@@ -38,6 +41,8 @@ from api.providers.factory import (
 )
 
 __all__ = [
+    "ActionExecutionRequest",
+    "ActionExecutor",
     "ApprovalChannel",
     "ApprovalRequest",
     "ApprovalResponse",
@@ -46,6 +51,7 @@ __all__ = [
     "IdentityProvider",
     "Identity",
     "ProviderUnavailable",
+    "get_action_executor",
     "get_approval_channel",
     "get_credential_store",
     "get_identity_provider",

@@ -97,3 +97,51 @@ def test_action_allows_underscores():
         idempotency_key="key1",
     )
     assert req.action == "merge_pr"
+
+
+def test_execution_mode_defaults_to_server_for_rest():
+    """Omitted execution_mode falls back to 'server' for REST back-compat."""
+    req = ApprovalRequest(
+        connection="stripe",
+        action="charge",
+        params={},
+        user_id="auth0|123",
+        idempotency_key="key1",
+    )
+    assert req.execution_mode == "server"
+
+
+def test_execution_mode_accepts_client():
+    req = ApprovalRequest(
+        connection="stripe",
+        action="charge",
+        params={},
+        user_id="auth0|123",
+        idempotency_key="key1",
+        execution_mode="client",
+    )
+    assert req.execution_mode == "client"
+
+
+def test_execution_mode_accepts_server():
+    req = ApprovalRequest(
+        connection="stripe",
+        action="charge",
+        params={},
+        user_id="auth0|123",
+        idempotency_key="key1",
+        execution_mode="server",
+    )
+    assert req.execution_mode == "server"
+
+
+def test_execution_mode_rejects_invalid():
+    with pytest.raises(ValidationError):
+        ApprovalRequest(
+            connection="stripe",
+            action="charge",
+            params={},
+            user_id="auth0|123",
+            idempotency_key="key1",
+            execution_mode="hybrid",
+        )

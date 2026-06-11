@@ -17,11 +17,26 @@ APPROVAL_PROVIDER=local
 APPROVAL_CHANNEL=local       # how humans are reached
 CREDENTIAL_STORE=auth0       # where credentials live
 IDENTITY_PROVIDER=local      # how callers are authenticated
+ACTION_EXECUTOR=auth0        # who runs approved actions (server execution mode)
 ```
 
 The factory in [`api/providers/factory.py`](https://github.com/yigitcankzl/ApprovalKit/blob/main/api/providers/factory.py)
 caches the resolved providers; call `reset_provider_cache()` from
 tests that flip env vars.
+
+## Execution modes
+
+A request's `execution_mode` decides who runs the approved action:
+
+- **`client`** (SDK/MCP default) — ApprovalKit does policy + approval + audit
+  only. No `ActionExecutor` runs; the caller executes the action. This is the
+  local-first path and needs no server-side credentials.
+- **`server`** (REST default, for backward-compat) — after approval ApprovalKit
+  runs the action through the configured `ActionExecutor` provider.
+
+The `local` action executor is a no-op (returns a skipped receipt), so the local
+provider is built for client execution. Use the `auth0` executor (Token Vault)
+for server-side execution.
 
 ## Backends compared
 
@@ -35,7 +50,7 @@ tests that flip env vars.
 
 ## Protocols
 
-All backends implement three Protocols defined in
+All backends implement these Protocols defined in
 [`api/providers/base.py`](https://github.com/yigitcankzl/ApprovalKit/blob/main/api/providers/base.py):
 
 ```python
@@ -50,6 +65,11 @@ class CredentialStore(Protocol):
     async def get_access_token(self, *, user_id: str, connection: str,
         scope: str | None = None) -> str: ...
     async def health_check(self, *, user_id: str, connection: str) -> bool: ...
+
+class ActionExecutor(Protocol):     # runs approved actions in server mode
+    name: str
+    async def execute(self, request: ActionExecutionRequest)
+        -> dict[str, Any]: ...
 
 class IdentityProvider(Protocol):
     name: str

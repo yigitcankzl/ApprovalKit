@@ -76,6 +76,9 @@ class Settings(BaseSettings):
     APPROVAL_CHANNEL: str = ""
     CREDENTIAL_STORE: str = ""
     IDENTITY_PROVIDER: str = ""
+    # Backend that runs approved actions in server execution mode. `auth0`
+    # wraps Token Vault; `local` is a no-op (client mode runs actions itself).
+    ACTION_EXECUTOR: str = ""
     # When the local approval channel is active, auto-approve every
     # request. Intended for unattended CI / integration test runs only.
     LOCAL_APPROVAL_AUTO_APPROVE: bool = False
