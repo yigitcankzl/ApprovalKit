@@ -1,0 +1,38 @@
+{
+  "name": "@approvalkit/ack-verifier",
+  "version": "0.1.0",
+  "description": "ACK-ID agent identity verifier — built on Catena's Agent Commerce Kit. Library + HTTP sidecar used by ApprovalKit to verify a calling agent's DID + owner-issued ControllerCredential.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "bin": {
+    "ack-verifier": "./src/server.ts"
+  },
+  "scripts": {
+    "demo": "tsx src/demo.ts",
+    "start": "tsx src/server.ts",
+    "dev": "tsx watch src/server.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@agentcommercekit/ack-id": "^0.10.1",
+    "@agentcommercekit/did": "^0.10.1",
+    "@agentcommercekit/jwt": "^0.9.0",
+    "@agentcommercekit/keys": "^0.9.0",
+    "@agentcommercekit/vc": "^0.10.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.0"
+  }
+}
